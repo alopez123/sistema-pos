@@ -1,9 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { createClient } from '@/utils/supabase/client';
+import { supabase } from '../../lib/supabase'
 
 export default function TransfersModule({ businessId, branchId }: { businessId: string, branchId: string }) {
-  const supabase = createClient();
+ 
   const [transfers, setTransfers] = useState<any[]>([]);
   const [otherBranchesProducts, setOtherBranchesProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
