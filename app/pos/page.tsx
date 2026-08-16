@@ -207,8 +207,7 @@ export default function PosPage() {
     }
   }
 
-  // --- FUNCIÓN CORREGIDA Y COMPLETA DE REPORTE DE VENTAS ---
- async function loadSalesReport(bId?: string, brId?: string) {
+  async function loadSalesReport(bId?: string, brId?: string) {
     const currentBizId = bId || businessIdState || (() => {
       try {
         const staff = JSON.parse(localStorage.getItem('currentStaff') || '{}');
@@ -218,16 +217,15 @@ export default function PosPage() {
       } catch (e) { return null; }
     })();
 
-   const currentBranchId = brId || selectedBranch || (() => {
+    const currentBranchId = brId || selectedBranch || (() => {
       try {
         const staff = JSON.parse(localStorage.getItem('currentStaff') || '{}');
         return staff.branch_id;
       } catch (e) { return null; }
     })();
 
-if (!currentBizId || !currentBranchId) return;
+    if (!currentBizId || !currentBranchId) return;
 
-    // Consultamos directamente la tabla 'sales' uniendo los datos del cliente
     const { data, error } = await supabase
       .from('sales')
       .select(`
@@ -247,7 +245,6 @@ if (!currentBizId || !currentBranchId) return;
     }
 
     if (data) {
-      // Mapeamos los campos para que la interfaz los lea exactamente igual que antes
       const formattedSales = data.map((sale: any) => ({
         sale_id: sale.id,
         total_amount: sale.total_amount,
@@ -596,39 +593,45 @@ if (!currentBizId || !currentBranchId) return;
   )
 
   return (
-    <div className="min-h-screen bg-[#0f172a] p-6 text-white flex flex-col notranslate" translate="no">
-      <header className="bg-[#1e293b] p-4 rounded-lg shadow mb-6 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 border border-slate-700">
-  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-    <h1 className="text-xl font-bold">Punto de Venta (POS)</h1>
-    <select 
-      value={selectedBranch} 
-      onChange={e => handleBranchChange(e.target.value)}
-      disabled={isStaff}
-      className="bg-[#0f172a] border border-slate-600 px-3 py-2 rounded text-white outline-none focus:border-emerald-500 font-semibold disabled:opacity-75 disabled:cursor-not-allowed w-full sm:w-auto"
-    >
-      {branches.map(b => (
-        <option key={b.id} value={b.id}>{b.name}</option>
-      ))}
-    </select>
-  </div>
-  
-  <div className="flex items-center gap-2 justify-end">
-    <button 
-      onClick={() => router.push('/ventas-historia')} 
-      className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1"
-    >
-      📅 Historial / Días
-    </button>
-    <button 
-      onClick={handleExit} 
-      className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors"
-    >
-      {isStaff ? 'Cerrar Sesión' : 'Volver al Panel'}
-    </button>
-  </div>
-</header>
+    <div className="min-h-screen bg-[#0f172a] p-4 md:p-6 text-white flex flex-col w-full px-6 notranslate" translate="no">
+      <header className="bg-[#1e293b] p-4 rounded-lg shadow mb-6 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 border border-slate-700 w-full">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <h1 className="text-xl font-bold">Punto de Venta (POS)</h1>
+          <select 
+            value={selectedBranch} 
+            onChange={e => handleBranchChange(e.target.value)}
+            disabled={isStaff}
+            className="bg-[#0f172a] border border-slate-600 px-3 py-2 rounded text-white outline-none focus:border-emerald-500 font-semibold disabled:opacity-75 disabled:cursor-not-allowed w-full sm:w-auto"
+          >
+            {branches.map(b => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        </div>
+          
+        <div className="flex items-center gap-2 justify-end flex-wrap">
+          <button 
+            onClick={() => router.push('/cotizaciones')} 
+            className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1"
+          >
+            📄 Cotización
+          </button>
+          <button 
+            onClick={() => router.push('/ventas-historia')} 
+            className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1"
+          >
+            📅 Historial / Días
+          </button>
+          <button 
+            onClick={handleExit} 
+            className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors"
+          >
+            {isStaff ? 'Cerrar Sesión' : 'Volver al Panel'}
+          </button>
+        </div>
+      </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1">
+      <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-6 flex-1 w-full">
         
         {/* Columna 1: Menú Operativo Izquierdo */}
         <div className="bg-[#1e293b] p-5 rounded-lg shadow border border-slate-700 flex flex-col">
@@ -977,7 +980,48 @@ if (!currentBizId || !currentBranchId) return;
         </div>
 
         {/* Columna 2 y 3: Catálogo de Productos con Buscador y Autocompletado */}
-     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto max-h-[62vh] pr-1">
+        <div className="lg:col-span-2 xl:col-span-2 bg-[#1e293b] p-5 rounded-lg shadow border border-slate-700 flex flex-col">
+          <div className="mb-4 relative" ref={searchRef}>
+            <input 
+              type="text"
+              value={searchTerm}
+              onChange={e => {
+                setSearchTerm(e.target.value)
+                setShowSuggestions(true)
+              }}
+              onFocus={() => setShowSuggestions(true)}
+              placeholder="🔍 Buscar producto por nombre..."
+              className="w-full bg-[#0f172a] border border-slate-600 px-4 py-2.5 rounded-lg text-white text-sm outline-none focus:border-emerald-500 transition-colors"
+            />
+
+            {showSuggestions && searchTerm.trim() !== '' && (
+              <div className="absolute left-0 right-0 mt-1 bg-[#0f172a] border border-slate-600 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
+                {filteredProducts.length === 0 ? (
+                  <div className="p-3 text-xs text-slate-400 text-center">No se encontraron productos</div>
+                ) : (
+                  filteredProducts.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        addToCart(p)
+                        setSearchTerm('')
+                        setShowSuggestions(false)
+                      }}
+                      className="w-full text-left px-4 py-2.5 hover:bg-slate-800 flex justify-between items-center border-b border-slate-800/60 transition-colors text-xs"
+                    >
+                      <div>
+                        <span className="font-semibold text-white">{p.name}</span>
+                        <span className="text-slate-400 ml-2 text-[10px]">(Stock: {p.stock})</span>
+                      </div>
+                      <span className="text-emerald-400 font-bold" translate="no">Q {p.price}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto max-h-[62vh] pr-1 flex-1">
             {filteredProducts.length === 0 ? (
               <p className="text-slate-400 col-span-full text-center py-10">No hay productos que coincidan con la búsqueda.</p>
             ) : (
@@ -1006,6 +1050,7 @@ if (!currentBizId || !currentBranchId) return;
               ))
             )}
           </div>
+        </div>
 
         {/* Columna 4: Ticket de Venta Actual (Derecha) */}
         <div className="bg-[#1e293b] p-5 rounded-lg shadow border border-slate-700 flex flex-col justify-between">
