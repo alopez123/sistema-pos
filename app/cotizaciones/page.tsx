@@ -122,6 +122,84 @@ export default function NuevaCotizacionPage() {
 
   const totalAmount = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0)
 
+  // Función de impresión segura compatible con iPhone / iOS
+  const handlePrintQuoteMobile = () => {
+    const activeBranchName = branches.find(b => b.id === branchId)?.name || 'Sucursal Principal'
+    
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (doc) {
+      doc.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Cotización</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; color: #000; }
+              h1 { text-align: center; font-size: 18px; margin: 0 0 5px 0; text-transform: uppercase; }
+              h2 { text-align: center; font-size: 14px; margin: 0 0 15px 0; border-bottom: 2px solid #000; padding-bottom: 8px; }
+              .info { font-size: 11px; background: #f9f9f9; padding: 8px; border: 1px solid #ddd; margin-bottom: 15px; line-height: 1.4; }
+              table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+              th, td { border-bottom: 1px solid #ddd; padding: 6px 4px; text-align: left; font-size: 11px; }
+              th { border-bottom: 2px solid #000; font-weight: bold; }
+              .text-right { text-align: right; }
+              .total { text-align: right; font-weight: bold; margin-top: 15px; font-size: 14px; }
+            </style>
+          </head>
+          <body>
+            <h1>${activeBranchName}</h1>
+            <h2>COTIZACIÓN / PROFORMA</h2>
+            
+            <div class="info">
+              <div><b>NIT:</b> ${nit || 'C/F'}</div>
+              <div><b>Nombre o Razón Social:</b> ${nombre || 'Consumidor Final'}</div>
+              ${direccion ? `<div><b>Dirección:</b> ${direccion}</div>` : ''}
+              ${telefono ? `<div><b>Teléfono:</b> ${telefono}</div>` : ''}
+              ${correo ? `<div><b>Correo:</b> ${correo}</div>` : ''}
+              <div><b>Fecha:</b> ${new Date().toLocaleString()}</div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Cant.</th>
+                  <th>Descripción</th>
+                  <th class="text-right">Precio U.</th>
+                  <th class="text-right">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${cart.map(item => `
+                  <tr>
+                    <td><b>${item.quantity}</b></td>
+                    <td>${item.name}</td>
+                    <td class="text-right">Q ${item.price.toFixed(2)}</td>
+                    <td class="text-right"><b>Q ${(item.price * item.quantity).toFixed(2)}</b></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+
+            <div class="total">Total Cotización: Q ${totalAmount.toFixed(2)}</div>
+          </body>
+        </html>
+      `);
+      doc.close();
+
+      setTimeout(() => {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        setTimeout(() => document.body.removeChild(iframe), 500);
+      }, 500);
+    }
+  }
+
   const handleGuardarYGenerarPDF = async () => {
     if (!nit.trim() || !nombre.trim()) {
       alert('Por favor complete los campos obligatorios del cliente (NIT, Nombre).')
@@ -135,7 +213,7 @@ export default function NuevaCotizacionPage() {
 
     setLoading(true)
     try {
-      // 1. Guardar o actualizar cliente automáticamente con todos sus datos (Teléfono, Correo, Dirección)
+      // 1. Guardar o actualizar cliente automáticamente con todos sus datos
       const { data: customerData, error: customerError } = await supabase
         .from('customers')
         .upsert({
@@ -175,7 +253,8 @@ export default function NuevaCotizacionPage() {
       const { error: itemsError } = await supabase.from('quote_items').insert(quoteItemsPayload)
       if (itemsError) throw itemsError
 
-      window.print()
+      // Llamada de impresión optimizada para iPhone y navegadores móviles
+      handlePrintQuoteMobile()
 
       alert('¡Cotización guardada exitosamente y cliente actualizado!')
       router.push('/pos')
@@ -191,42 +270,23 @@ export default function NuevaCotizacionPage() {
   const activeBranchName = branches.find(b => b.id === branchId)?.name || 'Sucursal Principal'
 
   return (
-    <div className="min-h-screen bg-[#0f172a] p-6 text-white flex flex-col print:bg-white print:text-black print:p-8 notranslate" translate="no">
+    <div className="min-h-screen bg-[#0f172a] p-6 text-white flex flex-col notranslate" translate="no">
       
-      {/* Cabecera Web (Oculta en PDF) */}
-      <header className="bg-[#1e293b] p-4 rounded-lg shadow mb-6 flex justify-between items-center border border-slate-700 print:hidden">
+      {/* Cabecera Web */}
+      <header className="bg-[#1e293b] p-4 rounded-lg shadow mb-6 flex justify-between items-center border border-slate-700">
         <h1 className="text-xl font-bold text-emerald-400">Nueva Cotización / Proforma</h1>
         <button onClick={() => router.push('/pos')} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition-colors">
           ← Volver al POS
         </button>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 print:block">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
         
         {/* COLUMNA 1: FORMULARIO Y RESUMEN */}
-        <div className="bg-[#1e293b] p-5 rounded-lg shadow border border-slate-700 flex flex-col gap-4 print:bg-transparent print:border-none print:shadow-none print:p-0">
+        <div className="bg-[#1e293b] p-5 rounded-lg shadow border border-slate-700 flex flex-col gap-4">
           
-          {/* === DISEÑO FORMAL EXCLUSIVO PARA EL PDF === */}
-          <div className="hidden print:block w-full mb-6">
-            <h1 className="text-2xl font-extrabold text-center uppercase tracking-wider text-black mb-1">
-              {activeBranchName}
-            </h1>
-            <h2 className="text-sm font-bold text-center border-b-2 border-black pb-3 mb-5 text-slate-700">
-              COTIZACIÓN / PROFORMA
-            </h2>
-            
-            <div className="text-left text-xs text-black leading-relaxed space-y-0.5 bg-slate-50 p-3 border border-slate-300 rounded">
-              <p><span className="font-bold">NIT:</span> {nit || 'C/F'}</p>
-              <p><span className="font-bold">Nombre o Razón Social:</span> {nombre || 'Consumidor Final'}</p>
-              {direccion && <p><span className="font-bold">Dirección:</span> {direccion}</p>}
-              {telefono && <p><span className="font-bold">Teléfono:</span> {telefono}</p>}
-              {correo && <p><span className="font-bold">Correo:</span> {correo}</p>}
-            </div>
-          </div>
-          {/* =========================================== */}
-
-          {/* Formulario Web de Datos (Oculto en PDF) */}
-          <div className="print:hidden space-y-4">
+          {/* Formulario Web de Datos */}
+          <div className="space-y-4">
             <h2 className="text-md font-bold text-emerald-400 border-b border-slate-700 pb-2">Datos del Cliente</h2>
             <div>
               <label className="text-xs text-slate-400 block mb-1">NIT *</label>
@@ -251,11 +311,11 @@ export default function NuevaCotizacionPage() {
           </div>
 
           {/* Artículos Cotizados */}
-          <div className="mt-4 pt-4 border-t border-slate-700 flex flex-col justify-between flex-1 print:border-none print:mt-0 print:pt-0">
+          <div className="mt-4 pt-4 border-t border-slate-700 flex flex-col justify-between flex-1">
             <div>
-              <h2 className="text-md font-bold text-emerald-400 mb-3 border-b border-slate-700 pb-2 print:text-black print:border-black print:text-sm uppercase">Detalle de Artículos</h2>
+              <h2 className="text-md font-bold text-emerald-400 mb-3 border-b border-slate-700 pb-2">Detalle de Artículos</h2>
               
-              <div className="space-y-2 max-h-[30vh] overflow-y-auto pr-1 print:hidden">
+              <div className="space-y-2 max-h-[30vh] overflow-y-auto pr-1">
                 {cart.length === 0 ? (
                   <p className="text-slate-400 text-xs text-center py-4">No hay productos agregados.</p>
                 ) : (
@@ -273,47 +333,23 @@ export default function NuevaCotizacionPage() {
                   ))
                 )}
               </div>
-
-              {/* === ESTILO DE TABLA LINEAL FORMAL EXCLUSIVO PARA EL PDF === */}
-              <div className="hidden print:block w-full">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b-2 border-black text-black">
-                      <th className="py-1.5 px-1">Cant.</th>
-                      <th className="py-1.5 px-2">Descripción del Producto</th>
-                      <th className="py-1.5 px-1 text-right">Precio U.</th>
-                      <th className="py-1.5 px-1 text-right">Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cart.map(item => (
-                      <tr key={item.id} className="border-b border-slate-200 text-black">
-                        <td className="py-2 px-1 font-semibold">{item.quantity}</td>
-                        <td className="py-2 px-2">{item.name}</td>
-                        <td className="py-2 px-1 text-right" translate="no">Q {item.price.toFixed(2)}</td>
-                        <td className="py-2 px-1 text-right font-bold" translate="no">Q {(item.price * item.quantity).toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
             </div>
 
-            <div className="mt-4 pt-4 border-t border-slate-700 print:border-black print:pt-4">
+            <div className="mt-4 pt-4 border-t border-slate-700">
               <div className="flex justify-between items-center mb-4">
-                <span className="text-base font-bold text-slate-300 print:text-black print:text-sm">Total Cotización:</span>
-                <span className="text-xl font-extrabold text-emerald-400 print:text-black print:text-base" translate="no">Q {totalAmount.toFixed(2)}</span>
+                <span className="text-base font-bold text-slate-300">Total Cotización:</span>
+                <span className="text-xl font-extrabold text-emerald-400" translate="no">Q {totalAmount.toFixed(2)}</span>
               </div>
               
-              <button onClick={handleGuardarYGenerarPDF} disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg shadow-lg transition-colors disabled:opacity-50 print:hidden">
+              <button onClick={handleGuardarYGenerarPDF} disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg shadow-lg transition-colors disabled:opacity-50">
                 {loading ? 'Generando...' : '💾 Guardar y Generar PDF'}
               </button>
             </div>
           </div>
         </div>
 
-        {/* COLUMNAS 2 y 3: Catálogo Web (Oculto en PDF) */}
-        <div className="lg:col-span-2 bg-[#1e293b] p-6 rounded-lg shadow border border-slate-700 flex flex-col print:hidden">
+        {/* COLUMNAS 2 y 3: Catálogo Web */}
+        <div className="lg:col-span-2 bg-[#1e293b] p-6 rounded-lg shadow border border-slate-700 flex flex-col">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-bold text-emerald-400">Catálogo de Productos (Matriz)</h2>
           </div>

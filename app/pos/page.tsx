@@ -662,7 +662,7 @@ const cartJson = cart.map(item => ({
           </button>
           <button 
             onClick={() => router.push('/ventas-historia')} 
-            className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1"
+            className="bg-emerald-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1"
           >
             📅 Historial / Días
           </button>
@@ -674,7 +674,7 @@ const cartJson = cart.map(item => ({
           </button>
           <button 
             onClick={handleExit} 
-            className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors"
+            className="bg-emerald-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors"
           >
             {isStaff ? 'Cerrar Sesión' : 'Volver al Panel'}
           </button>
