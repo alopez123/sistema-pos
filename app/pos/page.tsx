@@ -1,4 +1,5 @@
 'use client'
+
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -309,11 +310,15 @@ export default function PosPage() {
       return
     }
 
-    const cartJson = cart.map(item => ({
-      product_id: item.id,
-      quantity: item.quantity,
-      price: item.price
-    }));
+    // Mapeo actualizado incluyendo los campos de precios especiales y staff de auditoría
+const cartJson = cart.map(item => ({
+  product_id: item.id,
+  quantity: item.quantity,
+  price: item.price,
+  is_special: item.price !== item.originalPrice || item.isSpecial || false, // Detecta si el precio cambió
+  original_price: item.originalPrice || item.price,
+  staff_id: item.staffId || null
+}));
 
     const { error } = await supabase.rpc('process_full_sale', {
       p_business_id: businessIdState,
@@ -361,6 +366,9 @@ export default function PosPage() {
       return
     }
 
+    // Obtenemos los datos del staff actual para el registro de auditoría de precios especiales
+    const staffData = JSON.parse(localStorage.getItem('currentStaff') || '{}')
+
     setCart(prevCart => {
       const existing = prevCart.find(item => item.id === product.id)
       if (existing) {
@@ -372,10 +380,40 @@ export default function PosPage() {
           item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
         )
       } else {
-        return [...prevCart, { ...product, quantity: 1 }]
+        return [
+          ...prevCart, 
+          { 
+            ...product, 
+            quantity: 1, 
+            originalPrice: product.price, 
+            isSpecial: false, 
+            staffId: staffData.id || null 
+          }
+        ]
       }
     })
   }
+
+  // Función inteligente para manejar cambios de precio y activar bandera de precio especial
+  const handlePriceChange = (productId: string, newPriceText: string) => {
+    const newPrice = parseFloat(newPriceText) || 0;
+    const staffData = JSON.parse(localStorage.getItem('currentStaff') || '{}');
+
+    setCart(prev => prev.map(item => {
+      if (item.id === productId) {
+        const original = item.originalPrice !== undefined ? item.originalPrice : item.price;
+        const isSpecial = newPrice !== original;
+        return {
+          ...item,
+          price: newPrice,
+          originalPrice: original,
+          isSpecial: isSpecial,
+          staffId: staffData.id || null
+        };
+      }
+      return item;
+    }));
+  };
 
   const removeFromCart = (productId: string) => {
     setCart(prev => prev.filter(item => item.id !== productId))
@@ -610,6 +648,12 @@ export default function PosPage() {
         </div>
           
         <div className="flex items-center gap-2 justify-end flex-wrap">
+           <button 
+            onClick={() => router.push('/clientes/reportes')} 
+            className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1"
+          >
+            👥 Clientes
+          </button>
           <button 
             onClick={() => router.push('/cotizaciones')} 
             className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1"
@@ -623,11 +667,18 @@ export default function PosPage() {
             📅 Historial / Días
           </button>
           <button 
+            onClick={() => router.push('/precios-especiales')} 
+            className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1"
+          >
+            🛡️ Auditoría de Precios
+          </button>
+          <button 
             onClick={handleExit} 
             className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors"
           >
             {isStaff ? 'Cerrar Sesión' : 'Volver al Panel'}
           </button>
+        
         </div>
       </header>
 
@@ -1061,14 +1112,35 @@ export default function PosPage() {
                 <p className="text-slate-400 text-center py-10 text-sm">El carrito está vacío.</p>
               ) : (
                 cart.map(item => (
-                  <div key={item.id} className="flex justify-between items-center bg-[#0f172a] p-3 rounded border border-slate-700 text-xs">
-                    <div>
-                      <p className="font-semibold text-white">{item.name}</p>
-                      <p className="text-slate-400 text-[10px]">Cant: {item.quantity} x Q {item.price}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-emerald-400" translate="no">Q {item.price * item.quantity}</span>
+                  <div key={item.id} className="flex flex-col gap-2 bg-[#0f172a] p-3 rounded border border-slate-700 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-white">{item.name}</span>
                       <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-300 font-bold px-1">✕</button>
+                    </div>
+                    
+                    {/* Input editable de precio para autorizar precio especial */}
+                    <div className="flex justify-between items-center gap-1">
+                      <div className="flex items-center gap-1">
+                        <span className="text-slate-400 text-[10px]">Precio Q:</span>
+                        <input 
+                          type="number" 
+                          step="0.01"
+                          value={item.price} 
+                          onChange={(e) => handlePriceChange(item.id, e.target.value)}
+                          className="w-20 bg-slate-900 border border-emerald-600 rounded px-1.5 py-0.5 text-emerald-400 font-bold text-xs outline-none focus:border-emerald-400" 
+                        />
+                        {item.isSpecial && (
+                          <span className="text-[9px] bg-amber-500/20 text-amber-400 px-1 rounded font-bold uppercase">
+                            Especial
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-slate-400 text-[10px]">Cant: {item.quantity}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-1 border-t border-slate-800">
+                      <span className="text-slate-400 text-[10px]">Subtotal:</span>
+                      <span className="font-bold text-emerald-400 text-sm" translate="no">Q {item.price * item.quantity}</span>
                     </div>
                   </div>
                 ))

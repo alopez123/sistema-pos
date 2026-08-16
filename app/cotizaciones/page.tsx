@@ -33,21 +33,29 @@ export default function NuevaCotizacionPage() {
   useEffect(() => {
     try {
       const staffDataStr = localStorage.getItem('currentStaff')
+      const bizStr = localStorage.getItem('currentBusiness')
+
+      let bId = ''
+      let brId = ''
+
       if (staffDataStr) {
         const staff = JSON.parse(staffDataStr)
-        const bId = staff.business_id || ''
-        const brId = staff.branch_id || ''
+        bId = staff.business_id || ''
+        brId = staff.branch_id || ''
+      } else if (bizStr) {
+        const biz = JSON.parse(bizStr)
+        bId = biz.id || biz.business_id || ''
+      }
 
-        setBusinessId(bId)
-        setBranchId(brId)
+      setBusinessId(bId)
+      setBranchId(brId)
 
-        if (bId) loadBranches(bId)
+      if (bId) loadBranches(bId)
 
-        if (brId) {
-          loadProducts(brId)
-        } else if (bId) {
-          loadProductsByBusiness(bId)
-        }
+      if (brId) {
+        loadProducts(brId)
+      } else if (bId) {
+        loadProductsByBusiness(bId)
       }
     } catch (e) {
       console.error("Error al leer la sesión:", e)
@@ -127,26 +135,41 @@ export default function NuevaCotizacionPage() {
 
     setLoading(true)
     try {
-      let customerId = null
-      const { data: existingCustomer } = await supabase.from('customers').select('id').eq('business_id', businessId).eq('nit', nit.trim()).single()
+      // 1. Guardar o actualizar cliente automáticamente con todos sus datos (Teléfono, Correo, Dirección)
+      const { data: customerData, error: customerError } = await supabase
+        .from('customers')
+        .upsert({
+          business_id: businessId,
+          nit: nit.trim(),
+          name: nombre.trim(),
+          address: direccion.trim(),
+          phone: telefono.trim(),
+          email: correo.trim()
+        }, { onConflict: 'business_id, nit' })
+        .select('id')
+        .single()
 
-      if (existingCustomer) {
-        customerId = existingCustomer.id
-        await supabase.from('customers').update({ name: nombre, address: direccion, phone: telefono, email: correo }).eq('id', customerId)
-      } else {
-        const { data: newCustomer, error: custError } = await supabase.from('customers').insert([{ business_id: businessId, nit: nit.trim(), name: nombre, address: direccion, phone: telefono, email: correo }]).select('id').single()
-        if (custError) throw custError
-        if (newCustomer) customerId = newCustomer.id
-      }
+      if (customerError) throw customerError
+      const customerId = customerData?.id
 
+      // 2. Crear la cotización
       const { data: quoteData, error: quoteError } = await supabase.from('quotes').insert([{
-          business_id: businessId, branch_id: branchId || branches[0]?.id, customer_id: customerId, nit: nit.trim(), customer_name: nombre, total_amount: totalAmount
-        }]).select('id').single()
+        business_id: businessId, 
+        branch_id: branchId || branches[0]?.id, 
+        customer_id: customerId, 
+        nit: nit.trim(), 
+        customer_name: nombre.trim(), 
+        total_amount: totalAmount
+      }]).select('id').single()
 
       if (quoteError) throw quoteError
 
+      // 3. Registrar los ítems de la cotización
       const quoteItemsPayload = cart.map(item => ({
-        quote_id: quoteData.id, product_id: item.id, quantity: item.quantity, price_at_quote: item.price
+        quote_id: quoteData.id, 
+        product_id: item.id, 
+        quantity: item.quantity, 
+        price_at_quote: item.price
       }))
 
       const { error: itemsError } = await supabase.from('quote_items').insert(quoteItemsPayload)
@@ -168,7 +191,7 @@ export default function NuevaCotizacionPage() {
   const activeBranchName = branches.find(b => b.id === branchId)?.name || 'Sucursal Principal'
 
   return (
-    <div className="min-h-screen bg-[#0f172a] p-6 text-white flex flex-col print:bg-white print:text-black print:p-8">
+    <div className="min-h-screen bg-[#0f172a] p-6 text-white flex flex-col print:bg-white print:text-black print:p-8 notranslate" translate="no">
       
       {/* Cabecera Web (Oculta en PDF) */}
       <header className="bg-[#1e293b] p-4 rounded-lg shadow mb-6 flex justify-between items-center border border-slate-700 print:hidden">
@@ -192,7 +215,6 @@ export default function NuevaCotizacionPage() {
               COTIZACIÓN / PROFORMA
             </h2>
             
-            {/* Datos del cliente alineados a la izquierda */}
             <div className="text-left text-xs text-black leading-relaxed space-y-0.5 bg-slate-50 p-3 border border-slate-300 rounded">
               <p><span className="font-bold">NIT:</span> {nit || 'C/F'}</p>
               <p><span className="font-bold">Nombre o Razón Social:</span> {nombre || 'Consumidor Final'}</p>
@@ -233,7 +255,6 @@ export default function NuevaCotizacionPage() {
             <div>
               <h2 className="text-md font-bold text-emerald-400 mb-3 border-b border-slate-700 pb-2 print:text-black print:border-black print:text-sm uppercase">Detalle de Artículos</h2>
               
-              {/* Vista normal web */}
               <div className="space-y-2 max-h-[30vh] overflow-y-auto pr-1 print:hidden">
                 {cart.length === 0 ? (
                   <p className="text-slate-400 text-xs text-center py-4">No hay productos agregados.</p>
@@ -242,10 +263,10 @@ export default function NuevaCotizacionPage() {
                     <div key={item.id} className="bg-[#0f172a] p-2 rounded border border-slate-700 flex justify-between items-center text-xs">
                       <div>
                         <p className="font-semibold text-white">{item.name}</p>
-                        <p className="text-slate-400">Q {item.price} x {item.quantity}</p>
+                        <p className="text-slate-400" translate="no">Q {item.price} x {item.quantity}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-emerald-400 font-bold">Q {item.price * item.quantity}</span>
+                        <span className="text-emerald-400 font-bold" translate="no">Q {item.price * item.quantity}</span>
                         <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="text-red-400 font-bold px-1.5 bg-slate-800 rounded">×</button>
                       </div>
                     </div>
@@ -269,21 +290,19 @@ export default function NuevaCotizacionPage() {
                       <tr key={item.id} className="border-b border-slate-200 text-black">
                         <td className="py-2 px-1 font-semibold">{item.quantity}</td>
                         <td className="py-2 px-2">{item.name}</td>
-                        <td className="py-2 px-1 text-right">Q {item.price.toFixed(2)}</td>
-                        <td className="py-2 px-1 text-right font-bold">Q {(item.price * item.quantity).toFixed(2)}</td>
+                        <td className="py-2 px-1 text-right" translate="no">Q {item.price.toFixed(2)}</td>
+                        <td className="py-2 px-1 text-right font-bold" translate="no">Q {(item.price * item.quantity).toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              {/* ========================================================== */}
-
             </div>
 
             <div className="mt-4 pt-4 border-t border-slate-700 print:border-black print:pt-4">
               <div className="flex justify-between items-center mb-4">
                 <span className="text-base font-bold text-slate-300 print:text-black print:text-sm">Total Cotización:</span>
-                <span className="text-xl font-extrabold text-emerald-400 print:text-black print:text-base">Q {totalAmount.toFixed(2)}</span>
+                <span className="text-xl font-extrabold text-emerald-400 print:text-black print:text-base" translate="no">Q {totalAmount.toFixed(2)}</span>
               </div>
               
               <button onClick={handleGuardarYGenerarPDF} disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg shadow-lg transition-colors disabled:opacity-50 print:hidden">
@@ -310,7 +329,7 @@ export default function NuevaCotizacionPage() {
                   filteredProducts.map(p => (
                     <button key={p.id} onClick={() => { addToCart(p); setSearchTerm(''); setShowSuggestions(false); }} className="w-full text-left px-4 py-2.5 hover:bg-slate-800 flex justify-between items-center border-b border-slate-800/60 transition-colors text-xs">
                       <div><span className="font-semibold text-white">{p.name}</span><span className="text-slate-400 ml-2 text-[10px]">(Stock: {p.stock})</span></div>
-                      <span className="text-emerald-400 font-bold">Q {p.price}</span>
+                      <span className="text-emerald-400 font-bold" translate="no">Q {p.price}</span>
                     </button>
                   ))
                 )}
@@ -331,7 +350,7 @@ export default function NuevaCotizacionPage() {
                   </div>
                   <div className="mt-2 pt-1 border-t border-slate-800/80 flex items-center justify-between">
                     <span className="text-[10px] text-slate-500 uppercase">Precio</span>
-                    <span className="text-emerald-400 font-extrabold text-sm sm:text-base">Q {p.price}</span>
+                    <span className="text-emerald-400 font-extrabold text-sm sm:text-base" translate="no">Q {p.price}</span>
                   </div>
                 </div>
               ))
