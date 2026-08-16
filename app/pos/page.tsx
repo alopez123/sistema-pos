@@ -977,76 +977,35 @@ if (!currentBizId || !currentBranchId) return;
         </div>
 
         {/* Columna 2 y 3: Catálogo de Productos con Buscador y Autocompletado */}
-        <div className="lg:col-span-2 bg-[#1e293b] p-6 rounded-lg shadow border border-slate-700 flex flex-col">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-bold text-emerald-400">Catálogo de Productos (Matriz)</h2>
-          </div>
-
-          <div className="relative mb-4" ref={searchRef}>
-            <input 
-              type="text"
-              value={searchTerm}
-              onChange={e => {
-                setSearchTerm(e.target.value)
-                setShowSuggestions(true)
-              }}
-              onFocus={() => setShowSuggestions(true)}
-              placeholder="🔍 Buscar producto por nombre..."
-              className="w-full bg-[#0f172a] border border-slate-600 px-4 py-2.5 rounded-lg text-white text-sm outline-none focus:border-emerald-500 transition-colors"
-            />
-
-            {showSuggestions && searchTerm.trim() !== '' && (
-              <div className="absolute left-0 right-0 mt-1 bg-[#0f172a] border border-slate-600 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
-                {filteredProducts.length === 0 ? (
-                  <div className="p-3 text-xs text-slate-400 text-center">No se encontraron productos</div>
-                ) : (
-                  filteredProducts.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => {
-                        addToCart(p)
-                        setSearchTerm('')
-                        setShowSuggestions(false)
-                      }}
-                      className="w-full text-left px-4 py-2.5 hover:bg-slate-800 flex justify-between items-center border-b border-slate-800/60 transition-colors text-xs"
-                    >
-                      <div>
-                        <span className="font-semibold text-white">{p.name}</span>
-                        <span className="text-slate-400 ml-2 text-[10px]">(Stock: {p.stock})</span>
-                      </div>
-                      <span className="text-emerald-400 font-bold" translate="no">Q {p.price}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 overflow-y-auto max-h-[62vh] pr-1">
+     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto max-h-[62vh] pr-1">
             {filteredProducts.length === 0 ? (
               <p className="text-slate-400 col-span-full text-center py-10">No hay productos que coincidan con la búsqueda.</p>
             ) : (
               filteredProducts.map(p => (
-                <button
+                <div
                   key={p.id}
                   onClick={() => addToCart(p)}
-                  className="bg-[#0f172a] border border-slate-700 hover:border-emerald-500 p-3 rounded-lg flex flex-col justify-between text-left transition-all shadow hover:shadow-emerald-500/10 group overflow-hidden"
+                  className="bg-[#0f172a] border border-slate-700 hover:border-emerald-500 p-2.5 rounded-lg flex flex-col justify-between text-left transition-all shadow hover:shadow-emerald-500/10 group cursor-pointer h-full"
                 >
-                  <div>
+                  <div className="flex flex-col">
                     {p.image_url ? (
                       <img src={p.image_url} alt={p.name} className="w-full h-24 object-cover rounded mb-2 border border-slate-700" />
                     ) : (
                       <div className="w-full h-24 bg-[#1e293b] rounded mb-2 flex items-center justify-center text-xs text-slate-500 border border-slate-700/50">Sin imagen</div>
                     )}
-                    <span className="text-xs text-slate-400 block mb-0.5">Stock: {p.stock}</span>
-                    <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-2 text-xs">{p.name}</h3>
+                    <span className="text-[11px] text-slate-400 block mb-0.5">Stock: {p.stock}</span>
+                    <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-2 text-xs leading-snug">{p.name}</h3>
                   </div>
-                  <span className="mt-2 text-emerald-400 font-extrabold text-sm" translate="no">Q {p.price}</span>
-                </button>
+                  
+                  {/* Precio fijo abajo con separación garantizada */}
+                  <div className="mt-2 pt-1 border-t border-slate-800/80 flex items-center justify-between">
+                    <span className="text-[10px] text-slate-500 uppercase">Precio</span>
+                    <span className="text-emerald-400 font-extrabold text-sm sm:text-base" translate="no">Q {p.price}</span>
+                  </div>
+                </div>
               ))
             )}
           </div>
-        </div>
 
         {/* Columna 4: Ticket de Venta Actual (Derecha) */}
         <div className="bg-[#1e293b] p-5 rounded-lg shadow border border-slate-700 flex flex-col justify-between">
