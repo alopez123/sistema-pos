@@ -597,36 +597,36 @@ if (!currentBizId || !currentBranchId) return;
 
   return (
     <div className="min-h-screen bg-[#0f172a] p-6 text-white flex flex-col notranslate" translate="no">
-      <header className="bg-[#1e293b] p-4 rounded-lg shadow mb-6 flex justify-between items-center border border-slate-700">
-        <div className="flex items-center gap-4">
-          <h1 className="text-xl font-bold">Punto de Venta (POS)</h1>
-          <select 
-            value={selectedBranch} 
-            onChange={e => handleBranchChange(e.target.value)}
-            disabled={isStaff}
-            className="bg-[#0f172a] border border-slate-600 px-3 py-2 rounded text-white outline-none focus:border-emerald-500 font-semibold disabled:opacity-75 disabled:cursor-not-allowed"
-          >
-            {branches.map(b => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => router.push('/ventas-historia')} 
-            className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded font-semibold text-sm transition-colors flex items-center gap-2"
-          >
-            📅 Historial / Días
-          </button>
-          <button 
-            onClick={handleExit} 
-            className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded font-semibold text-sm transition-colors"
-          >
-            {isStaff ? 'Cerrar Sesión' : 'Volver al Panel'}
-          </button>
-        </div>
-      </header>
+      <header className="bg-[#1e293b] p-4 rounded-lg shadow mb-6 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 border border-slate-700">
+  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+    <h1 className="text-xl font-bold">Punto de Venta (POS)</h1>
+    <select 
+      value={selectedBranch} 
+      onChange={e => handleBranchChange(e.target.value)}
+      disabled={isStaff}
+      className="bg-[#0f172a] border border-slate-600 px-3 py-2 rounded text-white outline-none focus:border-emerald-500 font-semibold disabled:opacity-75 disabled:cursor-not-allowed w-full sm:w-auto"
+    >
+      {branches.map(b => (
+        <option key={b.id} value={b.id}>{b.name}</option>
+      ))}
+    </select>
+  </div>
+  
+  <div className="flex items-center gap-2 justify-end">
+    <button 
+      onClick={() => router.push('/ventas-historia')} 
+      className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1"
+    >
+      📅 Historial / Días
+    </button>
+    <button 
+      onClick={handleExit} 
+      className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors"
+    >
+      {isStaff ? 'Cerrar Sesión' : 'Volver al Panel'}
+    </button>
+  </div>
+</header>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1">
         
