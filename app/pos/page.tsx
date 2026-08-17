@@ -38,7 +38,7 @@ export default function PosPage() {
   const [businessIdState, setBusinessIdState] = useState<string>('')
   const [transfersList, setTransfersList] = useState<any[]>([])
   const [transferProduct, setTransferProduct] = useState<any>(null)
-  const [transferQuantity, setTransferQuantity] = useState(1)
+  const [transferQuantity, setTransferQuantity] = useState<any>(1)
   const [branchMovements, setBranchMovements] = useState<any[]>([])
   const [salesReport, setSalesReport] = useState<any[]>([])
   const [customersList, setCustomersList] = useState<any[]>([])
@@ -69,7 +69,6 @@ export default function PosPage() {
     const staffStr = localStorage.getItem('currentStaff')
     const bizStr = localStorage.getItem('currentBusiness')
 
-    // Función que consulta el logo de forma limpia usando la RPC de Supabase
     const fetchLogoUsingRpc = async (branchId?: string) => {
       const { data, error } = await supabase.rpc('get_business_logo_info', {
         p_branch_id: branchId || null,
@@ -107,7 +106,6 @@ export default function PosPage() {
             loadCustomers(resolvedBizId)
           }
 
-          // Invocamos la función RPC que creaste en la base de datos
           fetchLogoUsingRpc(staff.branch_id)
           return
         }
@@ -164,6 +162,17 @@ export default function PosPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [router])
 
+  // Función global para actualizar toda la vista de forma inmediata
+  const refreshAllData = (branchId: string, bizId: string) => {
+    loadProducts(branchId)
+    loadMovements(branchId)
+    loadTransfers(bizId, branchId)
+    loadOtherStoresProducts(bizId, branchId)
+    loadSalesReport(bizId, branchId)
+    loadCustomers(bizId)
+    router.refresh()
+  }
+
   async function loadCategories(businessId: string) {
     const { data, error } = await supabase
       .from('categories')
@@ -213,12 +222,7 @@ export default function PosPage() {
     if (data && data.length > 0) {
       setBranches(data)
       setSelectedBranch(data[0].id)
-      loadProducts(data[0].id)
-      loadOtherStoresProducts(businessId, data[0].id)
-      loadTransfers(businessId, data[0].id)
-      loadMovements(data[0].id)
-      loadSalesReport(businessId, data[0].id)
-      loadCustomers(businessId)
+      refreshAllData(data[0].id, businessId)
     }
   }
 
@@ -237,23 +241,25 @@ export default function PosPage() {
 
   async function loadOtherStoresProducts(businessId: string, currentBranchId: string) {
     const { data, error } = await supabase.rpc('get_products_by_business_all', {
-      p_business_id: businessId
+      p_business_id: businessId || businessIdState
     })
     if (!error && data) {
       setAllStoreProducts(data)
+    } else {
+      console.error("Error cargando otras tiendas:", error?.message)
     }
   }
 
   async function loadTransfers(businessId: string, currentBranchId: string) {
-    const { data, error } = await supabase
-      .from('inventory_transfers')
-      .select('*, product:products(name), source:branches!source_branch_id(name), dest:branches!destination_branch_id(name)')
-      .eq('business_id', businessId)
-      .or(`source_branch_id.eq.${currentBranchId},destination_branch_id.eq.${currentBranchId}`)
-      .order('created_at', { ascending: false })
+    const { data, error } = await supabase.rpc('get_branch_transfers', {
+      p_business_id: businessId,
+      p_branch_id: currentBranchId
+    });
 
     if (!error && data) {
-      setTransfersList(data)
+      setTransfersList(data);
+    } else {
+      console.error("Error cargando traslados:", error?.message);
     }
   }
 
@@ -399,25 +405,14 @@ export default function PosPage() {
       setShowPaymentModal(false);
       setCustomerNit('CF');
       setCustomerName('Consumidor Final');
-      loadProducts(selectedBranch);
-      loadMovements(selectedBranch);
-      if (businessIdState) {
-        loadSalesReport(businessIdState, selectedBranch)
-        loadCustomers(businessIdState)
-      }
+      refreshAllData(selectedBranch, businessIdState);
     }
   }
 
   const handleBranchChange = (branchId: string) => {
     if (isStaff) return
     setSelectedBranch(branchId)
-    loadProducts(branchId)
-    loadMovements(branchId)
-    if (businessIdState) {
-      loadOtherStoresProducts(businessIdState, branchId)
-      loadTransfers(businessIdState, branchId)
-      loadSalesReport(businessIdState, branchId)
-    }
+    refreshAllData(branchId, businessIdState)
     setCart([])
   }
 
@@ -533,9 +528,7 @@ export default function PosPage() {
           setImageFile(null)
           setImagePreview(null)
           setSelectedExistingProduct('')
-          loadProducts(selectedBranch)
-          loadMovements(selectedBranch)
-          if (businessIdState) loadOtherStoresProducts(businessIdState, selectedBranch)
+          refreshAllData(selectedBranch, businessIdState);
           setActiveTab('ticket')
         }
       } catch (err) {
@@ -566,8 +559,7 @@ export default function PosPage() {
         alert("¡Stock actualizado y movimiento de ingreso registrado con éxito!")
         setSelectedExistingProduct('')
         setAddMoreQuantity(1)
-        loadProducts(selectedBranch)
-        loadMovements(selectedBranch)
+        refreshAllData(selectedBranch, businessIdState);
         setActiveTab('ticket')
       }
     }
@@ -575,22 +567,32 @@ export default function PosPage() {
 
   const handleRequestTransfer = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!transferProduct || transferQuantity <= 0) {
+    const parsedQty = Number(transferQuantity)
+    
+    if (!transferProduct || parsedQty <= 0) {
       alert("Selecciona un producto y una cantidad válida.")
       return
     }
 
-    if (transferQuantity > transferProduct.stock) {
+    if (parsedQty > transferProduct.stock) {
       alert("La cantidad solicitada supera el stock disponible en la tienda origen.")
+      return
+    }
+
+    const targetProductId = transferProduct.id || transferProduct.product_id;
+    const sourceBranchId = transferProduct.branch_id;
+
+    if (!targetProductId || !sourceBranchId) {
+      alert("Error: No se pudo identificar el producto o la sucursal de origen.")
       return
     }
 
     const { error } = await supabase.from('inventory_transfers').insert({
       business_id: businessIdState,
-      product_id: transferProduct.id,
-      source_branch_id: transferProduct.branch_id,
+      product_id: targetProductId,
+      source_branch_id: sourceBranchId,
       destination_branch_id: selectedBranch,
-      quantity: Number(transferQuantity),
+      quantity: parsedQty,
       status: 'pendiente'
     })
 
@@ -601,6 +603,7 @@ export default function PosPage() {
       setTransferProduct(null)
       setTransferQuantity(1)
       loadTransfers(businessIdState, selectedBranch)
+      setActiveTab('transfers')
     }
   }
 
@@ -614,10 +617,7 @@ export default function PosPage() {
       alert("Error al procesar el traslado: " + error.message)
     } else {
       alert("¡Traslado completado con éxito! Inventarios actualizados.")
-      loadTransfers(businessIdState, selectedBranch)
-      loadProducts(selectedBranch)
-      loadMovements(selectedBranch)
-      loadOtherStoresProducts(businessIdState, selectedBranch)
+      refreshAllData(selectedBranch, businessIdState);
     }
   }
 
@@ -690,26 +690,25 @@ export default function PosPage() {
     return matchesSearch && matchesCategory
   })
 
- const filteredOtherStores = allStoreProducts.filter(p => {
-    // Excluimos los productos que pertenecen a la sucursal actual seleccionada
-    const isNotCurrentBranch = p.branch_id !== selectedBranch
-    const matchesSearch = p.name.toLowerCase().includes(otherStoresSearch.toLowerCase())
-    const matchesCategory = selectedOtherStoreCategory ? p.category_id === selectedOtherStoreCategory : true
+  const filteredOtherStores = allStoreProducts.filter(p => {
+    if (!p) return false;
+    const productName = p.name || '';
+    const isNotCurrentBranch = p.branch_id !== selectedBranch;
+    const matchesSearch = productName.toLowerCase().includes(otherStoresSearch.toLowerCase());
+    const matchesCategory = selectedOtherStoreCategory ? p.category_id === selectedOtherStoreCategory : true;
     
-    return isNotCurrentBranch && matchesSearch && matchesCategory
+    return isNotCurrentBranch && matchesSearch && matchesCategory;
   })
 
   return (
     <div className="min-h-screen bg-[#0f172a] p-4 md:p-6 text-white flex flex-col w-full px-6 notranslate" translate="no">
       <header className="bg-[#1e293b] p-4 rounded-lg shadow mb-6 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 border border-slate-700 w-full">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          {/* --- LOGOTIPO DEL NEGOCIO EN EL POS --- */}
-        {businessLogo ? (
+          {businessLogo ? (
             <img src={businessLogo} alt="Logo" className="w-14 h-14 object-contain bg-[#0f172a] rounded-lg p-1 border border-slate-600 shadow" />
           ) : (
             <div className="w-14 h-14 bg-[#0f172a] rounded-lg flex items-center justify-center text-[10px] text-slate-500 border border-slate-600">POS</div>
           )}
-          {/* ------------------------------------- */}
 
           <h1 className="text-xl font-bold">Punto de Venta (POS)</h1>
           <select 
@@ -755,7 +754,6 @@ export default function PosPage() {
           >
             {isStaff ? 'Cerrar Sesión' : 'Volver al Panel'}
           </button>
-        
         </div>
       </header>
 
@@ -763,64 +761,64 @@ export default function PosPage() {
         
         {/* Columna 1: Menú Operativo Izquierdo */}
         <div className="bg-[#1e293b] p-5 rounded-lg shadow border border-slate-700 flex flex-col">
-          <h2 className="text-md font-bold text-emerald-400 mb-3">Opciones Operativas</h2>
+          <h2 className="text-base font-bold text-emerald-400 mb-3">Opciones Operativas</h2>
           
-          <div className="grid grid-cols-2 gap-1 mb-4 bg-[#0f172a] p-1 rounded border border-slate-700 text-[11px]">
+          <div className="grid grid-cols-2 gap-1.5 mb-4 bg-[#0f172a] p-1.5 rounded border border-slate-700 text-xs">
             <button 
               onClick={() => setActiveTab('addProduct')} 
-              className={`py-2 px-1 rounded font-semibold text-center transition-colors ${activeTab === 'addProduct' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              className={`py-2.5 px-2 rounded font-semibold text-center transition-colors ${activeTab === 'addProduct' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:text-white'}`}
             >
               ➕ Agregar
             </button>
             <button 
               onClick={() => setActiveTab('otherStores')} 
-              className={`py-2 px-1 rounded font-semibold text-center transition-colors ${activeTab === 'otherStores' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              className={`py-2.5 px-2 rounded font-semibold text-center transition-colors ${activeTab === 'otherStores' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:text-white'}`}
             >
               🏬 Otras Tiendas
             </button>
             <button 
               onClick={() => setActiveTab('transfers')} 
-              className={`py-2 px-1 rounded font-semibold text-center transition-colors ${activeTab === 'transfers' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              className={`py-2.5 px-2 rounded font-semibold text-center transition-colors ${activeTab === 'transfers' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:text-white'}`}
             >
               🔄 Traslados
             </button>
             <button 
               onClick={() => setActiveTab('movements')} 
-              className={`py-2 px-1 rounded font-semibold text-center transition-colors ${activeTab === 'movements' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              className={`py-2.5 px-2 rounded font-semibold text-center transition-colors ${activeTab === 'movements' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:text-white'}`}
             >
               📊 Movimientos
             </button>
             <button 
               onClick={() => { setActiveTab('salesReport'); loadSalesReport(businessIdState, selectedBranch); }} 
-              className={`py-2 px-1 rounded font-semibold text-center transition-colors ${activeTab === 'salesReport' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              className={`py-2.5 px-2 rounded font-semibold text-center transition-colors ${activeTab === 'salesReport' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:text-white'}`}
             >
               💰 Ventas
             </button>
             <button 
               onClick={() => { setActiveTab('customers'); loadCustomers(businessIdState); }} 
-              className={`py-2 px-1 rounded font-semibold text-center transition-colors ${activeTab === 'customers' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              className={`py-2.5 px-2 rounded font-semibold text-center transition-colors ${activeTab === 'customers' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:text-white'}`}
             >
               👥 Clientes
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto max-h-[58vh] pr-1">
+          <div className="flex-1 overflow-y-auto max-h-[58vh] pr-1 text-sm">
             {activeTab === 'ticket' && (
-              <div className="text-center text-slate-400 text-xs py-12">
+              <div className="text-center text-slate-300 text-sm py-12">
                 Selecciona una opción arriba para agregar inventario, consultar red, gestionar traslados, ver movimientos, ventas o clientes.
               </div>
             )}
 
             {activeTab === 'addProduct' && (
-              <form onSubmit={handleAddOrRestockProduct} className="space-y-3 text-xs">
-                <p className="text-emerald-400 font-semibold mb-2">Ingresar Inventario / Producto</p>
+              <form onSubmit={handleAddOrRestockProduct} className="space-y-3 text-sm">
+                <p className="text-emerald-400 font-semibold mb-2 text-base">Ingresar Inventario / Producto</p>
                 
                 <div>
-                  <label className="block text-slate-400 mb-1">Seleccionar Producto</label>
+                  <label className="block text-slate-300 mb-1">Seleccionar Producto</label>
                   <select 
                     value={selectedExistingProduct}
                     onChange={e => setSelectedExistingProduct(e.target.value)}
-                    className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-xs"
+                    className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm"
                   >
                     <option value="">-- Selecciona una opción --</option>
                     <option value="NEW">✨ [+ Crear Nuevo Producto]</option>
@@ -832,13 +830,13 @@ export default function PosPage() {
 
                 {selectedExistingProduct && selectedExistingProduct !== 'NEW' && (
                   <div>
-                    <label className="block text-slate-400 mb-1">Cantidad a Agregar (Ingreso)</label>
+                    <label className="block text-slate-300 mb-1">Cantidad a Agregar (Ingreso)</label>
                     <input 
                       type="number" 
                       min="1" 
                       value={addMoreQuantity} 
                       onChange={e => setAddMoreQuantity(Number(e.target.value))} 
-                      className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white" 
+                      className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" 
                       required 
                     />
                   </div>
@@ -847,16 +845,16 @@ export default function PosPage() {
                 {selectedExistingProduct === 'NEW' && (
                   <div className="space-y-3 border-t border-slate-700 pt-3 mt-2">
                     <div>
-                      <label className="block text-slate-400 mb-1">Nombre del Nuevo Producto</label>
-                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ej. Plato Extra" className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white" required />
+                      <label className="block text-slate-300 mb-1">Nombre del Nuevo Producto</label>
+                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ej. Plato Extra" className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" required />
                     </div>
                     <div>
                       <div className="flex justify-between items-center mb-1">
-                        <label className="block text-slate-400">Categoría</label>
+                        <label className="block text-slate-300">Categoría</label>
                         <button 
                           type="button" 
                           onClick={() => setShowNewCategoryModal(true)} 
-                          className="text-emerald-400 hover:text-emerald-300 font-bold text-[11px]"
+                          className="text-emerald-400 hover:text-emerald-300 font-bold text-xs"
                         >
                           + Crear Nueva
                         </button>
@@ -864,7 +862,7 @@ export default function PosPage() {
                       <select 
                         value={newCategoryId} 
                         onChange={e => setNewCategoryId(e.target.value)} 
-                        className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-xs"
+                        className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm"
                       >
                         <option value="">-- Sin Categoría --</option>
                         {categories.map(cat => (
@@ -873,17 +871,17 @@ export default function PosPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-slate-400 mb-1">Precio (Q)</label>
-                      <input type="number" step="0.01" value={newPrice} onChange={e => setNewPrice(e.target.value)} placeholder="0.00" className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white" required />
+                      <label className="block text-slate-300 mb-1">Precio (Q)</label>
+                      <input type="number" step="0.01" value={newPrice} onChange={e => setNewPrice(e.target.value)} placeholder="0.00" className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" required />
                     </div>
                     <div>
-                      <label className="block text-slate-400 mb-1">Stock Inicial</label>
-                      <input type="number" value={newStock} onChange={e => setNewStock(e.target.value)} placeholder="0" className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white" />
+                      <label className="block text-slate-300 mb-1">Stock Inicial</label>
+                      <input type="number" value={newStock} onChange={e => setNewStock(e.target.value)} placeholder="0" className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" />
                     </div>
 
                     <div>
-                      <label className="block text-slate-400 mb-1">Imagen del Producto</label>
-                      <input type="file" accept="image/*" onChange={handleImageChange} className="w-full bg-[#0f172a] border border-slate-600 p-1.5 rounded text-white text-[10px]" />
+                      <label className="block text-slate-300 mb-1">Imagen del Producto</label>
+                      <input type="file" accept="image/*" onChange={handleImageChange} className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-xs" />
                       {imagePreview && (
                         <div className="mt-2 relative w-full h-24 bg-[#0f172a] rounded border border-slate-600 overflow-hidden">
                           <img src={imagePreview} alt="Vista previa" className="w-full h-full object-cover" />
@@ -895,31 +893,30 @@ export default function PosPage() {
 
                 {selectedExistingProduct && (
                   <div className="flex gap-2 pt-2">
-                    <button type="submit" disabled={uploadingImage} className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 py-2 rounded font-bold text-white">
-                      {uploadingImage ? 'Guardando...' : 'Guardar y Registrar Ingreso'}
+                    <button type="submit" disabled={uploadingImage} className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 py-2.5 rounded font-bold text-white text-sm">
+                      {uploadingImage ? 'Guardando...' : 'Guardar y Registrar'}
                     </button>
-                    <button type="button" onClick={() => { setSelectedExistingProduct(''); setActiveTab('ticket'); }} className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded text-white">Cancelar</button>
+                    <button type="button" onClick={() => { setSelectedExistingProduct(''); setActiveTab('ticket'); }} className="bg-slate-700 hover:bg-slate-600 px-3 py-2.5 rounded text-white text-sm">Cancelar</button>
                   </div>
                 )}
               </form>
             )}
 
             {activeTab === 'otherStores' && (
-              <div className="space-y-3 text-xs">
-                <p className="text-emerald-400 font-semibold mb-1">Inventario en Red (Otras Sucursales)</p>
+              <div className="space-y-3 text-sm">
+                <p className="text-emerald-400 font-semibold mb-1 text-base">Inventario en Red (Otras Sucursales)</p>
                 <input 
                   type="text"
                   value={otherStoresSearch}
                   onChange={e => setOtherStoresSearch(e.target.value)}
                   placeholder="🔍 Buscar en otras sucursales..."
-                  className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-xs outline-none focus:border-emerald-500"
+                  className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm outline-none focus:border-emerald-500"
                 />
 
-                {/* --- PESTAÑAS DE CATEGORÍA PARA OTRAS TIENDAS --- */}
                 <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
                   <button
                     onClick={() => setSelectedOtherStoreCategory(null)}
-                    className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors ${
+                    className={`px-3 py-1 rounded text-xs font-bold whitespace-nowrap transition-colors ${
                       selectedOtherStoreCategory === null ? 'bg-emerald-600 text-white' : 'bg-[#0f172a] text-slate-300 hover:bg-slate-800 border border-slate-700'
                     }`}
                   >
@@ -929,7 +926,7 @@ export default function PosPage() {
                     <button
                       key={cat.id}
                       onClick={() => setSelectedOtherStoreCategory(cat.id)}
-                      className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors ${
+                      className={`px-3 py-1 rounded text-xs font-bold whitespace-nowrap transition-colors ${
                         selectedOtherStoreCategory === cat.id ? 'bg-emerald-600 text-white' : 'bg-[#0f172a] text-slate-300 hover:bg-slate-800 border border-slate-700'
                       }`}
                     >
@@ -937,28 +934,27 @@ export default function PosPage() {
                     </button>
                   ))}
                 </div>
-                {/* --------------------------------------------- */}
 
                 <div className="space-y-2 max-h-[45vh] overflow-y-auto pr-1">
                   {filteredOtherStores.length === 0 ? (
-                    <p className="text-slate-500 text-center py-8">No hay registros coincidentes.</p>
+                    <p className="text-slate-400 text-center py-8">No hay registros coincidentes.</p>
                   ) : (
                     filteredOtherStores.map((p, idx) => (
-                      <div key={idx} className="bg-[#0f172a] p-2.5 rounded border border-slate-700 flex justify-between items-center">
+                      <div key={idx} className="bg-[#0f172a] p-3 rounded border border-slate-700 flex justify-between items-center">
                         <div>
-                          <p className="font-semibold text-white">{p.name}</p>
-                          <p className="text-[10px] text-amber-400 font-medium">Sucursal: {p.branch_name}</p>
-                          <p className="text-[10px] text-slate-400">Stock: <span className="text-emerald-400 font-bold">{p.stock}</span></p>
+                          <p className="font-semibold text-white text-sm">{p.name}</p>
+                          <p className="text-xs text-amber-400 font-medium">Sucursal: {p.branch_name}</p>
+                          <p className="text-xs text-slate-300">Stock: <span className="text-emerald-400 font-bold text-sm">{p.stock}</span></p>
                         </div>
                         <div className="flex flex-col items-end gap-1">
-                          <span className="font-bold text-emerald-400" translate="no">Q {p.price}</span>
+                          <span className="font-bold text-emerald-400 text-sm" translate="no">Q {p.price}</span>
                           <button 
                             onClick={() => {
                               setTransferProduct(p)
                               setTransferQuantity(1)
                               setActiveTab('transfers')
                             }}
-                            className="bg-blue-600 hover:bg-blue-500 text-[10px] px-2 py-1 rounded text-white font-semibold"
+                            className="bg-blue-600 hover:bg-blue-500 text-xs px-2.5 py-1 rounded text-white font-semibold"
                           >
                             Solicitar
                           </button>
@@ -971,57 +967,67 @@ export default function PosPage() {
             )}
 
             {activeTab === 'transfers' && (
-              <div className="space-y-3 text-xs">
-                <p className="text-emerald-400 font-semibold mb-1">Módulo de Traslados</p>
+              <div className="space-y-3 text-sm">
+                <p className="text-emerald-400 font-semibold mb-1 text-base">Módulo de Traslados</p>
                 
                 {transferProduct && (
                   <form onSubmit={handleRequestTransfer} className="bg-[#0f172a] p-3 rounded border border-emerald-500/50 space-y-2 mb-3">
-                    <p className="font-bold text-white">Solicitar: {transferProduct.name}</p>
-                    <p className="text-[10px] text-slate-400">Origen: {transferProduct.branch_name} (Stock: {transferProduct.stock})</p>
+                    <p className="font-bold text-white text-sm">Solicitar: {transferProduct.name}</p>
+                    <p className="text-xs text-slate-300">Origen: {transferProduct.branch_name} (Stock: {transferProduct.stock})</p>
                     <div>
-                      <label className="block text-slate-400 mb-1">Cantidad a solicitar:</label>
+                      <label className="block text-slate-300 mb-1">Cantidad a solicitar:</label>
                       <input 
-                        type="number" 
-                        min="1" 
-                        max={transferProduct.stock} 
+                        type="text" 
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={transferQuantity} 
-                        onChange={e => setTransferQuantity(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-600 p-1.5 rounded text-white text-xs" 
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (val === '') {
+                            setTransferQuantity('');
+                          } else {
+                            const num = parseInt(val, 10);
+                            if (!isNaN(num)) setTransferQuantity(num);
+                          }
+                        }}
+                        className="w-full bg-slate-900 border border-slate-600 p-2 rounded text-white text-sm" 
                         required
                       />
                     </div>
                     <div className="flex gap-2 pt-1">
-                      <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-1.5 rounded font-bold text-white">Enviar Solicitud</button>
-                      <button type="button" onClick={() => setTransferProduct(null)} className="bg-slate-700 hover:bg-slate-600 px-2 py-1.5 rounded text-white">Cancelar</button>
+                      <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2 rounded font-bold text-white text-sm">Enviar Solicitud</button>
+                      <button type="button" onClick={() => setTransferProduct(null)} className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded text-white text-sm">Cancelar</button>
                     </div>
                   </form>
                 )}
 
-                <p className="text-slate-400 text-[11px] leading-relaxed">
+                <p className="text-slate-300 text-xs leading-relaxed">
                   Historial de solicitudes y traslados activos entre sucursales:
                 </p>
 
                 <div className="space-y-2">
                   {transfersList.length === 0 ? (
                     <div className="bg-[#0f172a] p-3 rounded border border-slate-700 text-center py-6">
-                      <p className="text-slate-500 text-xs">No hay traslados registrados.</p>
+                      <p className="text-slate-400 text-sm">No hay traslados registrados.</p>
                     </div>
                   ) : (
                     transfersList.map((t) => (
-                      <div key={t.id} className="bg-[#0f172a] p-2.5 rounded border border-slate-700 space-y-1">
-                        <div className="flex justify-between font-semibold text-white">
-                          <span>{t.product?.name}</span>
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] ${t.status === 'completado' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                      <div key={t.transfer_id} className="bg-[#0f172a] p-3 rounded border border-slate-700 space-y-1.5">
+                        <div className="flex justify-between font-semibold text-white text-sm">
+                          <span className="text-emerald-400 font-bold text-base">
+                            📦 {t.product_name || 'Artículo solicitado'}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded text-xs ${t.status === 'completado' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
                             {t.status}
                           </span>
                         </div>
-                        <p className="text-[10px] text-slate-400">De: <span className="text-slate-300">{t.source?.name}</span> → Para: <span className="text-slate-300">{t.dest?.name}</span></p>
-                        <p className="text-[10px] text-slate-400">Cantidad: <span className="text-emerald-400 font-bold">{t.quantity}</span></p>
+                        <p className="text-xs text-slate-300">De: <span className="text-white font-medium">{t.source_branch_name}</span> → Para: <span className="text-white font-medium">{t.destination_branch_name}</span></p>
+                        <p className="text-xs text-slate-300">Cantidad: <span className="text-emerald-400 font-bold text-sm">{t.quantity} unidades</span></p>
                         
                         {t.status === 'pendiente' && t.source_branch_id === selectedBranch && (
                           <button 
-                            onClick={() => handleCompleteTransfer(t.id)}
-                            className="mt-2 w-full bg-blue-600 hover:bg-blue-500 text-white text-[10px] py-1 rounded font-semibold"
+                            onClick={() => handleCompleteTransfer(t.transfer_id)}
+                            className="mt-2 w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded font-semibold"
                           >
                             Aceptar y Enviar (Descontar Stock)
                           </button>
@@ -1034,38 +1040,38 @@ export default function PosPage() {
             )}
 
             {activeTab === 'movements' && (
-              <div className="space-y-3 text-xs">
+              <div className="space-y-3 text-sm">
                 <div className="flex justify-between items-center mb-1">
-                  <p className="text-emerald-400 font-semibold">Movimientos (Cuadre)</p>
+                  <p className="text-emerald-400 font-semibold text-base">Movimientos (Cuadre)</p>
                   <button 
                     onClick={() => loadMovements(selectedBranch)} 
-                    className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded border border-slate-600"
+                    className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1 rounded border border-slate-600 font-medium"
                   >
                     🔄 Actualizar
                   </button>
                 </div>
-                <p className="text-slate-400 text-[11px] leading-relaxed">
+                <p className="text-slate-300 text-xs leading-relaxed">
                   Registro de ventas y traslados de esta sucursal para tu cuadre diario:
                 </p>
 
                 <div className="space-y-2">
                   {branchMovements.length === 0 ? (
                     <div className="bg-[#0f172a] p-3 rounded border border-slate-700 text-center py-6">
-                      <p className="text-slate-500 text-xs">No hay movimientos registrados en esta sucursal.</p>
+                      <p className="text-slate-400 text-sm">No hay movimientos registrados en esta sucursal.</p>
                     </div>
                   ) : (
                     branchMovements.map((m) => (
-                      <div key={m.id} className="bg-[#0f172a] p-2.5 rounded border border-slate-700 space-y-1">
-                        <div className="flex justify-between font-semibold text-white">
+                      <div key={m.id} className="bg-[#0f172a] p-3 rounded border border-slate-700 space-y-1">
+                        <div className="flex justify-between font-semibold text-white text-sm">
                           <span>{m.product?.name || 'Producto'}</span>
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${
                             m.quantity < 0 ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'
                           }`}>
                             {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
                           </span>
                         </div>
-                        <div className="flex justify-between text-[10px] text-slate-400">
-                          <span className="uppercase tracking-wider font-semibold text-amber-300/80">{m.movement_type}</span>
+                        <div className="flex justify-between text-xs text-slate-300">
+                          <span className="uppercase tracking-wider font-semibold text-amber-300">{m.movement_type}</span>
                           <span>{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
@@ -1076,43 +1082,41 @@ export default function PosPage() {
             )}
 
             {activeTab === 'salesReport' && (
-              <div className="space-y-3 text-xs">
+              <div className="space-y-3 text-sm">
                 <div className="flex justify-between items-center mb-1">
-                  <p className="text-emerald-400 font-semibold">Reporte de Ventas (Hoy)</p>
-                  <button onClick={() => loadSalesReport(businessIdState, selectedBranch)} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded border border-slate-600">🔄 Actualizar</button>
+                  <p className="text-emerald-400 font-semibold text-base">Reporte de Ventas (Hoy)</p>
+                  <button onClick={() => loadSalesReport(businessIdState, selectedBranch)} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1 rounded border border-slate-600 font-medium">🔄 Actualizar</button>
                 </div>
 
-                {/* --- TARJETA DE SUMA TOTAL DEL DÍA --- */}
-                <div className="bg-[#0f172a] p-3 rounded-lg border border-emerald-500/40 flex justify-between items-center shadow">
+                <div className="bg-[#0f172a] p-3.5 rounded-lg border border-emerald-500/40 flex justify-between items-center shadow">
                   <div>
-                    <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Total Ventas (Día)</p>
-                    <p className="text-base font-extrabold text-emerald-400 mt-0.5" translate="no">
+                    <p className="text-xs text-slate-300 font-medium uppercase tracking-wider">Total Ventas (Día)</p>
+                    <p className="text-lg font-extrabold text-emerald-400 mt-0.5" translate="no">
                       Q {salesReport.reduce((acc, sale) => acc + Number(sale.total_amount || 0), 0)}
                     </p>
                   </div>
-                  <span className="text-xs bg-emerald-500/20 text-emerald-300 font-bold px-2 py-1 rounded">
+                  <span className="text-xs bg-emerald-500/20 text-emerald-300 font-bold px-2.5 py-1 rounded">
                     {salesReport.length} {salesReport.length === 1 ? 'ticket' : 'tickets'}
                   </span>
                 </div>
-                {/* ------------------------------------- */}
 
-                <p className="text-[10px] text-slate-400">💡 Haz clic en cualquier venta para ver el detalle de productos.</p>
+                <p className="text-xs text-slate-300">💡 Haz clic en cualquier venta para ver el detalle de productos.</p>
                 <div className="space-y-2">
                   {salesReport.length === 0 ? (
-                    <p className="text-slate-500 text-center py-6">No hay ventas registradas hoy en esta sucursal.</p>
+                    <p className="text-slate-400 text-center py-6 text-sm">No hay ventas registradas hoy en esta sucursal.</p>
                   ) : (
                     salesReport.map((sale) => (
                       <div 
                         key={sale.sale_id} 
                         onClick={() => handleViewSaleDetails(sale.sale_id)}
-                        className="bg-[#0f172a] p-2.5 rounded border border-slate-700 hover:border-emerald-500 cursor-pointer transition-all space-y-1 shadow hover:bg-slate-800/50"
+                        className="bg-[#0f172a] p-3 rounded border border-slate-700 hover:border-emerald-500 cursor-pointer transition-all space-y-1 shadow hover:bg-slate-800/50"
                       >
-                        <div className="flex justify-between font-semibold text-white">
+                        <div className="flex justify-between font-semibold text-white text-sm">
                           <span>NIT: {sale.customer_nit}</span>
-                          <span className="text-emerald-400" translate="no">Q {sale.total_amount}</span>
+                          <span className="text-emerald-400 text-sm font-bold" translate="no">Q {sale.total_amount}</span>
                         </div>
-                        <p className="text-[10px] text-slate-300">Cliente: {sale.customer_name}</p>
-                        <div className="flex justify-between text-[10px] text-slate-400">
+                        <p className="text-xs text-slate-200">Cliente: {sale.customer_name}</p>
+                        <div className="flex justify-between text-xs text-slate-300">
                           <span className="uppercase text-amber-300 font-semibold">{sale.payment_method}</span>
                           <span>{new Date(sale.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
                         </div>
@@ -1124,22 +1128,22 @@ export default function PosPage() {
             )}
 
             {activeTab === 'customers' && (
-              <div className="space-y-3 text-xs">
+              <div className="space-y-3 text-sm">
                 <div className="flex justify-between items-center mb-1">
-                  <p className="text-emerald-400 font-semibold">Directorio de Clientes</p>
-                  <button onClick={() => loadCustomers(businessIdState)} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded border border-slate-600">🔄 Actualizar</button>
+                  <p className="text-emerald-400 font-semibold text-base">Directorio de Clientes</p>
+                  <button onClick={() => loadCustomers(businessIdState)} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1 rounded border border-slate-600 font-medium">🔄 Actualizar</button>
                 </div>
                 <div className="space-y-2">
                   {customersList.length === 0 ? (
-                    <p className="text-slate-500 text-center py-6">No hay clientes registrados.</p>
+                    <p className="text-slate-400 text-center py-6 text-sm">No hay clientes registrados.</p>
                   ) : (
                     customersList.map((cust) => (
-                      <div key={cust.customer_id} className="bg-[#0f172a] p-2.5 rounded border border-slate-700 space-y-1">
-                        <div className="flex justify-between font-semibold text-white">
+                      <div key={cust.customer_id} className="bg-[#0f172a] p-3 rounded border border-slate-700 space-y-1">
+                        <div className="flex justify-between font-semibold text-white text-sm">
                           <span>{cust.name}</span>
-                          <span className="text-emerald-400 text-[10px] bg-emerald-500/20 px-1.5 py-0.5 rounded">{cust.total_purchases} compras</span>
+                          <span className="text-emerald-400 text-xs bg-emerald-500/20 px-2 py-0.5 rounded font-bold">{cust.total_purchases} compras</span>
                         </div>
-                        <p className="text-[10px] text-slate-400">NIT: <span className="text-slate-200 font-mono">{cust.nit}</span></p>
+                        <p className="text-xs text-slate-300">NIT: <span className="text-white font-mono font-medium">{cust.nit}</span></p>
                       </div>
                     ))
                   )}
@@ -1149,13 +1153,13 @@ export default function PosPage() {
           </div>
 
           {activeTab !== 'ticket' && (
-            <button onClick={() => setActiveTab('ticket')} className="mt-3 w-full bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 rounded text-xs font-semibold">
+            <button onClick={() => setActiveTab('ticket')} className="mt-3 w-full bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded text-sm font-semibold transition-colors">
               ← Volver al Ticket
             </button>
           )}
         </div>
 
-        {/* Columna 2 y 3: Catálogo de Productos con Buscador, Autocompletado y Categorías */}
+        {/* Columna 2 y 3: Catálogo de Productos */}
         <div className="lg:col-span-2 xl:col-span-2 bg-[#1e293b] p-5 rounded-lg shadow border border-slate-700 flex flex-col">
           <div className="mb-4 relative" ref={searchRef}>
             <input 
@@ -1167,13 +1171,13 @@ export default function PosPage() {
               }}
               onFocus={() => setShowSuggestions(true)}
               placeholder="🔍 Buscar producto por nombre..."
-              className="w-full bg-[#0f172a] border border-slate-600 px-4 py-2.5 rounded-lg text-white text-sm outline-none focus:border-emerald-500 transition-colors"
+              className="w-full bg-[#0f172a] border border-slate-600 px-4 py-3 rounded-lg text-white text-base outline-none focus:border-emerald-500 transition-colors"
             />
 
             {showSuggestions && searchTerm.trim() !== '' && (
-              <div className="absolute left-0 right-0 mt-1 bg-[#0f172a] border border-slate-600 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
+              <div className="absolute left-0 right-0 mt-1 bg-[#0f172a] border border-slate-600 rounded-lg shadow-xl z-50 max-h-52 overflow-y-auto">
                 {filteredProducts.length === 0 ? (
-                  <div className="p-3 text-xs text-slate-400 text-center">No se encontraron productos</div>
+                  <div className="p-3 text-sm text-slate-300 text-center">No se encontraron productos</div>
                 ) : (
                   filteredProducts.map(p => (
                     <button
@@ -1183,13 +1187,13 @@ export default function PosPage() {
                         setSearchTerm('')
                         setShowSuggestions(false)
                       }}
-                      className="w-full text-left px-4 py-2.5 hover:bg-slate-800 flex justify-between items-center border-b border-slate-800/60 transition-colors text-xs"
+                      className="w-full text-left px-4 py-3 hover:bg-slate-800 flex justify-between items-center border-b border-slate-800/60 transition-colors text-sm"
                     >
                       <div>
-                        <span className="font-semibold text-white">{p.name}</span>
-                        <span className="text-slate-400 ml-2 text-[10px]">(Stock: {p.stock})</span>
+                        <span className="font-semibold text-white text-base">{p.name}</span>
+                        <span className="text-slate-300 ml-2 text-xs font-semibold">(Stock: {p.stock})</span>
                       </div>
-                      <span className="text-emerald-400 font-bold" translate="no">Q {p.price}</span>
+                      <span className="text-emerald-400 font-bold text-base" translate="no">Q {p.price}</span>
                     </button>
                   ))
                 )}
@@ -1197,12 +1201,11 @@ export default function PosPage() {
             )}
           </div>
 
-          {/* --- PESTAÑAS DE FILTRADO POR CATEGORÍA --- */}
           <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-thin">
             <button
               onClick={() => setSelectedCategory(null)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
-                selectedCategory === null ? 'bg-emerald-600 text-white shadow' : 'bg-[#0f172a] text-slate-300 hover:bg-slate-800 border border-slate-700'
+              className={`px-3.5 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${
+                selectedCategory === null ? 'bg-emerald-600 text-white shadow' : 'bg-[#0f172a] text-slate-200 hover:bg-slate-800 border border-slate-700'
               }`}
             >
               ✨ Todos
@@ -1211,39 +1214,38 @@ export default function PosPage() {
               <button
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
-                  selectedCategory === cat.id ? 'bg-emerald-600 text-white shadow' : 'bg-[#0f172a] text-slate-300 hover:bg-slate-800 border border-slate-700'
+                className={`px-3.5 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${
+                  selectedCategory === cat.id ? 'bg-emerald-600 text-white shadow' : 'bg-[#0f172a] text-slate-200 hover:bg-slate-800 border border-slate-700'
                 }`}
               >
                 {cat.name}
               </button>
             ))}
           </div>
-          {/* ----------------------------------------- */}
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto max-h-[55vh] pr-1 flex-1">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 overflow-y-auto max-h-[55vh] pr-1 flex-1">
             {filteredProducts.length === 0 ? (
-              <p className="text-slate-400 col-span-full text-center py-10">No hay productos que coincidan con la búsqueda.</p>
+              <p className="text-slate-300 col-span-full text-center py-10 text-base">No hay productos que coincidan con la búsqueda.</p>
             ) : (
               filteredProducts.map(p => (
                 <div
                   key={p.id}
                   onClick={() => addToCart(p)}
-                  className="bg-[#0f172a] border border-slate-700 hover:border-emerald-500 p-2.5 rounded-lg flex flex-col justify-between text-left transition-all shadow hover:shadow-emerald-500/10 group cursor-pointer h-full"
+                  className="bg-[#0f172a] border border-slate-700 hover:border-emerald-500 p-3.5 rounded-lg flex flex-col justify-between text-left transition-all shadow hover:shadow-emerald-500/10 group cursor-pointer h-full"
                 >
                   <div className="flex flex-col">
                     {p.image_url ? (
-                      <img src={p.image_url} alt={p.name} className="w-full h-24 object-cover rounded mb-2 border border-slate-700" />
+                      <img src={p.image_url} alt={p.name} className="w-full h-28 object-cover rounded mb-2.5 border border-slate-700" />
                     ) : (
-                      <div className="w-full h-24 bg-[#1e293b] rounded mb-2 flex items-center justify-center text-xs text-slate-500 border border-slate-700/50">Sin imagen</div>
+                      <div className="w-full h-28 bg-[#1e293b] rounded mb-2.5 flex items-center justify-center text-xs text-slate-400 border border-slate-700/50">Sin imagen</div>
                     )}
-                    <span className="text-[11px] text-slate-400 block mb-0.5">Stock: {p.stock}</span>
-                    <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-2 text-xs leading-snug">{p.name}</h3>
+                    <span className="text-xs sm:text-sm text-slate-300 block mb-1 font-semibold">Stock: <span className="text-emerald-400 font-bold">{p.stock}</span></span>
+                    <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-2 text-sm sm:text-base leading-snug">{p.name}</h3>
                   </div>
                   
-                  <div className="mt-2 pt-1 border-t border-slate-800/80 flex items-center justify-between">
-                    <span className="text-[10px] text-slate-500 uppercase">Precio</span>
-                    <span className="text-emerald-400 font-extrabold text-sm sm:text-base" translate="no">Q {p.price}</span>
+                  <div className="mt-3 pt-2 border-t border-slate-800 flex items-center justify-between">
+                    <span className="text-xs text-slate-400 uppercase font-medium">Precio</span>
+                    <span className="text-emerald-400 font-extrabold text-base sm:text-lg" translate="no">Q {p.price}</span>
                   </div>
                 </div>
               ))
@@ -1251,43 +1253,43 @@ export default function PosPage() {
           </div>
         </div>
 
-        {/* Columna 4: Ticket de Venta Actual (Derecha) */}
+        {/* Columna 4: Ticket de Venta Actual */}
         <div className="bg-[#1e293b] p-5 rounded-lg shadow border border-slate-700 flex flex-col justify-between">
           <div>
             <h2 className="text-lg font-bold text-emerald-400 mb-4">Ticket de Venta</h2>
             <div className="space-y-3 overflow-y-auto max-h-[48vh] pr-1">
               {cart.length === 0 ? (
-                <p className="text-slate-400 text-center py-10 text-sm">El carrito está vacío.</p>
+                <p className="text-slate-300 text-center py-10 text-base">El carrito está vacío.</p>
               ) : (
                 cart.map(item => (
-                  <div key={item.id} className="flex flex-col gap-2 bg-[#0f172a] p-3 rounded border border-slate-700 text-xs">
+                  <div key={item.id} className="flex flex-col gap-2.5 bg-[#0f172a] p-3.5 rounded-lg border border-slate-700 text-sm">
                     <div className="flex justify-between items-center">
-                      <span className="font-semibold text-white">{item.name}</span>
-                      <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-300 font-bold px-1">✕</button>
+                      <span className="font-bold text-white text-base">{item.name}</span>
+                      <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-300 font-bold px-2 py-0.5 bg-slate-800 rounded text-sm">✕</button>
                     </div>
                     
-                    <div className="flex justify-between items-center gap-1">
-                      <div className="flex items-center gap-1">
-                        <span className="text-slate-400 text-[10px]">Precio Q:</span>
+                    <div className="flex justify-between items-center gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-300 text-xs font-medium">Precio Q:</span>
                         <input 
                           type="number" 
                           step="0.01"
                           value={item.price} 
                           onChange={(e) => handlePriceChange(item.id, e.target.value)}
-                          className="w-20 bg-slate-900 border border-emerald-600 rounded px-1.5 py-0.5 text-emerald-400 font-bold text-xs outline-none focus:border-emerald-400" 
+                          className="w-24 bg-slate-900 border border-emerald-600 rounded px-2 py-1 text-emerald-400 font-bold text-sm outline-none focus:border-emerald-400" 
                         />
                         {item.isSpecial && (
-                          <span className="text-[9px] bg-amber-500/20 text-amber-400 px-1 rounded font-bold uppercase">
+                          <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded font-bold uppercase">
                             Especial
                           </span>
                         )}
                       </div>
-                      <span className="text-slate-400 text-[10px]">Cant: {item.quantity}</span>
+                      <span className="text-slate-200 text-xs font-semibold">Cant: {item.quantity}</span>
                     </div>
 
-                    <div className="flex justify-between items-center pt-1 border-t border-slate-800">
-                      <span className="text-slate-400 text-[10px]">Subtotal:</span>
-                      <span className="font-bold text-emerald-400 text-sm" translate="no">Q {item.price * item.quantity}</span>
+                    <div className="flex justify-between items-center pt-1.5 border-t border-slate-800">
+                      <span className="text-slate-300 text-xs font-medium">Subtotal:</span>
+                      <span className="font-extrabold text-emerald-400 text-base" translate="no">Q {item.price * item.quantity}</span>
                     </div>
                   </div>
                 ))
@@ -1296,16 +1298,16 @@ export default function PosPage() {
           </div>
 
           <div className="border-t border-slate-700 pt-4 mt-4">
-            <div className="flex justify-between items-center mb-4 text-lg font-bold">
+            <div className="flex justify-between items-center mb-4 text-xl font-bold">
               <span>Total:</span>
-              <span className="text-emerald-400" translate="no">Q {totalCart}</span>
+              <span className="text-emerald-400 text-2xl" translate="no">Q {totalCart}</span>
             </div>
             <button 
               onClick={() => {
                 if (cart.length > 0) setShowPaymentModal(true);
               }}
               disabled={cart.length === 0}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white py-3 rounded-lg font-bold shadow transition-colors text-sm"
+              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white py-3.5 rounded-lg font-bold shadow transition-colors text-base"
             >
               Completar Venta / Cobrar
             </button>
@@ -1320,20 +1322,20 @@ export default function PosPage() {
           <div className="bg-[#1e293b] p-6 rounded-xl border border-emerald-500 w-[420px] text-white shadow-2xl">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-base font-bold text-emerald-400">📦 Detalle de la Venta</h3>
-              <button onClick={() => setSelectedSaleDetails(null)} className="text-slate-400 hover:text-white font-bold text-sm">✕</button>
+              <button onClick={() => setSelectedSaleDetails(null)} className="text-slate-400 hover:text-white font-bold text-base">✕</button>
             </div>
 
-            <div className="space-y-2 max-h-64 overflow-y-auto pr-1 text-xs">
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-1 text-sm">
               {selectedSaleDetails.length === 0 ? (
                 <p className="text-slate-400 text-center py-6">No se encontraron productos en esta venta.</p>
               ) : (
                 selectedSaleDetails.map((item, idx) => (
-                  <div key={idx} className="bg-[#0f172a] p-2.5 rounded border border-slate-700 flex justify-between items-center">
+                  <div key={idx} className="bg-[#0f172a] p-3 rounded border border-slate-700 flex justify-between items-center">
                     <div>
-                      <p className="font-semibold text-white">{item.product_name}</p>
-                      <p className="text-[10px] text-slate-400">Cantidad: <span className="text-emerald-400 font-bold">{item.quantity}</span> x Q {item.price}</p>
+                      <p className="font-semibold text-white text-sm">{item.product_name}</p>
+                      <p className="text-xs text-slate-300">Cantidad: <span className="text-emerald-400 font-bold">{item.quantity}</span> x Q {item.price}</p>
                     </div>
-                    <span className="font-bold text-emerald-400 text-sm" translate="no">Q {item.quantity * item.price}</span>
+                    <span className="font-bold text-emerald-400 text-base" translate="no">Q {item.quantity * item.price}</span>
                   </div>
                 ))
               )}
@@ -1341,7 +1343,7 @@ export default function PosPage() {
 
             <button 
               onClick={() => setSelectedSaleDetails(null)} 
-              className="mt-6 w-full bg-slate-700 hover:bg-slate-600 py-2.5 rounded-lg font-semibold text-xs"
+              className="mt-6 w-full bg-slate-700 hover:bg-slate-600 py-3 rounded-lg font-semibold text-sm"
             >
               Cerrar Detalle
             </button>
@@ -1349,32 +1351,32 @@ export default function PosPage() {
         </div>
       )}
 
-      {/* --- MODAL DE PAGO CON BÚSQUEDA AUTOMÁTICA DE CLIENTE --- */}
+      {/* --- MODAL DE PAGO --- */}
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center" style={{ zIndex: 9999 }}>
-          <div className="bg-[#1e293b] p-8 rounded-xl border border-emerald-500 w-96 text-white shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+          <div className="bg-[#1e293b] p-8 rounded-xl border border-emerald-500 w-[400px] text-white shadow-[0_0_50px_rgba(0,0,0,0.5)]">
             <h2 className="text-xl font-bold text-emerald-400 mb-6">Finalizar Venta</h2>
             
-            <div className="space-y-4">
+            <div className="space-y-4 text-sm">
               <div>
-                <label className="text-xs text-slate-400">NIT (o CF)</label>
+                <label className="text-xs text-slate-300 font-medium">NIT (o CF)</label>
                 <input 
                   type="text" 
                   value={customerNit} 
                   onChange={e => handleNitChange(e.target.value)} 
                   placeholder="Ej. 12345678 o CF"
-                  className="w-full bg-[#0f172a] p-3 rounded border border-slate-600 focus:border-emerald-500 outline-none uppercase font-semibold text-emerald-300" 
+                  className="w-full bg-[#0f172a] p-3 rounded border border-slate-600 focus:border-emerald-500 outline-none uppercase font-semibold text-emerald-300 text-base" 
                 />
               </div>
               
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <label className="text-xs text-slate-400">Nombre / Razón Social</label>
+                  <label className="text-xs text-slate-300 font-medium">Nombre / Razón Social</label>
                   {customerName && customerName !== 'Consumidor Final' && customerName !== '' && (
-                    <span className="text-[10px] text-emerald-400 font-bold">✔ Cliente Registrado</span>
+                    <span className="text-xs text-emerald-400 font-bold">✔ Cliente Registrado</span>
                   )}
                   {(!customerName || customerName === '') && customerNit.toUpperCase() !== 'CF' && (
-                    <span className="text-[10px] text-amber-400 font-bold">✨ Nuevo Cliente (Se registrará)</span>
+                    <span className="text-xs text-amber-400 font-bold">✨ Nuevo Cliente (Se registrará)</span>
                   )}
                 </div>
                 <input 
@@ -1382,16 +1384,16 @@ export default function PosPage() {
                   value={customerName} 
                   onChange={e => setCustomerName(e.target.value)} 
                   placeholder="Nombre del cliente o razón social"
-                  className="w-full bg-[#0f172a] p-3 rounded border border-slate-600 focus:border-emerald-500 outline-none" 
+                  className="w-full bg-[#0f172a] p-3 rounded border border-slate-600 focus:border-emerald-500 outline-none text-base" 
                 />
               </div>
 
               <div>
-                <label className="text-xs text-slate-400">Método de Pago</label>
+                <label className="text-xs text-slate-300 font-medium">Método de Pago</label>
                 <select 
                   value={paymentMethod} 
                   onChange={e => setPaymentMethod(e.target.value as any)} 
-                  className="w-full bg-[#0f172a] p-3 rounded border border-slate-600 focus:border-emerald-500 outline-none"
+                  className="w-full bg-[#0f172a] p-3 rounded border border-slate-600 focus:border-emerald-500 outline-none text-base"
                 >
                   <option value="efectivo">Efectivo</option>
                   <option value="tarjeta">Tarjeta</option>
@@ -1402,13 +1404,13 @@ export default function PosPage() {
             <div className="flex gap-3 mt-8">
               <button 
                 onClick={handleFinalizeSale} 
-                className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-3 rounded-lg font-bold"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-3 rounded-lg font-bold text-base"
               >
                 Cobrar Q {totalCart}
               </button>
               <button 
                 onClick={() => setShowPaymentModal(false)} 
-                className="bg-slate-700 hover:bg-slate-600 py-3 px-6 rounded-lg font-semibold"
+                className="bg-slate-700 hover:bg-slate-600 py-3 px-6 rounded-lg font-semibold text-base"
               >
                 Cancelar
               </button>
@@ -1417,24 +1419,24 @@ export default function PosPage() {
         </div>
       )}
 
-      {/* --- MODAL PARA CREAR NUEVA CATEGORÍA RÁPIDA --- */}
+      {/* --- MODAL PARA CREAR NUEVA CATEGORÍA --- */}
       {showNewCategoryModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" style={{ zIndex: 99999 }}>
-          <div className="bg-[#1e293b] p-6 rounded-xl border border-emerald-500 w-full max-w-xs text-white shadow-2xl space-y-4">
+          <div className="bg-[#1e293b] p-6 rounded-xl border border-emerald-500 w-full max-w-sm text-white shadow-2xl space-y-4">
             <div className="flex justify-between items-center border-b border-slate-700 pb-2">
-              <h3 className="text-sm font-bold text-emerald-400">✨ Nueva Categoría</h3>
-              <button onClick={() => setShowNewCategoryModal(false)} className="text-slate-400 hover:text-white font-bold text-sm">✕</button>
+              <h3 className="text-base font-bold text-emerald-400">✨ Nueva Categoría</h3>
+              <button onClick={() => setShowNewCategoryModal(false)} className="text-slate-400 hover:text-white font-bold text-base">✕</button>
             </div>
 
-            <form onSubmit={handleCreateCategory} className="space-y-3">
+            <form onSubmit={handleCreateCategory} className="space-y-3 text-sm">
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Nombre (ej. Almuerzos, Bebidas)</label>
+                <label className="block text-xs text-slate-300 mb-1">Nombre (ej. Almuerzos, Bebidas)</label>
                 <input 
                   type="text" 
                   value={newCategoryName} 
                   onChange={e => setNewCategoryName(e.target.value)} 
                   placeholder="Nombre de la categoría..." 
-                  className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-xs outline-none focus:border-emerald-500" 
+                  className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm outline-none focus:border-emerald-500" 
                   required
                   autoFocus
                 />
@@ -1444,14 +1446,14 @@ export default function PosPage() {
                 <button 
                   type="submit" 
                   disabled={savingCategory}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2 rounded text-xs font-bold text-white transition-colors disabled:opacity-50"
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded text-sm font-bold text-white transition-colors disabled:opacity-50"
                 >
                   {savingCategory ? 'Guardando...' : 'Guardar'}
                 </button>
                 <button 
                   type="button" 
                   onClick={() => setShowNewCategoryModal(false)} 
-                  className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded text-xs text-slate-300"
+                  className="bg-slate-700 hover:bg-slate-600 px-4 py-2.5 rounded text-sm text-slate-200"
                 >
                   Cancelar
                 </button>
