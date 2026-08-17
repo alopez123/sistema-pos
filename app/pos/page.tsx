@@ -8,9 +8,15 @@ export default function PosPage() {
   const [branches, setBranches] = useState<any[]>([])
   const [selectedBranch, setSelectedBranch] = useState<string>('')
   const [products, setProducts] = useState<any[]>([])
+  const [categories, setCategories] = useState<any[]>([])
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [selectedOtherStoreCategory, setSelectedOtherStoreCategory] = useState<string | null>(null)
   const [cart, setCart] = useState<any[]>([])
   const [isStaff, setIsStaff] = useState(false)
   const router = useRouter()
+
+  // Estado para el Logotipo del Negocio
+  const [businessLogo, setBusinessLogo] = useState<string | null>(null)
 
   // Control para Manejo de Clientes y ventas
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -45,51 +51,64 @@ export default function PosPage() {
   const [selectedExistingProduct, setSelectedExistingProduct] = useState<string>('')
   const [addMoreQuantity, setAddMoreQuantity] = useState<number>(1)
 
-  // Formulario rápido para nuevo producto (con imagen y compresión)
+  // Formulario rápido para nuevo producto (con imagen, categoría y compresión)
   const [newName, setNewName] = useState('')
   const [newPrice, setNewPrice] = useState('')
   const [newStock, setNewStock] = useState('')
+  const [newCategoryId, setNewCategoryId] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
+
+  // Estados para el Modal de Creación Rápida de Categorías
+  const [showNewCategoryModal, setShowNewCategoryModal] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [savingCategory, setSavingCategory] = useState(false)
 
   useEffect(() => {
     const staffStr = localStorage.getItem('currentStaff')
     const bizStr = localStorage.getItem('currentBusiness')
 
+    // Función que consulta el logo de forma limpia usando la RPC de Supabase
+    const fetchLogoUsingRpc = async (branchId?: string) => {
+      const { data, error } = await supabase.rpc('get_business_logo_info', {
+        p_branch_id: branchId || null,
+        p_business_name: branchId ? null : 'Comedor'
+      })
+
+      if (!error && data && data.length > 0) {
+        if (data[0].logo_url) {
+          setBusinessLogo(data[0].logo_url)
+        }
+        if (data[0].business_id && !businessIdState) {
+          setBusinessIdState(data[0].business_id)
+        }
+      }
+    }
+
     if (staffStr) {
       try {
         const staff = JSON.parse(staffStr)
+        const resolvedBizId = staff.business_id || staff.busines_id
+
         if (staff.branch_id) {
           setIsStaff(true)
           setSelectedBranch(staff.branch_id)
           setBranches([{ id: staff.branch_id, name: staff.branch_name || 'Sucursal Asignada' }])
           loadProducts(staff.branch_id)
           
-          if (staff.business_id) {
-            setBusinessIdState(staff.business_id)
-            loadOtherStoresProducts(staff.business_id, staff.branch_id)
-            loadTransfers(staff.business_id, staff.branch_id)
+          if (resolvedBizId) {
+            setBusinessIdState(resolvedBizId)
+            loadCategories(resolvedBizId)
+            loadOtherStoresProducts(resolvedBizId, staff.branch_id)
+            loadTransfers(resolvedBizId, staff.branch_id)
             loadMovements(staff.branch_id)
-            loadSalesReport(staff.business_id, staff.branch_id)
-            loadCustomers(staff.business_id)
-          } else {
-            supabase
-              .from('branches')
-              .select('business_id')
-              .eq('id', staff.branch_id)
-              .single()
-              .then(({ data }) => {
-                if (data?.business_id) {
-                  setBusinessIdState(data.business_id)
-                  loadOtherStoresProducts(data.business_id, staff.branch_id)
-                  loadTransfers(data.business_id, staff.branch_id)
-                  loadMovements(staff.branch_id)
-                  loadSalesReport(data.business_id, staff.branch_id)
-                  loadCustomers(data.business_id)
-                }
-              })
+            loadSalesReport(resolvedBizId, staff.branch_id)
+            loadCustomers(resolvedBizId)
           }
+
+          // Invocamos la función RPC que creaste en la base de datos
+          fetchLogoUsingRpc(staff.branch_id)
           return
         }
       } catch (e) {
@@ -100,9 +119,15 @@ export default function PosPage() {
     if (bizStr) {
       try {
         const biz = JSON.parse(bizStr)
-        const businessId = biz.id || biz.business_id
+        const businessId = biz.id || biz.business_id || biz.busines_id
         if (businessId) {
           setBusinessIdState(businessId)
+          if (biz.logo_url) {
+            setBusinessLogo(biz.logo_url)
+          } else {
+            fetchLogoUsingRpc()
+          }
+          loadCategories(businessId)
           loadBranches(businessId)
           return
         }
@@ -114,7 +139,6 @@ export default function PosPage() {
     router.push('/')
   }, [router])
   
-  // Cerrar sugerencias al hacer clic fuera del buscador y validación de estado de negocio
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
@@ -126,7 +150,8 @@ export default function PosPage() {
     async function initialLoad() {
       const bizId = localStorage.getItem('currentBusiness') ? JSON.parse(localStorage.getItem('currentBusiness')!).id : null;
       if (bizId) {
-        const { data } = await supabase.from('businesses').select('status').eq('id', bizId).single();
+        const { data } = await supabase.from('businesses').select('status, logo_url').eq('id', bizId).single();
+        if (data?.logo_url) setBusinessLogo(data.logo_url);
         if (data?.status && data.status.toLowerCase() !== 'activo') {
           localStorage.clear();
           alert("El acceso ha sido suspendido por falta de pago.");
@@ -138,6 +163,42 @@ export default function PosPage() {
 
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [router])
+
+  async function loadCategories(businessId: string) {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('business_id', businessId)
+      .order('name', { ascending: true })
+
+    if (!error && data) {
+      setCategories(data)
+    }
+  }
+
+  async function handleCreateCategory(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newCategoryName.trim() || !businessIdState) return
+
+    setSavingCategory(true)
+    const { data, error } = await supabase
+      .from('categories')
+      .insert([{ business_id: businessIdState, name: newCategoryName.trim() }])
+      .select('*')
+      .single()
+
+    setSavingCategory(false)
+
+    if (error) {
+      alert("Error al crear categoría: " + error.message)
+    } else if (data) {
+      alert("¡Categoría creada con éxito!")
+      setCategories(prev => [...prev, data])
+      setNewCategoryId(data.id)
+      setNewCategoryName('')
+      setShowNewCategoryModal(false)
+    }
+  }
 
   async function loadBranches(businessId: string) {
     const { data, error } = await supabase.rpc('get_branches_by_business', {
@@ -179,7 +240,7 @@ export default function PosPage() {
       p_business_id: businessId
     })
     if (!error && data) {
-      setAllStoreProducts(data.filter((p: any) => p.branch_id !== currentBranchId))
+      setAllStoreProducts(data)
     }
   }
 
@@ -213,8 +274,9 @@ export default function PosPage() {
       try {
         const staff = JSON.parse(localStorage.getItem('currentStaff') || '{}');
         if (staff.business_id) return staff.business_id;
+        if (staff.busines_id) return staff.busines_id;
         const biz = JSON.parse(localStorage.getItem('currentBusiness') || '{}');
-        return biz.id || biz.business_id;
+        return biz.id || biz.business_id || biz.busines_id;
       } catch (e) { return null; }
     })();
 
@@ -310,15 +372,14 @@ export default function PosPage() {
       return
     }
 
-    // Mapeo actualizado incluyendo los campos de precios especiales y staff de auditoría
-const cartJson = cart.map(item => ({
-  product_id: item.id,
-  quantity: item.quantity,
-  price: item.price,
-  is_special: item.price !== item.originalPrice || item.isSpecial || false, // Detecta si el precio cambió
-  original_price: item.originalPrice || item.price,
-  staff_id: item.staffId || null
-}));
+    const cartJson = cart.map(item => ({
+      product_id: item.id,
+      quantity: item.quantity,
+      price: item.price,
+      is_special: item.price !== item.originalPrice || item.isSpecial || false,
+      original_price: item.originalPrice || item.price,
+      staff_id: item.staffId || null
+    }));
 
     const { error } = await supabase.rpc('process_full_sale', {
       p_business_id: businessIdState,
@@ -366,7 +427,6 @@ const cartJson = cart.map(item => ({
       return
     }
 
-    // Obtenemos los datos del staff actual para el registro de auditoría de precios especiales
     const staffData = JSON.parse(localStorage.getItem('currentStaff') || '{}')
 
     setCart(prevCart => {
@@ -394,7 +454,6 @@ const cartJson = cart.map(item => ({
     })
   }
 
-  // Función inteligente para manejar cambios de precio y activar bandera de precio especial
   const handlePriceChange = (productId: string, newPriceText: string) => {
     const newPrice = parseFloat(newPriceText) || 0;
     const staffData = JSON.parse(localStorage.getItem('currentStaff') || '{}');
@@ -459,7 +518,8 @@ const cartJson = cart.map(item => ({
           p_price: parseFloat(newPrice) || 0,
           p_stock: parseInt(newStock) || 0,
           p_branch_id: selectedBranch,
-          p_image_url: imageUrl
+          p_image_url: imageUrl,
+          p_category_id: newCategoryId || null
         })
 
         if (error) {
@@ -469,6 +529,7 @@ const cartJson = cart.map(item => ({
           setNewName('')
           setNewPrice('')
           setNewStock('')
+          setNewCategoryId('')
           setImageFile(null)
           setImagePreview(null)
           setSelectedExistingProduct('')
@@ -622,18 +683,34 @@ const cartJson = cart.map(item => ({
     }
   }
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // Filtrado de productos por texto y categoría seleccionada
+  const filteredProducts = products.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesCategory = selectedCategory ? p.category_id === selectedCategory : true
+    return matchesSearch && matchesCategory
+  })
 
-  const filteredOtherStores = allStoreProducts.filter(p =>
-    p.name.toLowerCase().includes(otherStoresSearch.toLowerCase())
-  )
+ const filteredOtherStores = allStoreProducts.filter(p => {
+    // Excluimos los productos que pertenecen a la sucursal actual seleccionada
+    const isNotCurrentBranch = p.branch_id !== selectedBranch
+    const matchesSearch = p.name.toLowerCase().includes(otherStoresSearch.toLowerCase())
+    const matchesCategory = selectedOtherStoreCategory ? p.category_id === selectedOtherStoreCategory : true
+    
+    return isNotCurrentBranch && matchesSearch && matchesCategory
+  })
 
   return (
     <div className="min-h-screen bg-[#0f172a] p-4 md:p-6 text-white flex flex-col w-full px-6 notranslate" translate="no">
       <header className="bg-[#1e293b] p-4 rounded-lg shadow mb-6 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 border border-slate-700 w-full">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          {/* --- LOGOTIPO DEL NEGOCIO EN EL POS --- */}
+        {businessLogo ? (
+            <img src={businessLogo} alt="Logo" className="w-14 h-14 object-contain bg-[#0f172a] rounded-lg p-1 border border-slate-600 shadow" />
+          ) : (
+            <div className="w-14 h-14 bg-[#0f172a] rounded-lg flex items-center justify-center text-[10px] text-slate-500 border border-slate-600">POS</div>
+          )}
+          {/* ------------------------------------- */}
+
           <h1 className="text-xl font-bold">Punto de Venta (POS)</h1>
           <select 
             value={selectedBranch} 
@@ -674,7 +751,7 @@ const cartJson = cart.map(item => ({
           </button>
           <button 
             onClick={handleExit} 
-            className="bg-emerald-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors"
+            className="bg-red-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors"
           >
             {isStaff ? 'Cerrar Sesión' : 'Volver al Panel'}
           </button>
@@ -774,6 +851,28 @@ const cartJson = cart.map(item => ({
                       <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ej. Plato Extra" className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white" required />
                     </div>
                     <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-slate-400">Categoría</label>
+                        <button 
+                          type="button" 
+                          onClick={() => setShowNewCategoryModal(true)} 
+                          className="text-emerald-400 hover:text-emerald-300 font-bold text-[11px]"
+                        >
+                          + Crear Nueva
+                        </button>
+                      </div>
+                      <select 
+                        value={newCategoryId} 
+                        onChange={e => setNewCategoryId(e.target.value)} 
+                        className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-xs"
+                      >
+                        <option value="">-- Sin Categoría --</option>
+                        {categories.map(cat => (
+                          <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
                       <label className="block text-slate-400 mb-1">Precio (Q)</label>
                       <input type="number" step="0.01" value={newPrice} onChange={e => setNewPrice(e.target.value)} placeholder="0.00" className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white" required />
                     </div>
@@ -816,32 +915,58 @@ const cartJson = cart.map(item => ({
                   className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-xs outline-none focus:border-emerald-500"
                 />
 
-                {filteredOtherStores.length === 0 ? (
-                  <p className="text-slate-500 text-center py-8">No hay registros coincidentes.</p>
-                ) : (
-                  filteredOtherStores.map((p, idx) => (
-                    <div key={idx} className="bg-[#0f172a] p-2.5 rounded border border-slate-700 flex justify-between items-center">
-                      <div>
-                        <p className="font-semibold text-white">{p.name}</p>
-                        <p className="text-[10px] text-amber-400 font-medium">Sucursal: {p.branch_name}</p>
-                        <p className="text-[10px] text-slate-400">Stock: <span className="text-emerald-400 font-bold">{p.stock}</span></p>
+                {/* --- PESTAÑAS DE CATEGORÍA PARA OTRAS TIENDAS --- */}
+                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                  <button
+                    onClick={() => setSelectedOtherStoreCategory(null)}
+                    className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors ${
+                      selectedOtherStoreCategory === null ? 'bg-emerald-600 text-white' : 'bg-[#0f172a] text-slate-300 hover:bg-slate-800 border border-slate-700'
+                    }`}
+                  >
+                    ✨ Todos
+                  </button>
+                  {categories.map(cat => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setSelectedOtherStoreCategory(cat.id)}
+                      className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors ${
+                        selectedOtherStoreCategory === cat.id ? 'bg-emerald-600 text-white' : 'bg-[#0f172a] text-slate-300 hover:bg-slate-800 border border-slate-700'
+                      }`}
+                    >
+                      {cat.name}
+                    </button>
+                  ))}
+                </div>
+                {/* --------------------------------------------- */}
+
+                <div className="space-y-2 max-h-[45vh] overflow-y-auto pr-1">
+                  {filteredOtherStores.length === 0 ? (
+                    <p className="text-slate-500 text-center py-8">No hay registros coincidentes.</p>
+                  ) : (
+                    filteredOtherStores.map((p, idx) => (
+                      <div key={idx} className="bg-[#0f172a] p-2.5 rounded border border-slate-700 flex justify-between items-center">
+                        <div>
+                          <p className="font-semibold text-white">{p.name}</p>
+                          <p className="text-[10px] text-amber-400 font-medium">Sucursal: {p.branch_name}</p>
+                          <p className="text-[10px] text-slate-400">Stock: <span className="text-emerald-400 font-bold">{p.stock}</span></p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="font-bold text-emerald-400" translate="no">Q {p.price}</span>
+                          <button 
+                            onClick={() => {
+                              setTransferProduct(p)
+                              setTransferQuantity(1)
+                              setActiveTab('transfers')
+                            }}
+                            className="bg-blue-600 hover:bg-blue-500 text-[10px] px-2 py-1 rounded text-white font-semibold"
+                          >
+                            Solicitar
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <span className="font-bold text-emerald-400" translate="no">Q {p.price}</span>
-                        <button 
-                          onClick={() => {
-                            setTransferProduct(p)
-                            setTransferQuantity(1)
-                            setActiveTab('transfers')
-                          }}
-                          className="bg-blue-600 hover:bg-blue-500 text-[10px] px-2 py-1 rounded text-white font-semibold"
-                        >
-                          Solicitar
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
               </div>
             )}
 
@@ -1030,7 +1155,7 @@ const cartJson = cart.map(item => ({
           )}
         </div>
 
-        {/* Columna 2 y 3: Catálogo de Productos con Buscador y Autocompletado */}
+        {/* Columna 2 y 3: Catálogo de Productos con Buscador, Autocompletado y Categorías */}
         <div className="lg:col-span-2 xl:col-span-2 bg-[#1e293b] p-5 rounded-lg shadow border border-slate-700 flex flex-col">
           <div className="mb-4 relative" ref={searchRef}>
             <input 
@@ -1072,7 +1197,31 @@ const cartJson = cart.map(item => ({
             )}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto max-h-[62vh] pr-1 flex-1">
+          {/* --- PESTAÑAS DE FILTRADO POR CATEGORÍA --- */}
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-thin">
+            <button
+              onClick={() => setSelectedCategory(null)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
+                selectedCategory === null ? 'bg-emerald-600 text-white shadow' : 'bg-[#0f172a] text-slate-300 hover:bg-slate-800 border border-slate-700'
+              }`}
+            >
+              ✨ Todos
+            </button>
+            {categories.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
+                  selectedCategory === cat.id ? 'bg-emerald-600 text-white shadow' : 'bg-[#0f172a] text-slate-300 hover:bg-slate-800 border border-slate-700'
+                }`}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+          {/* ----------------------------------------- */}
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto max-h-[55vh] pr-1 flex-1">
             {filteredProducts.length === 0 ? (
               <p className="text-slate-400 col-span-full text-center py-10">No hay productos que coincidan con la búsqueda.</p>
             ) : (
@@ -1092,7 +1241,6 @@ const cartJson = cart.map(item => ({
                     <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-2 text-xs leading-snug">{p.name}</h3>
                   </div>
                   
-                  {/* Precio fijo abajo con separación garantizada */}
                   <div className="mt-2 pt-1 border-t border-slate-800/80 flex items-center justify-between">
                     <span className="text-[10px] text-slate-500 uppercase">Precio</span>
                     <span className="text-emerald-400 font-extrabold text-sm sm:text-base" translate="no">Q {p.price}</span>
@@ -1118,7 +1266,6 @@ const cartJson = cart.map(item => ({
                       <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-300 font-bold px-1">✕</button>
                     </div>
                     
-                    {/* Input editable de precio para autorizar precio especial */}
                     <div className="flex justify-between items-center gap-1">
                       <div className="flex items-center gap-1">
                         <span className="text-slate-400 text-[10px]">Precio Q:</span>
@@ -1266,6 +1413,50 @@ const cartJson = cart.map(item => ({
                 Cancelar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL PARA CREAR NUEVA CATEGORÍA RÁPIDA --- */}
+      {showNewCategoryModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" style={{ zIndex: 99999 }}>
+          <div className="bg-[#1e293b] p-6 rounded-xl border border-emerald-500 w-full max-w-xs text-white shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-700 pb-2">
+              <h3 className="text-sm font-bold text-emerald-400">✨ Nueva Categoría</h3>
+              <button onClick={() => setShowNewCategoryModal(false)} className="text-slate-400 hover:text-white font-bold text-sm">✕</button>
+            </div>
+
+            <form onSubmit={handleCreateCategory} className="space-y-3">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Nombre (ej. Almuerzos, Bebidas)</label>
+                <input 
+                  type="text" 
+                  value={newCategoryName} 
+                  onChange={e => setNewCategoryName(e.target.value)} 
+                  placeholder="Nombre de la categoría..." 
+                  className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-xs outline-none focus:border-emerald-500" 
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button 
+                  type="submit" 
+                  disabled={savingCategory}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2 rounded text-xs font-bold text-white transition-colors disabled:opacity-50"
+                >
+                  {savingCategory ? 'Guardando...' : 'Guardar'}
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setShowNewCategoryModal(false)} 
+                  className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded text-xs text-slate-300"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

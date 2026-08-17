@@ -1,4 +1,5 @@
 'use client'
+
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -14,12 +15,15 @@ export default function AdminDashboard() {
   const [subscriptionPlan, setSubscriptionPlan] = useState('Básico')
   const [amount, setAmount] = useState('')
   const [nextBillingDate, setNextBillingDate] = useState('')
+  const [logoFile, setLogoFile] = useState<File | null>(null)
 
   // Estados para el modal de gestión y edición
   const [selectedBusiness, setSelectedBusiness] = useState<any | null>(null)
   const [editPlan, setEditPlan] = useState('')
   const [editAmount, setEditAmount] = useState('')
   const [editBillingDate, setEditBillingDate] = useState('')
+  const [editLogoFile, setEditLogoFile] = useState<File | null>(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
 
   const router = useRouter()
 
@@ -54,33 +58,109 @@ export default function AdminDashboard() {
     }
   }
 
+  // Función para comprimir imágenes antes de subirlas al Storage
+  const compressImage = (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = (event) => {
+        const img = new Image()
+        img.src = event.target?.result as string
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          const MAX_WIDTH = 400
+          const MAX_HEIGHT = 400
+          let width = img.width
+          let height = img.height
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width
+              width = MAX_WIDTH
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height
+              height = MAX_HEIGHT
+            }
+          }
+
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+          ctx?.drawImage(img, 0, 0, width, height)
+
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob)
+            else reject(new Error('Falló la compresión'))
+          }, 'image/jpeg', 0.8)
+        }
+        img.onerror = (error) => reject(error)
+      }
+      reader.onerror = (error) => reject(error)
+    })
+  }
+
   async function handleCreateBusiness(e: React.FormEvent) {
     e.preventDefault()
 
     if (!name || !ownerEmail || !password || !amount || !nextBillingDate) {
-      alert("Por favor completa todos los campos, incluyendo la contraseña.")
+      alert("Por favor completa todos los campos obligatorios.")
       return
     }
 
-    const { error } = await supabase.rpc('create_business_safe', {
-      p_name: name,
-      p_owner_email: ownerEmail,
-      p_password: password,
-      p_subscription_plan: subscriptionPlan,
-      p_amount: parseFloat(amount) || 0,
-      p_next_billing_date: nextBillingDate
-    })
+    setUploadingLogo(true)
+    try {
+      let logoUrl = null
 
-    if (error) {
-      alert("Error al registrar negocio: " + error.message)
-    } else {
+      if (logoFile) {
+        const compressedBlob = await compressImage(logoFile)
+        const fileName = `logo-${Date.now()}.jpg`
+        const filePath = `logos/${fileName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('products')
+          .upload(filePath, compressedBlob, { contentType: 'image/jpeg', upsert: true })
+
+        if (uploadError) throw uploadError
+
+        const { data: publicUrlData } = supabase.storage
+          .from('products')
+          .getPublicUrl(filePath)
+
+        logoUrl = publicUrlData.publicUrl
+      }
+
+      const { data: newBizData, error } = await supabase.rpc('create_business_safe', {
+        p_name: name,
+        p_owner_email: ownerEmail,
+        p_password: password,
+        p_subscription_plan: subscriptionPlan,
+        p_amount: parseFloat(amount) || 0,
+        p_next_billing_date: nextBillingDate
+      })
+
+      if (error) throw error
+
+      if (logoUrl && newBizData) {
+        await supabase
+          .from('businesses')
+          .update({ logo_url: logoUrl })
+          .eq('id', newBizData)
+      }
+
       alert("¡Negocio registrado con éxito!")
       setName('')
       setOwnerEmail('')
       setPassword('')
       setAmount('')
       setNextBillingDate('')
+      setLogoFile(null)
       fetchBusinesses()
+    } catch (err: any) {
+      alert("Error al registrar negocio: " + err.message)
+    } finally {
+      setUploadingLogo(false)
     }
   }
 
@@ -102,20 +182,47 @@ export default function AdminDashboard() {
   async function handleSaveAndActivate() {
     if (!selectedBusiness) return
 
-    const { error } = await supabase.rpc('update_business_details_safe', {
-      p_business_id: selectedBusiness.id,
-      p_subscription_plan: editPlan || selectedBusiness.subscription_plan,
-      p_amount: parseFloat(editAmount !== '' ? editAmount : selectedBusiness.amount) || 0,
-      p_next_billing_date: editBillingDate || selectedBusiness.next_billing_date,
-      p_status: 'activo'
-    })
+    setUploadingLogo(true)
+    try {
+      let updatedLogoUrl = selectedBusiness.logo_url
 
-    if (error) {
-      alert("Error al actualizar y activar: " + error.message)
-    } else {
-      alert("¡Suscripción actualizada y reactivada con éxito!")
+      if (editLogoFile) {
+        const compressedBlob = await compressImage(editLogoFile)
+        const fileName = `logo-${selectedBusiness.id}-${Date.now()}.jpg`
+        const filePath = `logos/${fileName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('products')
+          .upload(filePath, compressedBlob, { contentType: 'image/jpeg', upsert: true })
+
+        if (uploadError) throw uploadError
+
+        const { data: publicUrlData } = supabase.storage
+          .from('products')
+          .getPublicUrl(filePath)
+
+        updatedLogoUrl = publicUrlData.publicUrl
+      }
+
+      const { error } = await supabase.rpc('update_business_details_safe', {
+        p_business_id: selectedBusiness.id,
+        p_subscription_plan: editPlan || selectedBusiness.subscription_plan,
+        p_amount: parseFloat(editAmount !== '' ? editAmount : selectedBusiness.amount) || 0,
+        p_next_billing_date: editBillingDate || selectedBusiness.next_billing_date,
+        p_status: 'activo',
+        p_logo_url: updatedLogoUrl
+      })
+
+      if (error) throw error
+
+      alert("¡Suscripción y detalles actualizados con éxito!")
       setSelectedBusiness(null)
+      setEditLogoFile(null)
       fetchBusinesses()
+    } catch (err: any) {
+      alert("Error al actualizar: " + err.message)
+    } finally {
+      setUploadingLogo(false)
     }
   }
 
@@ -152,7 +259,7 @@ export default function AdminDashboard() {
           </div>
         </header>
 
-        {/* FORMULARIO PARA DAR DE ALTA NUEVO NEGOCIO RESPONSIVE */}
+        {/* FORMULARIO PARA DAR DE ALTA NUEVO NEGOCIO */}
         <div className="bg-[#1e293b] p-4 sm:p-6 rounded-lg shadow mb-8 border border-slate-700">
           <h2 className="text-lg font-bold text-emerald-400 mb-4">Dar de alta nuevo negocio</h2>
           
@@ -204,20 +311,33 @@ export default function AdminDashboard() {
               className="bg-[#0f172a] border border-slate-600 p-3 rounded text-white text-sm outline-none focus:border-emerald-500 w-full" 
               required
             />
+
+            {/* Input para el Logotipo */}
+            <div className="sm:col-span-2 md:col-span-3">
+              <label className="block text-xs text-slate-400 mb-1 font-semibold">Logotipo Institucional (Opcional)</label>
+              <input 
+                type="file" 
+                accept="image/*" 
+                onChange={e => setLogoFile(e.target.files?.[0] || null)} 
+                className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-xs text-white file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer" 
+              />
+            </div>
+
             <div className="sm:col-span-2 md:col-span-3 flex justify-end mt-2">
-              <button type="submit" className="w-full sm:w-auto bg-emerald-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-emerald-500 transition-colors shadow-lg text-sm">
-                Registrar Negocio
+              <button type="submit" disabled={uploadingLogo} className="w-full sm:w-auto bg-emerald-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-emerald-500 transition-colors shadow-lg text-sm disabled:opacity-50">
+                {uploadingLogo ? 'Guardando...' : 'Registrar Negocio'}
               </button>
             </div>
           </form>
         </div>
 
-        {/* TABLA DE NEGOCIOS CON SCROLL HORIZONTAL RESPONSIVE */}
+        {/* TABLA DE NEGOCIOS */}
         <div className="bg-[#1e293b] rounded-lg shadow border border-slate-700 overflow-hidden">
           <div className="overflow-x-auto w-full">
             <table className="w-full text-left min-w-[750px]">
               <thead className="bg-slate-700 text-slate-300 border-b border-slate-600 font-bold text-xs sm:text-sm">
                 <tr>
+                  <th className="p-4">Logo</th>
                   <th className="p-4">Negocio</th>
                   <th className="p-4">Dueño</th>
                   <th className="p-4">Plan</th>
@@ -230,10 +350,17 @@ export default function AdminDashboard() {
               </thead>
               <tbody className="text-slate-200 text-xs sm:text-sm">
                 {businesses.length === 0 ? (
-                  <tr><td colSpan={8} className="p-6 text-center text-slate-400">No hay negocios registrados.</td></tr>
+                  <tr><td colSpan={9} className="p-6 text-center text-slate-400">No hay negocios registrados.</td></tr>
                 ) : (
                   businesses.map((b) => (
                     <tr key={b.id} className="border-b border-slate-700 hover:bg-slate-700/50">
+                      <td className="p-4">
+                        {b.logo_url ? (
+                          <img src={b.logo_url} alt="Logo" className="w-10 h-10 object-contain bg-[#0f172a] rounded p-1 border border-slate-600" />
+                        ) : (
+                          <div className="w-10 h-10 bg-[#0f172a] rounded flex items-center justify-center text-[9px] text-slate-500 border border-slate-600">Sin logo</div>
+                        )}
+                      </td>
                       <td className="p-4 font-semibold">{b.name}</td>
                       <td className="p-4 text-slate-300">{b.owner_email}</td>
                       <td className="p-4">{b.subscription_plan}</td>
@@ -260,6 +387,7 @@ export default function AdminDashboard() {
                             setEditPlan(b.subscription_plan || 'Básico')
                             setEditAmount(b.amount || '')
                             setEditBillingDate(b.next_billing_date || '')
+                            setEditLogoFile(null)
                           }}
                           className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition-colors border border-slate-600 whitespace-nowrap"
                         >
@@ -275,7 +403,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* --- MODAL DE GESTIÓN Y EDICIÓN RESPONSIVE --- */}
+      {/* --- MODAL DE GESTIÓN Y EDICIÓN --- */}
       {selectedBusiness && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-[#1e293b] p-5 sm:p-6 rounded-xl border border-emerald-500 w-full max-w-md text-white shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
@@ -287,7 +415,26 @@ export default function AdminDashboard() {
             <div className="space-y-3 text-xs sm:text-sm">
               <p className="text-slate-300 truncate"><strong className="text-white">Dueño:</strong> {selectedBusiness.owner_email}</p>
               <p className="text-slate-300"><strong className="text-white">Total Sucursales:</strong> <span className="text-emerald-400 font-bold">{selectedBusiness.branches_count ?? 0}</span></p>
-              <p className="text-slate-300"><strong className="text-white">Estado actual:</strong> <span className="text-amber-400 font-bold uppercase">{selectedBusiness.status || 'activo'}</span></p>
+
+              {/* Sección de Logo Actual y Modificación */}
+              <div className="border-t border-slate-700 pt-3">
+                <label className="block text-slate-400 mb-2 font-semibold text-xs">Logotipo del Negocio</label>
+                <div className="flex items-center gap-3">
+                  {selectedBusiness.logo_url ? (
+                    <img src={selectedBusiness.logo_url} alt="Logo actual" className="w-16 h-16 object-contain bg-[#0f172a] rounded p-1 border border-slate-600" />
+                  ) : (
+                    <div className="w-16 h-16 bg-[#0f172a] rounded flex items-center justify-center text-[10px] text-slate-500 border border-slate-600">Sin logo</div>
+                  )}
+                  <div className="flex-1">
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={e => setEditLogoFile(e.target.files?.[0] || null)} 
+                      className="w-full bg-[#0f172a] border border-slate-600 p-1.5 rounded text-[11px] text-white file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:bg-emerald-600 file:text-white cursor-pointer" 
+                    />
+                  </div>
+                </div>
+              </div>
 
               <div className="border-t border-slate-700 pt-3 space-y-3">
                 <div>
@@ -329,9 +476,10 @@ export default function AdminDashboard() {
             <div className="border-t border-slate-700 pt-4 flex flex-col sm:flex-row gap-2">
               <button 
                 onClick={handleSaveAndActivate}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-3 sm:py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-colors shadow"
+                disabled={uploadingLogo}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-3 sm:py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-colors shadow disabled:opacity-50"
               >
-                Guardar y Activar
+                {uploadingLogo ? 'Guardando...' : 'Guardar y Activar'}
               </button>
               <button 
                 onClick={() => updateBusinessStatus(selectedBusiness.id, 'suspendido')}

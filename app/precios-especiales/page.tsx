@@ -17,18 +17,28 @@ export default function PriceLogsPage() {
     try {
       const staffStr = localStorage.getItem('currentStaff')
       let bizId = ''
+      let brId = '' // Variable para almacenar la sucursal actual
 
       if (staffStr) {
         try {
           const staffObj = JSON.parse(staffStr)
-          bizId = staffObj.business_id
+          bizId = staffObj.business_id || staffObj.busines_id
+          brId = staffObj.branch_id // Extraemos el ID de la sucursal asignada
         } catch (e) {
           console.error("Error parseando currentStaff", e)
         }
       }
 
       if (!bizId) {
-        bizId = 'a15d7206-589f-40d0-9ddc-2efea2b475ee'
+        const bizStr = localStorage.getItem('currentBusiness')
+        if (bizStr) {
+           const biz = JSON.parse(bizStr)
+           bizId = biz.id || biz.business_id || biz.busines_id
+        }
+        
+        if(!bizId){
+          bizId = 'a15d7206-589f-40d0-9ddc-2efea2b475ee'
+        }
       }
 
       const { data, error } = await supabase.rpc('get_price_logs_secure', {
@@ -36,8 +46,15 @@ export default function PriceLogsPage() {
       })
 
       if (error) throw error
+      
       if (data) {
-        setLogs(data)
+        // Filtramos para que solo queden los registros de la sucursal en la que está el usuario
+        // Si no hay branch_id (ej: usuario admin principal), los mostramos todos.
+        const filteredLogs = brId 
+          ? data.filter((log: any) => log.branch_id === brId)
+          : data
+
+        setLogs(filteredLogs)
       }
     } catch (err: any) {
       console.error("Error cargando bitácora:", err.message)
@@ -64,7 +81,7 @@ export default function PriceLogsPage() {
         {loading ? (
           <p className="text-slate-400 text-center py-10">Cargando registros...</p>
         ) : logs.length === 0 ? (
-          <p className="text-slate-400 text-center py-10">No hay registros de precios especiales para este negocio.</p>
+          <p className="text-slate-400 text-center py-10">No hay registros de precios especiales para esta sucursal.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
