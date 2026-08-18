@@ -23,7 +23,7 @@ export default function CashierPage() {
   const [customerNit, setCustomerNit] = useState('CF')
   const [customerName, setCustomerName] = useState('Consumidor Final')
   const [voucherNumber, setVoucherNumber] = useState('')
-  const [cashGiven, setCashGiven] = useState<string>('') // Efectivo entregado por el cliente
+  const [cashGiven, setCashGiven] = useState<string>('')
   const [loading, setLoading] = useState(false)
 
   // Estados para Apertura y Cierre de Caja (Día)
@@ -31,9 +31,9 @@ export default function CashierPage() {
   const [showOpenModal, setShowOpenModal] = useState(false)
   const [showCloseModal, setShowCloseModal] = useState(false)
   const [openingAmountInput, setOpeningAmountInput] = useState('')
-  const [closingPhysicalCash, setClosingPhysicalCash] = useState('') // Efectivo real contado al cerrar
+  const [closingPhysicalCash, setClosingPhysicalCash] = useState('')
 
-  // Pestañas y reportes del día
+  // Pestañas y reportes del turno
   const [rightTab, setRightTab] = useState<'gestion' | 'ventas'>('gestion')
   const [todaySales, setTodaySales] = useState<any[]>([])
   const [selectedSaleDetails, setSelectedSaleDetails] = useState<any[] | null>(null)
@@ -76,8 +76,7 @@ export default function CashierPage() {
         setSelectedBranch(resolvedBranchId)
         setBranchName(resolvedBranchName)
         loadPendingOrders(resolvedBranchId)
-        checkCashRegisterStatus(resolvedBranchId)
-        loadTodaySales(resolvedBizId, resolvedBranchId)
+        checkCashRegisterStatus(resolvedBranchId, resolvedBizId)
       }
       fetchBusinessInfo(resolvedBizId)
     } else {
@@ -99,7 +98,7 @@ export default function CashierPage() {
     if (!error && data) setPendingOrders(data)
   }
 
-  async function checkCashRegisterStatus(branchId: string) {
+  async function checkCashRegisterStatus(branchId: string, bId?: string) {
     const { data, error } = await supabase
       .from('cash_registers')
       .select('*')
@@ -110,17 +109,19 @@ export default function CashierPage() {
 
     if (!error && data && data.length > 0) {
       setCashRegister(data[0])
+      loadTodaySales(bId || businessId, branchId, data[0].opened_at)
     } else {
       setCashRegister(null)
+      setTodaySales([])
     }
   }
 
-  async function loadTodaySales(bId: string, branchId: string) {
-    const todayStr = new Date().toISOString().split('T')[0]
+  async function loadTodaySales(bId: string, branchId: string, openedAt: string) {
+    if (!openedAt) return
     const { data, error } = await supabase.rpc('get_today_sales_safe', {
       p_business_id: bId || businessId,
       p_branch_id: branchId,
-      p_date: todayStr
+      p_since_timestamp: openedAt
     })
 
     if (!error && data) {
@@ -146,38 +147,33 @@ export default function CashierPage() {
     if (error) {
       alert("Error al abrir la caja: " + error.message)
     } else {
-      alert("¡Inicio de día registrado con éxito para esta sucursal!")
+      alert("¡Inicio de día registrado con éxito! Las ventas inician desde cero.")
       setShowOpenModal(false)
       setOpeningAmountInput('')
-      checkCashRegisterStatus(selectedBranch)
+      checkCashRegisterStatus(selectedBranch, businessId)
     }
   }
 
-  async function handleCloseDay(e: React.FormEvent) {
+  // --- FUNCIÓN DE CIERRE DE CAJA CORREGIDA ---
+  async function handleCloseDay(e: React.FormEvent, physicalCash: number, totalSalesRecord: number) {
     e.preventDefault()
     if (!cashRegister) return
-
-    const physicalCash = parseFloat(closingPhysicalCash)
-    if (isNaN(physicalCash) || physicalCash < 0) {
-      return alert("Ingresa un monto de cierre físico válido.")
-    }
-
-    const totalSalesToday = todaySales.reduce((acc, s) => acc + Number(s.total_amount || 0), 0)
 
     const { error } = await supabase.rpc('close_cash_register', {
       p_register_id: cashRegister.id,
       p_closing_amount: physicalCash,
-      p_total_sales: totalSalesToday,
+      p_total_sales: totalSalesRecord,
       p_staff_id: staffId || null
     })
 
     if (error) {
       alert("Error al cerrar caja: " + error.message)
     } else {
-      alert(`¡Cierre de día registrado con éxito!\nFondo Inicial: Q ${cashRegister.opening_amount}\nVentas del Día: Q ${totalSalesToday}\nEfectivo Declarado al Cierre: Q ${physicalCash}`)
+      alert(`¡Cierre de día registrado con éxito!\nFondo Inicial: Q ${cashRegister.opening_amount}\nVentas Totales del Turno: Q ${totalSalesRecord.toFixed(2)}\nEfectivo Exacto en Caja: Q ${physicalCash.toFixed(2)}`)
       setShowCloseModal(false)
       setClosingPhysicalCash('')
       setCashRegister(null)
+      setTodaySales([])
     }
   }
 
@@ -267,7 +263,7 @@ export default function CashierPage() {
       setVoucherNumber('')
       setCashGiven('')
       loadPendingOrders(selectedBranch)
-      loadTodaySales(businessId, selectedBranch)
+      if (cashRegister) loadTodaySales(businessId, selectedBranch, cashRegister.opened_at)
     }
   }
 
@@ -370,7 +366,7 @@ export default function CashierPage() {
         </div>
         
         <div className="flex gap-2">
-          <button onClick={() => { loadPendingOrders(selectedBranch); loadTodaySales(businessId, selectedBranch); }} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded font-semibold text-sm">
+          <button onClick={() => { loadPendingOrders(selectedBranch); if(cashRegister) loadTodaySales(businessId, selectedBranch, cashRegister.opened_at); }} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded font-semibold text-sm">
             🔄 Actualizar
           </button>
           <button onClick={handleLogout} className="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-semibold text-sm transition-colors shadow">
@@ -498,7 +494,6 @@ export default function CashierPage() {
                         </select>
                       </div>
 
-                      {/* Si paga en efectivo, ingresa con cuánto paga y calcula el vuelto */}
                       {paymentMethod === 'efectivo' && (
                         <div className="bg-[#0f172a] p-2.5 rounded border border-emerald-500/40 space-y-2">
                           <div>
@@ -546,7 +541,7 @@ export default function CashierPage() {
               <div className="space-y-3">
                 <div className="bg-[#0f172a] p-3 rounded-lg border border-emerald-500/40 flex justify-between items-center shadow">
                   <div>
-                    <p className="text-[10px] text-slate-400 uppercase font-medium">Ventas de mi Caja (Hoy)</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-medium">Ventas de mi Turno Actual</p>
                     <p className="text-base font-extrabold text-emerald-400" translate="no">Q {totalTodaySales}</p>
                   </div>
                   <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded">
@@ -558,7 +553,7 @@ export default function CashierPage() {
 
                 <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
                   {todaySales.length === 0 ? (
-                    <p className="text-slate-400 text-center py-10 text-xs">No hay ventas registradas en esta sucursal hoy.</p>
+                    <p className="text-slate-400 text-center py-10 text-xs">No hay ventas registradas en este turno aún.</p>
                   ) : (
                     todaySales.map((sale) => (
                       <div 
@@ -664,44 +659,70 @@ export default function CashierPage() {
         </div>
       )}
 
-      {/* --- MODAL CIERRE DE DÍA / ARQUEO --- */}
-      {showCloseModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 99999 }}>
-          <div className="bg-[#1e293b] p-6 rounded-xl border border-amber-500 w-full max-w-sm text-white shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-amber-400">🔒 Cierre de Caja / Arqueo</h3>
-            
-            <div className="bg-[#0f172a] p-3 rounded border border-slate-700 text-xs space-y-1.5">
-              <p><span className="text-slate-400">Cajero en Turno:</span> <span className="font-bold text-white">{staffName}</span></p>
-              <p><span className="text-slate-400">Fondo Inicial:</span> <span className="font-bold text-emerald-400">Q {cashRegister?.opening_amount}</span></p>
-              <p><span className="text-slate-400">Ventas Registradas Hoy:</span> <span className="font-bold text-emerald-400">Q {totalTodaySales}</span></p>
-              <p className="pt-1 border-t border-slate-800 text-[11px] text-slate-300">
-                Efectivo Teórico Esperado: <span className="font-bold text-amber-300">Q {(Number(cashRegister?.opening_amount || 0) + totalTodaySales).toFixed(2)}</span>
-              </p>
+      {/* --- MODAL CIERRE DE DÍA / ARQUEO ESTRICTO (CORREGIDO) --- */}
+      {showCloseModal && (() => {
+        const totalEfectivo = todaySales
+          .filter(s => s.payment_method === 'efectivo')
+          .reduce((acc, s) => acc + Number(s.total_amount || 0), 0);
+          
+        const totalTarjeta = todaySales
+          .filter(s => s.payment_method === 'tarjeta')
+          .reduce((acc, s) => acc + Number(s.total_amount || 0), 0);
+          
+        const totalVentasGeneral = totalEfectivo + totalTarjeta;
+        const expectedCash = Number(cashRegister?.opening_amount || 0) + totalEfectivo;
+
+        return (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 99999 }}>
+            <div className="bg-[#1e293b] p-6 rounded-xl border border-amber-500 w-full max-w-sm text-white shadow-2xl space-y-4">
+              <h3 className="text-lg font-bold text-amber-400">🔒 Cierre de Caja / Arqueo</h3>
+              
+              <div className="bg-[#0f172a] p-3 rounded border border-slate-700 text-xs space-y-1.5">
+                <p><span className="text-slate-400">Cajero en Turno:</span> <span className="font-bold text-white">{staffName}</span></p>
+                <p><span className="text-slate-400">Fondo Inicial:</span> <span className="font-bold text-emerald-400">Q {Number(cashRegister?.opening_amount || 0).toFixed(2)}</span></p>
+                
+                <div className="pt-2 border-t border-slate-800 space-y-1">
+                  <p><span className="text-slate-400">Ventas en Efectivo:</span> <span className="font-bold text-emerald-400">Q {totalEfectivo.toFixed(2)}</span></p>
+                  <p><span className="text-slate-400">Ventas con Tarjeta:</span> <span className="font-bold text-blue-400">Q {totalTarjeta.toFixed(2)}</span></p>
+                  <p className="font-bold text-white pt-1">Total de Ventas (Referencia): Q {totalVentasGeneral.toFixed(2)}</p>
+                </div>
+                
+                <p className="pt-2 border-t border-slate-800 font-bold text-amber-300">
+                  Efectivo Teórico Esperado en Gaveta: Q {expectedCash.toFixed(2)}
+                </p>
+              </div>
+
+              <form onSubmit={(e) => {
+                 e.preventDefault();
+                 const physicalCash = parseFloat(closingPhysicalCash);
+                 if (Math.abs(physicalCash - expectedCash) > 0.01) {
+                   return alert(`❌ Error: El efectivo físico (Q ${physicalCash.toFixed(2)}) no cuadra con el efectivo esperado (Q ${expectedCash.toFixed(2)}). Revisa el dinero en caja.`);
+                 }
+                 handleCloseDay(e, physicalCash, totalVentasGeneral);
+              }} className="space-y-3 text-xs">
+                <div>
+                  <label className="text-emerald-400 font-bold block mb-1">💵 Efectivo Físico Contado (Q)</label>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    value={closingPhysicalCash}
+                    onChange={e => setClosingPhysicalCash(e.target.value)}
+                    placeholder="Monto exacto contado..."
+                    className="w-full bg-[#0f172a] border border-amber-500 p-3 rounded text-white font-bold text-base outline-none focus:border-emerald-500"
+                    required
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button type="submit" className="flex-1 bg-amber-600 hover:bg-amber-500 py-2.5 rounded font-bold text-sm">Confirmar Cierre de Día</button>
+                  <button type="button" onClick={() => setShowCloseModal(false)} className="bg-slate-700 px-4 py-2.5 rounded text-sm">Cancelar</button>
+                </div>
+              </form>
             </div>
-
-            <form onSubmit={handleCloseDay} className="space-y-3 text-xs">
-              <div>
-                <label className="text-emerald-400 font-bold block mb-1">💵 Efectivo Físico Contado en Caja (Q)</label>
-                <input 
-                  type="number"
-                  step="0.01"
-                  value={closingPhysicalCash}
-                  onChange={e => setClosingPhysicalCash(e.target.value)}
-                  placeholder="Monto total con el que cierra..."
-                  className="w-full bg-[#0f172a] border border-amber-500 p-3 rounded text-white font-bold text-base outline-none focus:border-emerald-500"
-                  required
-                  autoFocus
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button type="submit" className="flex-1 bg-amber-600 hover:bg-amber-500 py-2.5 rounded font-bold text-sm">Confirmar Cierre de Día</button>
-                <button type="button" onClick={() => setShowCloseModal(false)} className="bg-slate-700 px-4 py-2.5 rounded text-sm">Cancelar</button>
-              </div>
-            </form>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
     </div>
   )
