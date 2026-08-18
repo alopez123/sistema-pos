@@ -409,6 +409,50 @@ export default function PosPage() {
     }
   }
 
+  // NUEVA FUNCIÓN PARA GUARDAR ORDEN PENDIENTE (COMANDA ABIERTA)
+ // FUNCIÓN ACTUALIZADA: GUARDAR ORDEN PENDIENTE (CON NÚMERO DE ORDEN EXCLUSIVO POR SUCURSAL)
+  async function handleSavePendingOrder() {
+    if (!customerNit.trim() || !customerName.trim()) {
+      alert("Por favor ingresa el NIT y el Nombre para la orden.")
+      return
+    }
+
+    if (cart.length === 0) {
+      alert("El carrito está vacío.")
+      return
+    }
+
+    const cartJson = cart.map(item => ({
+      product_id: item.id,
+      quantity: item.quantity,
+      price: item.price
+    }));
+
+    // Llamamos a la función segura que calcula y asigna el consecutivo propio de esta sucursal
+    const { data, error } = await supabase.rpc('create_new_order_safe', {
+      p_business_id: businessIdState,
+      p_branch_id: selectedBranch,
+      p_customer_id: null, 
+      p_total_amount: totalCart,
+      p_items: cartJson
+    });
+
+    if (error) {
+      alert("Error al guardar la orden: " + error.message);
+    } else if (data && data.length > 0) {
+      const nuevaOrden = data[0];
+      const numeroTurno = nuevaOrden.order_number;
+
+      // Mostramos claramente el número de turno/orden exclusivo para que se le entregue al cliente
+      alert(`✅ ¡Comanda / Orden guardada con éxito!\n\n🎟️ TURNO / ORDEN #${numeroTurno}\n\nEl cliente ya puede pasar a caja con este número.`);
+      
+      setCart([]);
+      setCustomerNit('CF');
+      setCustomerName('Consumidor Final');
+      refreshAllData(selectedBranch, businessIdState);
+    }
+  }
+  
   const handleBranchChange = (branchId: string) => {
     if (isStaff) return
     setSelectedBranch(branchId)
@@ -1297,19 +1341,28 @@ export default function PosPage() {
             </div>
           </div>
 
-          <div className="border-t border-slate-700 pt-4 mt-4">
-            <div className="flex justify-between items-center mb-4 text-xl font-bold">
+          <div className="border-t border-slate-700 pt-4 mt-4 space-y-2">
+            <div className="flex justify-between items-center mb-2 text-xl font-bold">
               <span>Total:</span>
               <span className="text-emerald-400 text-2xl" translate="no">Q {totalCart}</span>
             </div>
+            
             <button 
               onClick={() => {
                 if (cart.length > 0) setShowPaymentModal(true);
               }}
               disabled={cart.length === 0}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white py-3.5 rounded-lg font-bold shadow transition-colors text-base"
+              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white py-3 rounded-lg font-bold shadow transition-colors text-base"
             >
-              Completar Venta / Cobrar
+              Completar Venta / Cobrar Directo
+            </button>
+
+            <button 
+              onClick={handleSavePendingOrder}
+              disabled={cart.length === 0}
+              className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white py-2.5 rounded-lg font-bold shadow transition-colors text-sm"
+            >
+              📝 Guardar Orden (Pasar a Caja)
             </button>
           </div>
         </div>

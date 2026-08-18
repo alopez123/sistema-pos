@@ -25,7 +25,6 @@ export default function LoginPage() {
         const userAccount = data[0]
 
         // Verificación de estado de cuenta del negocio (Dueño)
-        // Convertimos a minúsculas para comparar de forma segura
         const status = (userAccount.status || 'activo').toLowerCase();
         if (status !== 'activo') {
           alert('Esta cuenta se encuentra ' + status + '. Contacte al soporte.')
@@ -46,7 +45,7 @@ export default function LoginPage() {
         return
       }
 
-      // 2. SI NO ES DUEÑO, verificar si es un empleado / cajero
+      // 2. SI NO ES DUEÑO, verificar si es un empleado (vendedor o cajero)
       const { data: staffData, error: staffError } = await supabase
         .rpc('verify_staff_login', {
           p_username: email.trim().toLowerCase(),
@@ -60,8 +59,11 @@ export default function LoginPage() {
       }
 
       const staff = staffData[0]
+      
+      // --- LECTURA LIMPIA Y SEGURA DEL ROL ---
+      const userRole = (staff.role || 'vendedor').trim().toLowerCase();
 
-      // --- NUEVA VALIDACIÓN DE ESTADO DEL NEGOCIO PARA EMPLEADOS ---
+      // --- VALIDACIÓN DE ESTADO DEL NEGOCIO PARA EMPLEADOS ---
       const { data: bizData } = await supabase
         .from('businesses')
         .select('status')
@@ -74,7 +76,6 @@ export default function LoginPage() {
         setLoading(false)
         return
       }
-      // -------------------------------------------------------------
 
       // Buscar el nombre de la sucursal para guardarlo en la sesión
       const { data: branchData } = await supabase
@@ -83,19 +84,24 @@ export default function LoginPage() {
         .eq('id', staff.branch_id)
         .single()
 
-      // Guardar sesión del empleado y su sucursal fija
+      // Guardar sesión del empleado, su sucursal fija y su ROL corregido
       localStorage.removeItem('currentBusiness')
       localStorage.setItem('currentStaff', JSON.stringify({
         id: staff.id,
         name: staff.name,
-        username: staff.username,
+        username: staff.username || staff.email,
         branch_id: staff.branch_id,
         business_id: staff.business_id,
-        branch_name: branchData?.name || 'Sucursal'
+        branch_name: branchData?.name || 'Sucursal',
+        role: userRole // Guardamos el rol normalizado
       }))
 
-      // Redirigir directamente al POS con su sucursal bloqueada
-      router.push('/pos')
+      // REDIRECCIÓN INTELIGENTE SEGÚN EL ROL
+      if (userRole === 'cajero') {
+        router.push('/cajero') // Envía directo a la pantalla exclusiva de caja
+      } else {
+        router.push('/pos') // Envía al POS normal de toma de pedidos
+      }
 
     } catch (err) {
       console.error("Error inesperado:", err)
@@ -105,7 +111,6 @@ export default function LoginPage() {
     }
   }
 
-  // ... (El resto de tu UI se mantiene igual)
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0f172a] p-4">
       <div className="w-full max-w-sm">
