@@ -179,7 +179,6 @@ export default function Dashboard() {
     const fullUsername = username.includes('-') ? username.trim().toLowerCase() : `${businessNemonico}-${username.trim().toLowerCase()}`
 
     if (editingStaffId) {
-      // Si el campo de contraseña tiene el texto por defecto o está vacío, no lo mandamos para que conserve el actual
       const passwordToSend = (accessCode === '••••••••' || !accessCode.trim()) ? null : accessCode.trim()
 
       const { error } = await supabase.rpc('update_branch_user_safe', {
@@ -223,7 +222,7 @@ export default function Dashboard() {
     setStaffName(staff.name || '')
     const cleanUser = staff.username ? staff.username.replace(`${businessNemonico}-`, '') : ''
     setUsername(cleanUser)
-    setAccessCode('••••••••') // Muestra contraseña oculta por defecto para conservar la actual
+    setAccessCode('••••••••')
     setSelectedBranch(staff.branch_id || selectedBranch)
     setStaffRole(staff.role || 'vendedor')
   }
@@ -266,7 +265,8 @@ export default function Dashboard() {
         p_name: name,
         p_price: parseFloat(price) || 0,
         p_stock: parseInt(stock) || 0,
-        p_image_url: imageUrl
+        p_image_url: imageUrl,
+        p_category_id: selectedCategoryId || null
       })
 
       if (error) alert("Error al actualizar: " + error.message)
@@ -369,52 +369,54 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f172a] p-8 text-white">
-      <div className="max-w-5xl mx-auto">
-        <header className="bg-[#1e293b] shadow rounded-lg p-6 flex justify-between items-center mb-8 border border-slate-700">
+    <div className="min-h-screen bg-[#0f172a] p-4 sm:p-6 md:p-8 text-white notranslate" translate="no">
+      <div className="max-w-5xl mx-auto w-full">
+        
+        {/* HEADER RESPONSIVE */}
+        <header className="bg-[#1e293b] shadow rounded-lg p-4 sm:p-6 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 mb-8 border border-slate-700">
           <div>
-            <h1 className="text-2xl font-bold text-white">Panel de Control POS</h1>
-            <p className="text-sm text-slate-400">Conectado como: {userEmail}</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-white">Panel de Control POS</h1>
+            <p className="text-xs sm:text-sm text-slate-400">Conectado como: {userEmail}</p>
           </div>
-          <div className="flex gap-4">
-            <button onClick={() => router.push('/pos')} className="bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-500 transition-colors font-semibold shadow">🛒 Punto de Venta (POS)</button>
-            <button onClick={() => router.push('/cajero')} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-500 transition-colors font-semibold shadow">💵 Pantalla de Caja</button>
-            <button onClick={() => router.push('/reportes')} className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-500 transition-colors font-semibold shadow">📊 Reportes</button>
-            {isAdmin && <button onClick={() => router.push('/admin')} className="bg-slate-700 text-white px-4 py-2 rounded-lg hover:bg-slate-600 transition-colors font-semibold">Admin</button>}
-            <button onClick={handleLogout} className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-500 transition-colors font-semibold">Cerrar Sesión</button>
+          <div className="flex flex-wrap gap-2 sm:gap-3">
+            <button onClick={() => router.push('/pos')} className="flex-1 sm:flex-initial bg-sky-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-sky-500 transition-colors font-semibold text-xs sm:text-sm shadow">🛒 POS</button>
+            <button onClick={() => router.push('/cajero')} className="flex-1 sm:flex-initial bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-500 transition-colors font-semibold text-xs sm:text-sm shadow">💵 Caja</button>
+            <button onClick={() => router.push('/reportes')} className="flex-1 sm:flex-initial bg-emerald-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-emerald-500 transition-colors font-semibold text-xs sm:text-sm shadow">📊 Reportes</button>
+            {isAdmin && <button onClick={() => router.push('/admin')} className="bg-slate-700 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-slate-600 transition-colors text-xs sm:text-sm font-semibold">Admin</button>}
+            <button onClick={handleLogout} className="bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-red-500 transition-colors text-xs sm:text-sm font-semibold">Salir</button>
           </div>
         </header>
         
         {/* SECCIÓN 1: CREACIÓN Y MANTENIMIENTO DE SUCURSALES */}
-        <div className="bg-[#1e293b] p-6 rounded-lg shadow mb-6 space-y-4 border border-slate-700">
+        <div className="bg-[#1e293b] p-4 sm:p-6 rounded-lg shadow mb-6 space-y-4 border border-slate-700">
           <div>
-            <h2 className="text-lg font-bold text-emerald-400 mb-1">Creación y Mantenimiento de Sucursales</h2>
+            <h2 className="text-base sm:text-lg font-bold text-emerald-400 mb-1">Creación y Mantenimiento de Sucursales</h2>
             <p className="text-xs text-slate-400">Selecciona tu sucursal activa, crea nuevas localidades o da de baja las que ya no utilices.</p>
           </div>
 
-          <div className="flex items-center gap-4 pt-2">
-            <label className="font-bold text-slate-300 w-36 text-sm">Sucursal Activa:</label>
-            <select value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)} className="bg-[#0f172a] border border-slate-600 p-2 rounded flex-1 text-white text-sm">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
+            <label className="font-bold text-slate-300 sm:w-36 text-xs sm:text-sm">Sucursal Activa:</label>
+            <select value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)} className="bg-[#0f172a] border border-slate-600 p-2.5 rounded flex-1 text-white text-sm">
               {branches.length === 0 ? <option value="">No hay sucursales</option> : branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </div>
 
-          <div className="flex items-center gap-4 border-t border-slate-700 pt-4">
-            <label className="font-bold text-slate-300 w-36 text-sm">Nueva Sucursal:</label>
-            <input placeholder="Ej. Comedor Zona 1" value={newBranchName} onChange={e => setNewBranchName(e.target.value)} className="bg-[#0f172a] border border-slate-600 p-2 rounded flex-1 text-white text-sm" />
-            <button onClick={addBranch} className="bg-emerald-600 text-white px-4 py-2 rounded font-semibold hover:bg-emerald-500 text-sm">Crear Sucursal</button>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 border-t border-slate-700 pt-4">
+            <label className="font-bold text-slate-300 sm:w-36 text-xs sm:text-sm">Nueva Sucursal:</label>
+            <input placeholder="Ej. Comedor Zona 1" value={newBranchName} onChange={e => setNewBranchName(e.target.value)} className="bg-[#0f172a] border border-slate-600 p-2.5 rounded flex-1 text-white text-sm" />
+            <button onClick={addBranch} className="bg-emerald-600 text-white px-4 py-2.5 rounded font-semibold hover:bg-emerald-500 text-sm shadow">Crear Sucursal</button>
           </div>
 
           {branches.length > 0 && (
             <div className="border-t border-slate-700 pt-4 mt-4">
-              <h3 className="text-xs font-bold text-slate-400 uppercase mb-3 text-slate-400">Sucursales Registradas y Gestión</h3>
+              <h3 className="text-xs font-bold text-slate-400 uppercase mb-3">Sucursales Registradas y Gestión</h3>
               <div className="space-y-2">
                 {branches.map(b => (
-                  <div key={b.id} className="flex justify-between items-center bg-[#0f172a] p-3 rounded border border-slate-700">
-                    <span className="text-sm font-semibold text-emerald-400">{b.name}</span>
+                  <div key={b.id} className="flex justify-between items-center bg-[#0f172a] p-3 rounded border border-slate-700 gap-2">
+                    <span className="text-sm font-semibold text-emerald-400 truncate">{b.name}</span>
                     <button 
                       onClick={() => deleteBranch(b.id, b.name)}
-                      className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-xs font-semibold transition-colors"
+                      className="bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded text-xs font-semibold transition-colors shrink-0"
                     >
                       Dar de Baja
                     </button>
@@ -426,9 +428,9 @@ export default function Dashboard() {
         </div>
 
         {/* SECCIÓN 2: ASIGNAR / EDITAR PERSONAL A SUCURSAL */}
-        <div className={`p-6 rounded-lg shadow mb-6 border ${editingStaffId ? 'bg-amber-950/40 border-amber-500/50' : 'bg-[#1e293b] border-slate-700'}`}>
+        <div className={`p-4 sm:p-6 rounded-lg shadow mb-6 border ${editingStaffId ? 'bg-amber-950/40 border-amber-500/50' : 'bg-[#1e293b] border-slate-700'}`}>
           <div className="flex justify-between items-center mb-1">
-            <h2 className={`text-lg font-bold ${editingStaffId ? 'text-amber-400' : 'text-emerald-400'}`}>
+            <h2 className={`text-base sm:text-lg font-bold ${editingStaffId ? 'text-amber-400' : 'text-emerald-400'}`}>
               {editingStaffId ? '✏️ Editando Empleado' : 'Asignar Personal a Sucursal'}
             </h2>
             {editingStaffId && (
@@ -439,49 +441,49 @@ export default function Dashboard() {
           </div>
           <p className="text-xs text-slate-400 mb-4">El sistema genera el usuario con el prefijo: <span className="text-amber-400 font-mono">{businessNemonico}-</span></p>
           
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 sm:gap-4 items-end">
             <div>
-              <label className="block text-[10px] text-slate-400 mb-1">Nombre</label>
+              <label className="block text-[11px] sm:text-[10px] text-slate-400 mb-1 font-medium">Nombre</label>
               <input 
                 placeholder="Ej. Nancy Oliva" 
                 value={staffName} 
                 onChange={handleNameChange} 
-                className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-sm" 
+                className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" 
               />
             </div>
             
             <div>
-              <label className="block text-[10px] text-slate-400 mb-1">Usuario</label>
+              <label className="block text-[11px] sm:text-[10px] text-slate-400 mb-1 font-medium">Usuario</label>
               <input 
                 placeholder="usuario" 
                 value={username} 
                 onChange={e => setUsername(e.target.value)} 
-                className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-sm outline-none" 
+                className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm outline-none" 
               />
             </div>
 
             <div>
-              <label className="block text-[10px] text-slate-400 mb-1">Contraseña</label>
+              <label className="block text-[11px] sm:text-[10px] text-slate-400 mb-1 font-medium">Contraseña</label>
               <input 
                 placeholder="Código de Acceso" 
                 type="password" 
                 value={accessCode} 
-                onFocus={() => { if (accessCode === '••••••••') setAccessCode(''); }} // Limpia los puntos al hacer foco para escribir una nueva si se desea
+                onFocus={() => { if (accessCode === '••••••••') setAccessCode(''); }}
                 onChange={e => setAccessCode(e.target.value)} 
-                className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-sm" 
+                className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" 
               />
             </div>
             
             <div>
-              <label className="block text-[10px] text-slate-400 mb-1">Sucursal</label>
-              <select value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)} className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-sm">
+              <label className="block text-[11px] sm:text-[10px] text-slate-400 mb-1 font-medium">Sucursal</label>
+              <select value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)} className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm">
                 {branches.length === 0 ? <option value="">No hay sucursales</option> : branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
 
             <div>
-              <label className="block text-[10px] text-slate-400 mb-1">Rol</label>
-              <select value={staffRole} onChange={e => setStaffRole(e.target.value)} className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-sm font-semibold text-emerald-300">
+              <label className="block text-[11px] sm:text-[10px] text-slate-400 mb-1 font-medium">Rol</label>
+              <select value={staffRole} onChange={e => setStaffRole(e.target.value)} className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm font-semibold text-emerald-300">
                 <option value="vendedor">🛒 Vendedor</option>
                 <option value="cajero">💵 Cajero</option>
               </select>
@@ -489,7 +491,7 @@ export default function Dashboard() {
 
             <button 
               onClick={handleSaveStaff} 
-              className={`text-white p-2 rounded font-semibold text-sm h-[38px] shadow ${editingStaffId ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}
+              className={`text-white p-2.5 rounded font-semibold text-sm shadow w-full ${editingStaffId ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}
             >
               {editingStaffId ? 'Actualizar' : 'Asignar'}
             </button>
@@ -497,7 +499,7 @@ export default function Dashboard() {
 
           {staffList.length > 0 && (
             <div className="mt-6 overflow-x-auto">
-              <table className="w-full text-left text-sm">
+              <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-slate-700 text-slate-300">
                   <tr>
                     <th className="p-3">Nombre</th>
@@ -534,22 +536,22 @@ export default function Dashboard() {
         </div>
 
         {/* SECCIÓN 3: GESTIÓN DE CATEGORÍAS */}
-        <div className="bg-[#1e293b] p-6 rounded-lg shadow mb-8 border border-slate-700">
-          <h2 className="text-lg font-bold text-emerald-400 mb-1">Gestión de Categorías</h2>
+        <div className="bg-[#1e293b] p-4 sm:p-6 rounded-lg shadow mb-8 border border-slate-700">
+          <h2 className="text-base sm:text-lg font-bold text-emerald-400 mb-1">Gestión de Categorías</h2>
           <p className="text-xs text-slate-400 mb-4">Crea las categorías (ej. Bebidas, Almuerzos, Postres) para clasificar tus productos.</p>
           
-          <form onSubmit={handleCreateCategory} className="flex gap-4 items-end mb-4">
+          <form onSubmit={handleCreateCategory} className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-end mb-4">
             <div className="flex-1">
               <label className="block text-xs text-slate-300 mb-1">Nombre de la Categoría</label>
               <input 
                 placeholder="Ej. Refacciones" 
                 value={newCategoryName} 
                 onChange={e => setNewCategoryName(e.target.value)} 
-                className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-sm outline-none focus:border-emerald-500" 
+                className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm outline-none focus:border-emerald-500" 
                 required
               />
             </div>
-            <button type="submit" className="bg-emerald-600 text-white px-5 py-2 rounded font-semibold hover:bg-emerald-500 text-sm h-[38px]">
+            <button type="submit" className="bg-emerald-600 text-white px-5 py-2.5 rounded font-semibold hover:bg-emerald-500 text-sm shadow">
               + Crear Categoría
             </button>
           </form>
@@ -566,21 +568,21 @@ export default function Dashboard() {
         </div>
 
         {/* Formulario Productos (Crear / Editar con Selector de Categoría) */}
-        <div className={`p-6 rounded-lg shadow mb-8 grid grid-cols-1 md:grid-cols-6 gap-4 items-end border ${editingId ? 'bg-amber-950/40 border-amber-500/50' : 'bg-[#1e293b] border-slate-700'}`}>
+        <div className={`p-4 sm:p-6 rounded-lg shadow mb-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 sm:gap-4 items-end border ${editingId ? 'bg-amber-950/40 border-amber-500/50' : 'bg-[#1e293b] border-slate-700'}`}>
           <div className="col-span-full">
             <h3 className={`font-bold text-sm ${editingId ? 'text-amber-400' : 'text-emerald-400'}`}>
               {editingId ? '✏️ Editando Producto Existente' : '➕ Agregar Nuevo Producto'}
             </h3>
           </div>
           
-          <input placeholder="Nombre" value={name} onChange={e => setName(e.target.value)} className="bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-sm" />
-          <input placeholder="Precio" type="number" value={price} onChange={e => setPrice(e.target.value)} className="bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-sm" />
-          <input placeholder="Stock" type="number" value={stock} onChange={e => setStock(e.target.value)} className="bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-sm" />
+          <input placeholder="Nombre" value={name} onChange={e => setName(e.target.value)} className="bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" />
+          <input placeholder="Precio" type="number" value={price} onChange={e => setPrice(e.target.value)} className="bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" />
+          <input placeholder="Stock" type="number" value={stock} onChange={e => setStock(e.target.value)} className="bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" />
           
           <select 
             value={selectedCategoryId} 
             onChange={e => setSelectedCategoryId(e.target.value)} 
-            className="bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-sm"
+            className="bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm"
           >
             <option value="">-- Sin Categoría --</option>
             {categories.map(cat => (
@@ -588,14 +590,14 @@ export default function Dashboard() {
             ))}
           </select>
 
-          <input type="file" accept="image/*" onChange={e => setImageFile(e.target.files?.[0] || null)} className="text-xs text-slate-400 file:bg-slate-700 file:text-white file:border-0 file:p-2 file:rounded" />
+          <input type="file" accept="image/*" onChange={e => setImageFile(e.target.files?.[0] || null)} className="text-xs text-slate-400 file:bg-slate-700 file:text-white file:border-0 file:p-2 file:rounded w-full" />
           
-          <div className="flex gap-2">
-            <button onClick={handleSaveProduct} className={`flex-1 p-2 rounded font-semibold text-white shadow text-sm ${editingId ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}>
+          <div className="flex gap-2 w-full">
+            <button onClick={handleSaveProduct} className={`flex-1 p-2.5 rounded font-semibold text-white shadow text-sm ${editingId ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}>
               {editingId ? 'Actualizar' : 'Agregar'}
             </button>
             {editingId && (
-              <button onClick={cancelEdit} className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold text-white text-xs">
+              <button onClick={cancelEdit} className="bg-slate-700 hover:bg-slate-600 px-3 py-2.5 rounded font-semibold text-white text-xs">
                 Cancelar
               </button>
             )}
@@ -604,42 +606,45 @@ export default function Dashboard() {
 
         {/* Tabla de Productos */}
         <div className="bg-[#1e293b] rounded-lg shadow overflow-hidden border border-slate-700">
-          <table className="w-full text-left">
-            <thead className="bg-slate-700 text-slate-300 border-b border-slate-600">
-              <tr>
-                <th className="p-4">Foto</th>
-                <th className="p-4">Producto</th>
-                <th className="p-4">Precio</th>
-                <th className="p-4">Stock</th>
-                <th className="p-4 text-center">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.length === 0 ? (
-                <tr><td colSpan={5} className="p-4 text-center text-slate-400">No hay productos en esta sucursal.</td></tr>
-              ) : (
-                products.map((p) => (
-                  <tr key={p.id} className="border-b border-slate-700 hover:bg-slate-700/50">
-                    <td className="p-2">
-                      {p.image_url ? (
-                        <img src={p.image_url} className="w-12 h-12 object-cover rounded" alt={p.name} />
-                      ) : (
-                        <div className="w-12 h-12 bg-slate-800 rounded flex items-center justify-center text-xs text-slate-500">Sin foto</div>
-                      )}
-                    </td>
-                    <td className="p-4 font-semibold">{p.name}</td>
-                    <td className="p-4" translate="no">Q {p.price}</td>
-                    <td className="p-4">{p.stock}</td>
-                    <td className="p-4 text-center space-x-2">
-                      <button onClick={() => startEdit(p)} className="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1 rounded text-xs font-semibold shadow">Editar / Foto</button>
-                      <button onClick={() => deleteProduct(p.id)} className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-xs font-semibold shadow">Quitar</button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left whitespace-nowrap">
+              <thead className="bg-slate-700 text-slate-300 border-b border-slate-600">
+                <tr>
+                  <th className="p-4">Foto</th>
+                  <th className="p-4">Producto</th>
+                  <th className="p-4">Precio</th>
+                  <th className="p-4">Stock</th>
+                  <th className="p-4 text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {products.length === 0 ? (
+                  <tr><td colSpan={5} className="p-4 text-center text-slate-400">No hay productos en esta sucursal.</td></tr>
+                ) : (
+                  products.map((p) => (
+                    <tr key={p.id} className="border-b border-slate-700 hover:bg-slate-700/50">
+                      <td className="p-2">
+                        {p.image_url ? (
+                          <img src={p.image_url} className="w-12 h-12 object-cover rounded" alt={p.name} />
+                        ) : (
+                          <div className="w-12 h-12 bg-slate-800 rounded flex items-center justify-center text-xs text-slate-500">Sin foto</div>
+                        )}
+                      </td>
+                      <td className="p-4 font-semibold">{p.name}</td>
+                      <td className="p-4" translate="no">Q {p.price}</td>
+                      <td className="p-4">{p.stock}</td>
+                      <td className="p-4 text-center space-x-2">
+                        <button onClick={() => startEdit(p)} className="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded text-xs font-semibold shadow">Editar / Foto</button>
+                        <button onClick={() => deleteProduct(p.id)} className="bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded text-xs font-semibold shadow">Quitar</button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
+
       </div>
     </div>
   )

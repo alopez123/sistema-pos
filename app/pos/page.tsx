@@ -162,7 +162,6 @@ export default function PosPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [router])
 
-  // Función global para actualizar toda la vista de forma inmediata
   const refreshAllData = (branchId: string, bizId: string) => {
     loadProducts(branchId)
     loadMovements(branchId)
@@ -409,8 +408,6 @@ export default function PosPage() {
     }
   }
 
-  // NUEVA FUNCIÓN PARA GUARDAR ORDEN PENDIENTE (COMANDA ABIERTA)
- // FUNCIÓN ACTUALIZADA: GUARDAR ORDEN PENDIENTE (CON NÚMERO DE ORDEN EXCLUSIVO POR SUCURSAL)
   async function handleSavePendingOrder() {
     if (!customerNit.trim() || !customerName.trim()) {
       alert("Por favor ingresa el NIT y el Nombre para la orden.")
@@ -428,7 +425,6 @@ export default function PosPage() {
       price: item.price
     }));
 
-    // Llamamos a la función segura que calcula y asigna el consecutivo propio de esta sucursal
     const { data, error } = await supabase.rpc('create_new_order_safe', {
       p_business_id: businessIdState,
       p_branch_id: selectedBranch,
@@ -443,7 +439,6 @@ export default function PosPage() {
       const nuevaOrden = data[0];
       const numeroTurno = nuevaOrden.order_number;
 
-      // Mostramos claramente el número de turno/orden exclusivo para que se le entregue al cliente
       alert(`✅ ¡Comanda / Orden guardada con éxito!\n\n🎟️ TURNO / ORDEN #${numeroTurno}\n\nEl cliente ya puede pasar a caja con este número.`);
       
       setCart([]);
@@ -727,7 +722,6 @@ export default function PosPage() {
     }
   }
 
-  // Filtrado de productos por texto y categoría seleccionada
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesCategory = selectedCategory ? p.category_id === selectedCategory : true
@@ -1275,11 +1269,11 @@ export default function PosPage() {
                 <div
                   key={p.id}
                   onClick={() => addToCart(p)}
-                  className="bg-[#0f172a] border border-slate-700 hover:border-emerald-500 p-3.5 rounded-lg flex flex-col justify-between text-left transition-all shadow hover:shadow-emerald-500/10 group cursor-pointer h-full"
+                  className="bg-[#0f172a] border border-slate-700 hover:border-emerald-500 active:scale-95 active:bg-emerald-950/40 active:border-emerald-400 p-3.5 rounded-lg flex flex-col justify-between text-left transition-all duration-150 shadow hover:shadow-emerald-500/10 group cursor-pointer h-full select-none"
                 >
                   <div className="flex flex-col">
                     {p.image_url ? (
-                      <img src={p.image_url} alt={p.name} className="w-full h-28 object-cover rounded mb-2.5 border border-slate-700" />
+                      <img src={p.image_url} alt={p.name} className="w-full h-28 object-cover rounded mb-2.5 border border-slate-700 pointer-events-none" />
                     ) : (
                       <div className="w-full h-28 bg-[#1e293b] rounded mb-2.5 flex items-center justify-center text-xs text-slate-400 border border-slate-700/50">Sin imagen</div>
                     )}
