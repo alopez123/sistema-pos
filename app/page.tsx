@@ -122,7 +122,7 @@ export default function LoginPage() {
       alert("Por favor ingresa tu correo o nombre del negocio primero.")
       return
     }
-    const phoneNumber = "50200000000" // Reemplaza con tu número de WhatsApp real con código de país (ej. Guatemala)
+    const phoneNumber = "48069299" // Reemplaza con tu número de WhatsApp real con código de país (ej. Guatemala)
     const message = encodeURIComponent(`Hola Admin, necesito restablecer la contraseña de mi cuenta en Quantika POS. Mi correo/negocio es: ${recoveryEmail}`)
     window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank')
     setShowForgotModal(false)
