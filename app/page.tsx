@@ -7,6 +7,11 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  
+  // Estados para el modal de recuperación de contraseña
+  const [showForgotModal, setShowForgotModal] = useState(false)
+  const [recoveryEmail, setRecoveryEmail] = useState('')
+
   const router = useRouter()
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -111,12 +116,25 @@ export default function LoginPage() {
     }
   }
 
+  // --- CONTACTAR POR WHATSAPP ---
+  const handleWhatsAppSupport = () => {
+    if (!recoveryEmail.trim()) {
+      alert("Por favor ingresa tu correo o nombre del negocio primero.")
+      return
+    }
+    const phoneNumber = "50200000000" // Reemplaza con tu número de WhatsApp real con código de país (ej. Guatemala)
+    const message = encodeURIComponent(`Hola Admin, necesito restablecer la contraseña de mi cuenta en Quantika POS. Mi correo/negocio es: ${recoveryEmail}`)
+    window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank')
+    setShowForgotModal(false)
+    setRecoveryEmail('')
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0f172a] p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-white text-4xl font-bold">POS <span className="text-emerald-500">SaaS</span></h1>
-          <p className="text-slate-400 mt-2">Acceso a sistema de gestión</p>
+          <h1 className="text-white text-3xl font-extrabold tracking-wide">Quantika <span className="text-emerald-500">POS</span></h1>
+          <p className="text-slate-400 mt-2 text-sm">Sistema de gestión empresarial</p>
         </div>
         
         <form onSubmit={handleLogin} className="bg-[#1e293b] p-8 rounded-lg shadow-2xl border border-slate-700 space-y-6">
@@ -127,7 +145,7 @@ export default function LoginPage() {
               value={email}
               onChange={e => setEmail(e.target.value)}
               className="w-full bg-[#0f172a] border border-slate-600 p-3 rounded text-white placeholder-slate-500 outline-none focus:border-emerald-500 transition-all" 
-              placeholder="comedor-nancyoliva o correo"
+              placeholder="negocio-usuario o correo"
               required
             />
           </div>
@@ -144,6 +162,17 @@ export default function LoginPage() {
             />
           </div>
 
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-400">¿Problemas de acceso?</span>
+            <button 
+              type="button" 
+              onClick={() => setShowForgotModal(true)}
+              className="text-emerald-400 hover:text-emerald-300 font-semibold transition-colors"
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
+          </div>
+
           <button 
             type="submit" 
             disabled={loading}
@@ -155,10 +184,59 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="text-center text-slate-500 text-xs mt-8">
-          © 2026 Sistema POS SaaS - Acceso Restringido
-        </p>
+        <div className="text-center mt-8 space-y-1">
+          <p className="text-slate-500 text-xs">
+            © 2026 Quantika POS - Acceso Restringido
+          </p>
+          <p className="text-emerald-400/80 text-[11px] font-semibold tracking-wider uppercase">
+            Powered by CodeNexa Academy
+          </p>
+        </div>
       </div>
+
+      {/* --- MODAL DE RECUPERACIÓN DE CONTRASEÑA --- */}
+      {showForgotModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1e293b] p-6 rounded-xl border border-emerald-500 w-full max-w-sm text-white shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-700 pb-3">
+              <h3 className="text-base font-bold text-emerald-400">🔑 Recuperar Acceso</h3>
+              <button onClick={() => setShowForgotModal(false)} className="text-slate-400 hover:text-white font-bold text-lg p-1">✕</button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              Ingresa tu correo o nombre del negocio para solicitar el restablecimiento de tu contraseña por WhatsApp:
+            </p>
+
+            <div>
+              <input 
+                type="text" 
+                value={recoveryEmail}
+                onChange={e => setRecoveryEmail(e.target.value)}
+                placeholder="correo@negocio.com"
+                className="w-full bg-[#0f172a] border border-slate-600 p-3 rounded text-white text-sm outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div className="pt-2">
+              <button 
+                type="button"
+                onClick={handleWhatsAppSupport}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 py-3 rounded-lg text-xs font-bold transition-colors shadow flex items-center justify-center gap-2"
+              >
+                💬 Solicitar por WhatsApp (Soporte)
+              </button>
+            </div>
+
+            <button 
+              type="button"
+              onClick={() => setShowForgotModal(false)}
+              className="w-full text-slate-400 hover:text-white py-1 text-xs transition-colors mt-2"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -15,6 +15,7 @@ export default function PosPage() {
   const [isStaff, setIsStaff] = useState(false)
   const router = useRouter()
 
+  
   // Estado para el Logotipo del Negocio
   const [businessLogo, setBusinessLogo] = useState<string | null>(null)
 
@@ -759,7 +760,7 @@ async function loadMovements(branchId: string) {
             <div className="w-14 h-14 bg-[#0f172a] rounded-lg flex items-center justify-center text-[10px] text-slate-500 border border-slate-600">POS</div>
           )}
 
-          <h1 className="text-xl font-bold">Punto de Venta (POS)</h1>
+          <h1 className="text-xl font-bold">Punto de Venta</h1>
           <select 
             value={selectedBranch} 
             onChange={e => handleBranchChange(e.target.value)}
@@ -1373,7 +1374,7 @@ async function loadMovements(branchId: string) {
               <span className="text-emerald-400 text-2xl" translate="no">Q {totalCart}</span>
             </div>
             
-            <button 
+           {/*} <button ------SE COMENTA POR QUE SOLO EL ROL DE CAJERO DEBE DE COBRAR
               onClick={() => {
                 if (cart.length > 0) setShowPaymentModal(true);
               }}
@@ -1381,7 +1382,7 @@ async function loadMovements(branchId: string) {
               className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white py-3 rounded-lg font-bold shadow transition-colors text-base"
             >
               Completar Venta / Cobrar Directo
-            </button>
+            </button>*/}
 
             <button 
               onClick={handleSavePendingOrder}

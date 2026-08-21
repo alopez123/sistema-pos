@@ -22,6 +22,8 @@ export default function AdminDashboard() {
   const [editPlan, setEditPlan] = useState('')
   const [editAmount, setEditAmount] = useState('')
   const [editBillingDate, setEditBillingDate] = useState('')
+  const [editOwnerEmail, setEditOwnerEmail] = useState('')
+  const [editPassword, setEditPassword] = useState('')
   const [editLogoFile, setEditLogoFile] = useState<File | null>(null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
 
@@ -58,7 +60,6 @@ export default function AdminDashboard() {
     }
   }
 
-  // Función para comprimir imágenes antes de subirlas al Storage
   const compressImage = (file: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
@@ -210,14 +211,17 @@ export default function AdminDashboard() {
         p_amount: parseFloat(editAmount !== '' ? editAmount : selectedBusiness.amount) || 0,
         p_next_billing_date: editBillingDate || selectedBusiness.next_billing_date,
         p_status: 'activo',
-        p_logo_url: updatedLogoUrl
+        p_logo_url: updatedLogoUrl,
+        p_new_email: editOwnerEmail || null,
+        p_new_password: editPassword || null
       })
 
       if (error) throw error
 
-      alert("¡Suscripción y detalles actualizados con éxito!")
+      alert("¡Credenciales, suscripción y detalles actualizados con éxito!")
       setSelectedBusiness(null)
       setEditLogoFile(null)
+      setEditPassword('')
       fetchBusinesses()
     } catch (err: any) {
       alert("Error al actualizar: " + err.message)
@@ -312,7 +316,6 @@ export default function AdminDashboard() {
               required
             />
 
-            {/* Input para el Logotipo */}
             <div className="sm:col-span-2 md:col-span-3">
               <label className="block text-xs text-slate-400 mb-1 font-semibold">Logotipo Institucional (Opcional)</label>
               <input 
@@ -387,6 +390,8 @@ export default function AdminDashboard() {
                             setEditPlan(b.subscription_plan || 'Básico')
                             setEditAmount(b.amount || '')
                             setEditBillingDate(b.next_billing_date || '')
+                            setEditOwnerEmail(b.owner_email || '')
+                            setEditPassword('')
                             setEditLogoFile(null)
                           }}
                           className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition-colors border border-slate-600 whitespace-nowrap"
@@ -413,10 +418,33 @@ export default function AdminDashboard() {
             </div>
 
             <div className="space-y-3 text-xs sm:text-sm">
-              <p className="text-slate-300 truncate"><strong className="text-white">Dueño:</strong> {selectedBusiness.owner_email}</p>
               <p className="text-slate-300"><strong className="text-white">Total Sucursales:</strong> <span className="text-emerald-400 font-bold">{selectedBusiness.branches_count ?? 0}</span></p>
 
-              {/* Sección de Logo Actual y Modificación */}
+              {/* CAMPOS DE CREDENCIALES DEL DUEÑO */}
+              <div className="border-t border-slate-700 pt-3 space-y-3">
+                <h4 className="text-emerald-400 font-bold text-xs uppercase tracking-wider">Credenciales de Acceso</h4>
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold text-xs">Correo del Dueño</label>
+                  <input 
+                    type="email" 
+                    value={editOwnerEmail} 
+                    onChange={e => setEditOwnerEmail(e.target.value)} 
+                    className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-xs sm:text-sm outline-none focus:border-emerald-500" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold text-xs">Nueva Contraseña (Opcional)</label>
+                  <input 
+                    type="password" 
+                    value={editPassword} 
+                    onChange={e => setEditPassword(e.target.value)} 
+                    className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-xs sm:text-sm outline-none focus:border-emerald-500" 
+                    placeholder="Dejar en blanco para no cambiar" 
+                  />
+                </div>
+              </div>
+
+              {/* Sección de Logo */}
               <div className="border-t border-slate-700 pt-3">
                 <label className="block text-slate-400 mb-2 font-semibold text-xs">Logotipo del Negocio</label>
                 <div className="flex items-center gap-3">
