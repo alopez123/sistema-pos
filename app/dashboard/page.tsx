@@ -369,11 +369,11 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f172a] p-4 sm:p-6 md:p-8 text-white notranslate" translate="no">
+    <div className="min-h-screen bg-[#0f172a] p-4 sm:p-6 lg:p-8 text-white w-full max-w-[1600px] mx-auto notranslate" translate="no">
       <div className="max-w-5xl mx-auto w-full">
         
         {/* HEADER RESPONSIVE CON BOTÓN DE COMPRAS */}
-        <header className="bg-[#1e293b] shadow rounded-lg p-4 sm:p-6 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 mb-8 border border-slate-700">
+        <header className="bg-[#1e293b] p-4 sm:p-6 rounded-lg shadow mb-6 flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4 border border-slate-700 w-full">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-white">Panel de Control POS</h1>
             <p className="text-xs sm:text-sm text-slate-400">Conectado como: {userEmail}</p>
@@ -385,6 +385,7 @@ export default function Dashboard() {
             <button onClick={() => router.push('/reportes')} className="flex-1 sm:flex-initial bg-emerald-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-emerald-500 transition-colors font-semibold text-xs sm:text-sm shadow">📊 Reportes</button>
             {/* BOTÓN DE INVENTARIO */}
            <button onClick={() => router.push('/inventario')} className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1">📋 Inventario</button>
+           <button onClick={() => router.push('/estadisticas')} className="bg-indigo-600 hover:bg-indigo-500 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors text-white"  >    📈 Estadísticas  </button>
             {isAdmin && <button onClick={() => router.push('/admin')} className="bg-slate-700 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-slate-600 transition-colors text-xs sm:text-sm font-semibold">Admin</button>}
             <button onClick={handleLogout} className="bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-red-500 transition-colors text-xs sm:text-sm font-semibold">Salir</button>
           </div>

@@ -84,6 +84,22 @@ export default function CashierPage() {
     }
   }, [router])
 
+  // --- AUTOREFRESH CADA 10 SEGUNDOS (SI NO ESTÁ EN PLENA GESTIÓN DE COBRO) ---
+  useEffect(() => {
+    if (!selectedBranch || !cashRegister) return
+
+    const interval = setInterval(() => {
+      if (!selectedOrder) {
+        loadPendingOrders(selectedBranch)
+        if (cashRegister) {
+          loadTodaySales(businessId, selectedBranch, cashRegister.opened_at)
+        }
+      }
+    }, 10000) // 10 segundos[cite: 4]
+
+    return () => clearInterval(interval)
+  }, [selectedBranch, cashRegister, selectedOrder, businessId])
+
   async function fetchBusinessInfo(bId: string) {
     const { data, error } = await supabase.rpc('get_business_info_safe', { p_business_id: bId })
     if (!error && data && data.length > 0) {
@@ -154,7 +170,6 @@ export default function CashierPage() {
     }
   }
 
-  // --- FUNCIÓN DE CIERRE DE CAJA CORREGIDA ---
   async function handleCloseDay(e: React.FormEvent, physicalCash: number, totalSalesRecord: number) {
     e.preventDefault()
     if (!cashRegister) return
@@ -175,6 +190,20 @@ export default function CashierPage() {
       setCashRegister(null)
       setTodaySales([])
     }
+  }
+
+  // --- FUNCIÓN PARA ABRIR VENTANA EMERGENTE DE LA SAT ---
+  const openSatPortal = () => {
+    const width = 1050
+    const height = 700
+    const left = (window.innerWidth - width) / 2
+    const top = (window.innerHeight - height) / 2
+    const satUrl = 'https://portal.sat.gob.gt/'
+    window.open(
+      satUrl,
+      'PortalSAT',
+      `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes,status=yes`
+    )
   }
 
   async function handleSelectOrder(order: any) {
@@ -365,7 +394,16 @@ export default function CashierPage() {
           />
         </div>
         
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {/* BOTÓN RÁPIDO PARA ABRIR LA SAT EN VENTANA EMERGENTE */}
+          <button 
+            onClick={openSatPortal} 
+            className="bg-sky-600 hover:bg-sky-500 px-4 py-2 rounded font-semibold text-sm transition-colors shadow flex items-center gap-1.5 text-white"
+            title="Abrir portal de la SAT para emitir factura"
+          >
+            🏛️ Facturar en SAT
+          </button>
+
           <button onClick={() => { loadPendingOrders(selectedBranch); if(cashRegister) loadTodaySales(businessId, selectedBranch, cashRegister.opened_at); }} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded font-semibold text-sm">
             🔄 Actualizar
           </button>
@@ -659,7 +697,7 @@ export default function CashierPage() {
         </div>
       )}
 
-      {/* --- MODAL CIERRE DE DÍA / ARQUEO ESTRICTO (CORREGIDO) --- */}
+      {/* --- MODAL CIERRE DE DÍA / ARQUEO ESTRICTO --- */}
       {showCloseModal && (() => {
         const totalEfectivo = todaySales
           .filter(s => s.payment_method === 'efectivo')
