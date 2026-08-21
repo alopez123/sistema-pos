@@ -30,6 +30,9 @@ export default function PosPage() {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
 
+  // Estado para el panel flotante de Alerta de Stock Bajo
+  const [showLowStockModal, setShowLowStockModal] = useState(false)
+
   // Estados para el menú operativo izquierdo
   const [activeTab, setActiveTab] = useState<'ticket' | 'addProduct' | 'otherStores' | 'transfers' | 'movements' | 'salesReport' | 'customers'>('ticket')
   const [allStoreProducts, setAllStoreProducts] = useState<any[]>([])
@@ -262,11 +265,16 @@ export default function PosPage() {
     }
   }
 
-  async function loadMovements(branchId: string) {
+async function loadMovements(branchId: string) {
+    // Obtener la fecha y hora de inicio del día actual (00:00:00) en formato ISO
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+
     const { data, error } = await supabase
       .from('inventory_movements')
       .select('*, product:products(name)')
       .eq('branch_id', branchId)
+      .gte('created_at', todayStart.toISOString()) // Filtra desde el inicio de hoy
       .order('created_at', { ascending: false })
 
     if (!error && data) {
@@ -738,6 +746,9 @@ export default function PosPage() {
     return isNotCurrentBranch && matchesSearch && matchesCategory;
   })
 
+  // Lista de productos con stock bajo (menor o igual a 5 unidades)
+  const lowStockItems = products.filter(p => p.stock <= 5)
+
   return (
     <div className="min-h-screen bg-[#0f172a] p-4 md:p-6 text-white flex flex-col w-full px-6 notranslate" translate="no">
       <header className="bg-[#1e293b] p-4 rounded-lg shadow mb-6 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 border border-slate-700 w-full">
@@ -762,6 +773,27 @@ export default function PosPage() {
         </div>
           
         <div className="flex items-center gap-2 justify-end flex-wrap">
+           {/* BOTÓN DE ALERTA DE STOCK BAJO */}
+           <button 
+             onClick={() => setShowLowStockModal(true)} 
+             className={`relative px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1.5 ${
+               lowStockItems.length > 0 ? 'bg-amber-600 hover:bg-amber-500 text-white animate-pulse' : 'bg-slate-700 hover:bg-slate-600 text-slate-300'
+             }`}
+           >
+             ⚠️ Stock Bajo
+             {lowStockItems.length > 0 && (
+               <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">
+                 {lowStockItems.length}
+               </span>
+             )}
+           </button>
+
+           <button 
+            onClick={() => router.push('/compras')} 
+            className="bg-amber-700 hover:bg-amber-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1"
+          >
+            📦 Compras
+          </button>
            <button 
             onClick={() => router.push('/clientes/reportes')} 
             className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1"
@@ -1362,6 +1394,60 @@ export default function PosPage() {
         </div>
 
       </div>
+
+      {/* --- MODAL DE ALERTA DE STOCK BAJO --- */}
+      {showLowStockModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 99999 }}>
+          <div className="bg-[#1e293b] p-6 rounded-xl border border-amber-500 w-full max-w-md text-white shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-700 pb-2">
+              <h3 className="text-base font-bold text-amber-400 flex items-center gap-2">
+                ⚠️ Productos con Stock Bajo (≤ 5)
+              </h3>
+              <button onClick={() => setShowLowStockModal(false)} className="text-slate-400 hover:text-white font-bold text-base">✕</button>
+            </div>
+
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1 text-sm">
+              {lowStockItems.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">
+                  <p>¡Excelente! No hay productos con stock crítico en esta sucursal.</p>
+                </div>
+              ) : (
+                lowStockItems.map(p => (
+                  <div key={p.id} className="bg-[#0f172a] p-3 rounded border border-slate-700 flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-white">{p.name}</p>
+                      <p className="text-xs text-slate-400">Estado crítico de inventario</p>
+                    </div>
+                    <span className="bg-red-500/20 text-red-400 font-bold px-2.5 py-1 rounded text-xs border border-red-500/30">
+                      Stock: {p.stock}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              {lowStockItems.length > 0 && (
+                <button 
+                  onClick={() => {
+                    setShowLowStockModal(false)
+                    router.push('/compras')
+                  }}
+                  className="flex-1 bg-amber-600 hover:bg-amber-500 py-2.5 rounded-lg font-bold text-sm text-white"
+                >
+                  📦 Ir a Compras / Reabastecer
+                </button>
+              )}
+              <button 
+                onClick={() => setShowLowStockModal(false)} 
+                className="bg-slate-700 hover:bg-slate-600 px-4 py-2.5 rounded-lg font-semibold text-sm text-slate-200"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- MODAL DE DETALLE DE VENTA SELECCIONADA --- */}
       {selectedSaleDetails !== null && (

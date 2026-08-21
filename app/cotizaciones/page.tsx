@@ -15,21 +15,17 @@ export default function NuevaCotizacionPage() {
   const [branchId, setBranchId] = useState<string>('')
   const [branches, setBranches] = useState<any[]>([])
   
-  // Estado para el Logotipo del Negocio
   const [businessLogo, setBusinessLogo] = useState<string | null>(null)
   
-  // Categorías y filtrado por categoría
   const [categories, setCategories] = useState<any[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
 
-  // Datos del cliente
   const [nit, setNit] = useState('')
   const [nombre, setNombre] = useState('')
   const [direccion, setDireccion] = useState('')
   const [telefono, setTelefono] = useState('')
   const [correo, setCorreo] = useState('')
 
-  // Productos y carrito
   const [products, setProducts] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -57,7 +53,6 @@ export default function NuevaCotizacionPage() {
       setBusinessId(bId)
       setBranchId(brId)
 
-      // Función infalible para cargar el logo usando la RPC creada previamente
       const fetchLogoUsingRpc = async (targetBranchId?: string, targetBizId?: string) => {
         const { data, error } = await supabase.rpc('get_business_logo_info', {
           p_branch_id: targetBranchId || null,
@@ -111,7 +106,13 @@ export default function NuevaCotizacionPage() {
 
   const loadBranches = async (bId: string) => {
     const { data } = await supabase.from('branches').select('*').eq('business_id', bId)
-    if (data) setBranches(data)
+    if (data) {
+      setBranches(data)
+      if (data.length > 0 && !branchId) {
+        setBranchId(data[0].id)
+        loadProducts(data[0].id)
+      }
+    }
   }
 
   const loadCategories = async (bId: string) => {
@@ -126,9 +127,14 @@ export default function NuevaCotizacionPage() {
     }
   }
 
+  // CORREGIDO: Uso de get_products_by_branch igual que el POS para asegurar que traiga category_id
   const loadProducts = async (branchIdToLoad: string) => {
-    const { data } = await supabase.rpc('get_products_by_branch', { p_branch_id: branchIdToLoad })
-    if (data) setProducts(data)
+    const { data, error } = await supabase.rpc('get_products_by_branch', { p_branch_id: branchIdToLoad })
+    if (!error && data) {
+      setProducts(data)
+    } else {
+      console.error("Error cargando productos en cotización:", error?.message)
+    }
   }
 
   const loadProductsByBusiness = async (businessIdToLoad: string) => {
@@ -173,7 +179,6 @@ export default function NuevaCotizacionPage() {
 
   const totalAmount = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0)
 
-  // Función de impresión segura compatible con iPhone / iOS con el Logotipo y Pie de Página incluido
   const handlePrintQuoteMobile = () => {
     const activeBranchName = branches.find(b => b.id === branchId)?.name || 'Sucursal Principal'
     const logoToPrint = businessLogo || '';
@@ -334,19 +339,19 @@ export default function NuevaCotizacionPage() {
   })
 
   return (
-    <div className="min-h-screen bg-[#0f172a] p-6 text-white flex flex-col notranslate" translate="no">
+    <div className="min-h-screen bg-[#0f172a] p-4 sm:p-6 text-white flex flex-col notranslate" translate="no">
       
-      {/* Cabecera Web con Logotipo */}
-      <header className="bg-[#1e293b] p-4 rounded-lg shadow mb-6 flex justify-between items-center border border-slate-700">
+      {/* Cabecera Responsive con Logotipo */}
+      <header className="bg-[#1e293b] p-4 rounded-lg shadow mb-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 border border-slate-700">
         <div className="flex items-center gap-3">
           {businessLogo ? (
             <img src={businessLogo} alt="Logo" className="w-12 h-12 object-contain bg-[#0f172a] rounded-lg p-1 border border-slate-600 shadow" />
           ) : (
             <div className="w-12 h-12 bg-[#0f172a] rounded-lg flex items-center justify-center text-[10px] text-slate-500 border border-slate-600">POS</div>
           )}
-          <h1 className="text-xl font-bold text-emerald-400">Nueva Cotización / Proforma</h1>
+          <h1 className="text-lg sm:text-xl font-bold text-emerald-400">Nueva Cotización / Proforma</h1>
         </div>
-        <button onClick={() => router.push('/pos')} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition-colors">
+        <button onClick={() => router.push('/pos')} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition-colors text-center">
           ← Volver al POS
         </button>
       </header>
@@ -354,9 +359,9 @@ export default function NuevaCotizacionPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
         
         {/* COLUMNA 1: FORMULARIO Y RESUMEN */}
-        <div className="bg-[#1e293b] p-5 rounded-lg shadow border border-slate-700 flex flex-col gap-4 justify-between">
+        <div className="bg-[#1e293b] p-4 sm:p-5 rounded-lg shadow border border-slate-700 flex flex-col gap-4 justify-between">
           
-          <div className="space-y-4">
+          <div className="space-y-3">
             <h2 className="text-md font-bold text-emerald-400 border-b border-slate-700 pb-2">Datos del Cliente</h2>
             <div>
               <label className="text-xs text-slate-400 block mb-1">NIT *</label>
@@ -414,7 +419,6 @@ export default function NuevaCotizacionPage() {
                 {loading ? 'Generando...' : '💾 Guardar y Generar PDF'}
               </button>
 
-              {/* Aviso de validez inferior en pantalla */}
               <p className="text-[10px] text-slate-400 text-center mt-3 italic">
                 * Esta cotización tiene validez durante 24 horas, luego de eso puede estar sujeta a cambios.
               </p>
@@ -422,10 +426,10 @@ export default function NuevaCotizacionPage() {
           </div>
         </div>
 
-        {/* COLUMNAS 2 y 3: Catálogo Web con Buscador y Pestañas de Categorías */}
-        <div className="lg:col-span-2 bg-[#1e293b] p-6 rounded-lg shadow border border-slate-700 flex flex-col">
+        {/* COLUMNAS 2 y 3: Catálogo Web y Táctil con Buscador, Categorías y Feedback Táctil */}
+        <div className="lg:col-span-2 bg-[#1e293b] p-4 sm:p-6 rounded-lg shadow border border-slate-700 flex flex-col">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-bold text-emerald-400">Catálogo de Productos (Matriz)</h2>
+            <h2 className="text-base sm:text-lg font-bold text-emerald-400">Catálogo de Productos (Matriz)</h2>
           </div>
 
           <div className="relative mb-4" ref={searchRef}>
@@ -447,7 +451,7 @@ export default function NuevaCotizacionPage() {
             )}
           </div>
 
-          {/* --- PESTAÑAS DE FILTRADO POR CATEGORÍA --- */}
+          {/* PESTAÑAS DE FILTRADO POR CATEGORÍA */}
           <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-thin">
             <button
               onClick={() => setSelectedCategory(null)}
@@ -469,16 +473,24 @@ export default function NuevaCotizacionPage() {
               </button>
             ))}
           </div>
-          {/* ----------------------------------------- */}
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 overflow-y-auto max-h-[55vh] pr-1">
+          {/* TARJETAS DE PRODUCTOS CON FEEDBACK TÁCTIL Y RESPONSIVE */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 overflow-y-auto max-h-[55vh] pr-1">
             {filteredProducts.length === 0 ? (
               <p className="text-slate-400 col-span-full text-center py-10">No hay productos que coincidan con la búsqueda.</p>
             ) : (
               filteredProducts.map(p => (
-                <div key={p.id} onClick={() => addToCart(p)} className="bg-[#0f172a] border border-slate-700 hover:border-emerald-500 p-3 rounded-lg flex flex-col justify-between text-left transition-all shadow hover:shadow-emerald-500/10 group cursor-pointer h-full">
+                <div 
+                  key={p.id} 
+                  onClick={() => addToCart(p)} 
+                  className="bg-[#0f172a] border border-slate-700 hover:border-emerald-500 active:scale-95 active:bg-emerald-950/40 active:border-emerald-400 p-3 rounded-lg flex flex-col justify-between text-left transition-all duration-150 shadow hover:shadow-emerald-500/10 group cursor-pointer h-full select-none"
+                >
                   <div className="flex flex-col">
-                    {p.image_url ? <img src={p.image_url} alt={p.name} className="w-full h-24 object-cover rounded mb-2 border border-slate-700" /> : <div className="w-full h-24 bg-[#1e293b] rounded mb-2 flex items-center justify-center text-xs text-slate-500 border border-slate-700/50">Sin imagen</div>}
+                    {p.image_url ? (
+                      <img src={p.image_url} alt={p.name} className="w-full h-24 object-cover rounded mb-2 border border-slate-700 pointer-events-none" />
+                    ) : (
+                      <div className="w-full h-24 bg-[#1e293b] rounded mb-2 flex items-center justify-center text-xs text-slate-500 border border-slate-700/50">Sin imagen</div>
+                    )}
                     <span className="text-[11px] text-slate-400 block mb-0.5">Stock: {p.stock}</span>
                     <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-2 text-xs leading-snug">{p.name}</h3>
                   </div>
