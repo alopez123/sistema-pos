@@ -480,6 +480,43 @@ export default function PosPage() {
   }
 
   const addToCart = (product: any) => {
+    const isCustomByName = product.name && (
+      product.name.toLowerCase().includes('vinil') || 
+      product.name.toLowerCase().includes('personaliz') ||
+      product.name.toLowerCase().includes('manta')
+    );
+    
+    if (isCustomByName) {
+      const customDesc = prompt("Ingresa las medidas, peso o características (Ej. Manta 2x1.5m):");
+      if (!customDesc) return;
+
+      const customPriceStr = prompt("Ingresa el precio de venta cotizado:");
+      const customPrice = parseFloat(customPriceStr || '0');
+      
+      if (isNaN(customPrice) || customPrice <= 0) {
+        alert("Por favor ingresa un precio de venta válido.");
+        return;
+      }
+
+      const staffData = JSON.parse(localStorage.getItem('currentStaff') || '{}');
+
+      setCart(prevCart => [
+        ...prevCart,
+        {
+          ...product,
+          id: product.id,
+          name: `${product.name} (${customDesc})`,
+          price: customPrice,
+          originalPrice: customPrice,
+          quantity: 1,
+          stock: 9999,
+          isSpecial: false,
+          staffId: staffData.id || null
+        }
+      ]);
+      return;
+    }
+
     if (product.stock <= 0) {
       alert("Producto sin existencias.")
       return
@@ -762,7 +799,7 @@ export default function PosPage() {
     return isNotCurrentBranch && matchesSearch && matchesCategory;
   })
 
-  const lowStockItems = products.filter(p => p.stock <= 5)
+  const lowStockItems = products.filter(p => p.stock <= 5 && !p.is_custom)
 
   return (
     <div className="min-h-screen bg-[#0f172a] p-4 md:p-6 text-white flex flex-col w-full px-6 notranslate" translate="no">
@@ -1321,13 +1358,17 @@ export default function PosPage() {
                     ) : (
                       <div className="w-full h-28 bg-[#1e293b] rounded mb-2.5 flex items-center justify-center text-xs text-slate-400 border border-slate-700/50">Sin imagen</div>
                     )}
-                    <span className="text-xs sm:text-sm text-slate-300 block mb-1 font-semibold">Stock: <span className="text-emerald-400 font-bold">{p.stock}</span></span>
+                    <span className="text-xs sm:text-sm text-slate-300 block mb-1 font-semibold">
+                      Stock: <span className="text-emerald-400 font-bold">{p.is_custom ? 'N/A' : p.stock}</span>
+                    </span>
                     <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-2 text-sm sm:text-base leading-snug">{p.name}</h3>
                   </div>
                   
                   <div className="mt-3 pt-2 border-t border-slate-800 flex items-center justify-between">
-                    <span className="text-xs text-slate-400 uppercase font-medium">Precio</span>
-                    <span className="text-emerald-400 font-extrabold text-base sm:text-lg" translate="no">Q {p.price}</span>
+                    <span className="text-xs text-slate-400 uppercase font-medium">{p.is_custom ? 'Variable' : 'Precio'}</span>
+                    <span className="text-emerald-400 font-extrabold text-base sm:text-lg" translate="no">
+                      {p.is_custom ? 'A cotizar' : `Q ${p.price}`}
+                    </span>
                   </div>
                 </div>
               ))
@@ -1383,6 +1424,17 @@ export default function PosPage() {
               <span>Total:</span>
               <span className="text-emerald-400 text-2xl" translate="no">Q {totalCart}</span>
             </div>
+
+            <button 
+              onClick={() => {
+                if (cart.length === 0) return;
+                setShowPaymentModal(true);
+              }}
+              disabled={cart.length === 0}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white py-3 rounded-lg font-bold shadow transition-colors text-sm mb-2"
+            >
+              💳 Cobrar / Finalizar Venta
+            </button>
 
             <button 
               onClick={handleSavePendingOrder}

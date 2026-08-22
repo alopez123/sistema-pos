@@ -14,7 +14,7 @@ export default function LoginPage() {
   // Estados renovación QR + Token
   const [showRenewalModal, setShowRenewalModal] = useState(false)
   const [pendingBusiness, setPendingBusiness] = useState<any>(null)
-  const [selectedBank, setSelectedBank] = useState<'BI' | 'BAM'>('BI')
+  const [selectedBank, setSelectedBank] = useState<'BI' | 'BANRURAL'>('BI')
   const [referenceCode, setReferenceCode] = useState('')
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [uploadingProof, setUploadingProof] = useState(false)
@@ -177,7 +177,7 @@ export default function LoginPage() {
     );
     window.open(`https://wa.me/${adminPhone}?text=${message}`, '_blank');
   };
-  
+
 
   const handleUpdatePassword = async () => {
     if (!newPassword.trim() || newPassword.length < 6) {
@@ -415,7 +415,7 @@ export default function LoginPage() {
             
             <div className="text-center space-y-1">
               <h3 className="text-lg font-bold text-emerald-400">💳 Renovación y Activación por Token</h3>
-              <p className="text-xs text-slate-300">El negocio asociado se encuentra pendiente de pago. Escanea el QR, sube tu comprobante y pide tu token.</p>
+              <p className="text-xs text-slate-300">El negocio asociado se encuentra pendiente de pago. Por favor ponte al dia con el pago a cualquiera de nuestras cuentas, sube tu comprobante y pide tu token.</p>
             </div>
 
             <div className="bg-[#0f172a] p-3 rounded-lg border border-slate-700 text-xs space-y-1">
@@ -436,18 +436,18 @@ export default function LoginPage() {
                 </button>
                 <button 
                   type="button"
-                  onClick={() => setSelectedBank('BAM')}
-                  className={`py-2 rounded-lg font-bold text-xs border transition-all ${selectedBank === 'BAM' ? 'bg-emerald-600 border-emerald-400 text-white' : 'bg-[#0f172a] border-slate-700 text-slate-400'}`}
+                  onClick={() => setSelectedBank('BANRURAL')}
+                  className={`py-2 rounded-lg font-bold text-xs border transition-all ${selectedBank === 'BANRURAL' ? 'bg-emerald-600 border-emerald-400 text-white' : 'bg-[#0f172a] border-slate-700 text-slate-400'}`}
                 >
-                  Banco BAM
+                  Banco BANRURAL
                 </button>
               </div>
             </div>
 
             {/* QR */}
             <div className="flex flex-col items-center justify-center bg-white p-4 rounded-lg space-y-2 shadow-inner">
-              <img src={selectedBank === 'BI' ? '/qr-bi.png' : '/qr-bam.png'} alt={`QR ${selectedBank}`} className="w-40 h-40 object-contain" />
-              <span className="text-[11px] font-bold text-slate-800">Escanea con tu app de {selectedBank === 'BI' ? 'Banco Industrial' : 'BAM'}</span>
+              <img src={selectedBank === 'BI' ? '/qr-bi.png' : '/qr-banrural.png'} alt={`QR ${selectedBank}`} className="w-40 h-40 object-contain" />
+              <span className="text-[11px] font-bold text-slate-800">Trasnfiera a: {selectedBank === 'BI' ? 'Banco Industrial' : 'Banrural'}</span>
             </div>
 
             {/* Subir comprobante y Referencia */}

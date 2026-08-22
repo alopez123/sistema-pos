@@ -7,6 +7,7 @@ export default function Dashboard() {
   const [products, setProducts] = useState<any[]>([])
   const [branches, setBranches] = useState<any[]>([])
   const [selectedBranch, setSelectedBranch] = useState<string>('')
+  const [isCustomProduct, setIsCustomProduct] = useState(false) // Estado para producto personalizable[cite: 3]
 
   // Estados para personal / cajeros
   const [username, setUsername] = useState('')
@@ -20,6 +21,7 @@ export default function Dashboard() {
   // Estados para Categorías y Productos
   const [categories, setCategories] = useState<any[]>([])
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null) 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [price, setPrice] = useState('')
@@ -135,21 +137,64 @@ export default function Dashboard() {
     }
   }
 
-  async function handleCreateCategory(e: React.FormEvent) {
+  async function handleSaveCategory(e: React.FormEvent) {
     e.preventDefault()
     if (!newCategoryName.trim() || !currentBusinessId) return
 
-    const { data, error } = await supabase.rpc('create_category_safe', {
-      p_business_id: currentBusinessId,
-      p_name: newCategoryName.trim()
+    if (editingCategoryId) {
+      const { error } = await supabase
+        .from('categories')
+        .update({ name: newCategoryName.trim() })
+        .eq('id', editingCategoryId)
+
+      if (error) {
+        alert("Error al actualizar categoría: " + error.message)
+      } else {
+        alert("¡Categoría actualizada con éxito!")
+        setEditingCategoryId(null)
+        setNewCategoryName('')
+        fetchCategories(currentBusinessId)
+      }
+    } else {
+      const { data, error } = await supabase.rpc('create_category_safe', {
+        p_business_id: currentBusinessId,
+        p_name: newCategoryName.trim()
+      })
+
+      if (error) {
+        alert("Error al crear categoría: " + error.message)
+      } else {
+        alert("¡Categoría creada con éxito!")
+        setNewCategoryName('')
+        fetchCategories(currentBusinessId)
+      }
+    }
+  }
+
+  function startEditCategory(cat: { id: string; name: string }) {
+    setEditingCategoryId(cat.id)
+    setNewCategoryName(cat.name)
+  }
+
+  function cancelEditCategory() {
+    setEditingCategoryId(null)
+    setNewCategoryName('')
+  }
+
+  async function deleteCategory(categoryId: string) {
+    if (!confirm("¿Estás seguro de dar de baja esta categoría? Se validará que no tenga productos asociados.")) return
+
+    const { data, error } = await supabase.rpc('delete_category_safely', {
+      p_category_id: categoryId
     })
 
     if (error) {
-      alert("Error al crear categoría: " + error.message)
+      alert("Error al ejecutar la acción: " + error.message)
     } else {
-      alert("¡Categoría creada con éxito!")
-      setNewCategoryName('')
-      fetchCategories(currentBusinessId)
+      alert(data.message)
+      if (data.success) {
+        fetchCategories(currentBusinessId)
+      }
     }
   }
 
@@ -282,7 +327,8 @@ export default function Dashboard() {
         p_stock: parseInt(stock) || 0,
         p_branch_id: selectedBranch,
         p_image_url: imageUrl,
-        p_category_id: selectedCategoryId || null
+        p_category_id: selectedCategoryId || null,
+        p_is_custom: isCustomProduct // Enviando la bandera de producto personalizable
       })
 
       if (error) alert("Error al agregar: " + error.message)
@@ -300,6 +346,7 @@ export default function Dashboard() {
     setPrice(product.price)
     setStock(product.stock)
     setSelectedCategoryId(product.category_id || '')
+    setIsCustomProduct(product.is_custom || false)
     setImageFile(null)
   }
 
@@ -309,6 +356,7 @@ export default function Dashboard() {
     setPrice('')
     setStock('')
     setSelectedCategoryId('')
+    setIsCustomProduct(false)
     setImageFile(null)
   }
 
@@ -372,7 +420,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-[#0f172a] p-4 sm:p-6 lg:p-8 text-white w-full max-w-[1600px] mx-auto notranslate" translate="no">
       <div className="max-w-5xl mx-auto w-full">
         
-        {/* HEADER RESPONSIVE CON BOTÓN DE COMPRAS */}
+        {/* HEADER */}
         <header className="bg-[#1e293b] p-4 sm:p-6 rounded-lg shadow mb-6 flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4 border border-slate-700 w-full">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-white">Panel de Control POS</h1>
@@ -383,15 +431,14 @@ export default function Dashboard() {
             <button onClick={() => router.push('/cajero')} className="flex-1 sm:flex-initial bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-500 transition-colors font-semibold text-xs sm:text-sm shadow">💵 Caja</button>
             <button onClick={() => router.push('/compras')} className="flex-1 sm:flex-initial bg-amber-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-amber-500 transition-colors font-semibold text-xs sm:text-sm shadow">📦 Compras</button>
             <button onClick={() => router.push('/reportes')} className="flex-1 sm:flex-initial bg-emerald-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-emerald-500 transition-colors font-semibold text-xs sm:text-sm shadow">📊 Reportes</button>
-            {/* BOTÓN DE INVENTARIO */}
-           <button onClick={() => router.push('/inventario')} className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1">📋 Inventario</button>
-           <button onClick={() => router.push('/estadisticas')} className="bg-indigo-600 hover:bg-indigo-500 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors text-white"  >    📈 Estadísticas  </button>
+            <button onClick={() => router.push('/inventario')} className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1">📋 Inventario</button>
+            <button onClick={() => router.push('/estadisticas')} className="bg-indigo-600 hover:bg-indigo-500 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors text-white">📈 Estadísticas</button>
             {isAdmin && <button onClick={() => router.push('/admin')} className="bg-slate-700 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-slate-600 transition-colors text-xs sm:text-sm font-semibold">Admin</button>}
             <button onClick={handleLogout} className="bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-red-500 transition-colors text-xs sm:text-sm font-semibold">Salir</button>
           </div>
         </header>
         
-        {/* SECCIÓN 1: CREACIÓN Y MANTENIMIENTO DE SUCURSALES */}
+        {/* SECCIÓN 1: SUCURSALES */}
         <div className="bg-[#1e293b] p-4 sm:p-6 rounded-lg shadow mb-6 space-y-4 border border-slate-700">
           <div>
             <h2 className="text-base sm:text-lg font-bold text-emerald-400 mb-1">Creación y Mantenimiento de Sucursales</h2>
@@ -431,7 +478,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* SECCIÓN 2: ASIGNAR / EDITAR PERSONAL A SUCURSAL */}
+        {/* SECCIÓN 2: PERSONAL */}
         <div className={`p-4 sm:p-6 rounded-lg shadow mb-6 border ${editingStaffId ? 'bg-amber-950/40 border-amber-500/50' : 'bg-[#1e293b] border-slate-700'}`}>
           <div className="flex justify-between items-center mb-1">
             <h2 className={`text-base sm:text-lg font-bold ${editingStaffId ? 'text-amber-400' : 'text-emerald-400'}`}>
@@ -461,7 +508,7 @@ export default function Dashboard() {
               <input 
                 placeholder="usuario" 
                 value={username} 
-               onChange={e => setUsername(e.target.value.replace(/\s+/g, ''))}
+                onChange={e => setUsername(e.target.value.replace(/\s+/g, ''))}
                 className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm outline-none" 
               />
             </div>
@@ -539,12 +586,21 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* SECCIÓN 3: GESTIÓN DE CATEGORÍAS */}
-        <div className="bg-[#1e293b] p-4 sm:p-6 rounded-lg shadow mb-8 border border-slate-700">
-          <h2 className="text-base sm:text-lg font-bold text-emerald-400 mb-1">Gestión de Categorías</h2>
-          <p className="text-xs text-slate-400 mb-4">Crea las categorías (ej. Bebidas, Almuerzos, Postres) para clasificar tus productos.</p>
+        {/* SECCIÓN 3: CATEGORÍAS */}
+        <div className={`p-4 sm:p-6 rounded-lg shadow mb-8 border ${editingCategoryId ? 'bg-amber-950/40 border-amber-500/50' : 'bg-[#1e293b] border-slate-700'}`}>
+          <div className="flex justify-between items-center mb-1">
+            <h2 className={`text-base sm:text-lg font-bold ${editingCategoryId ? 'text-amber-400' : 'text-emerald-400'}`}>
+              {editingCategoryId ? '✏️ Editando Categoría' : 'Gestión de Categorías'}
+            </h2>
+            {editingCategoryId && (
+              <button onClick={cancelEditCategory} className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded font-semibold text-white">
+                Cancelar Edición
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-slate-400 mb-4">Crea, renombra o da de baja tus categorías de forma segura considerando los productos asociados.</p>
           
-          <form onSubmit={handleCreateCategory} className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-end mb-4">
+          <form onSubmit={handleSaveCategory} className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-end mb-4">
             <div className="flex-1">
               <label className="block text-xs text-slate-300 mb-1">Nombre de la Categoría</label>
               <input 
@@ -555,23 +611,36 @@ export default function Dashboard() {
                 required
               />
             </div>
-            <button type="submit" className="bg-emerald-600 text-white px-5 py-2.5 rounded font-semibold hover:bg-emerald-500 text-sm shadow">
-              + Crear Categoría
-            </button>
+            <div className="flex gap-2">
+              <button type="submit" className={`px-5 py-2.5 rounded font-semibold text-white text-sm shadow ${editingCategoryId ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}>
+                {editingCategoryId ? 'Actualizar Categoría' : '+ Crear Categoría'}
+              </button>
+              {editingCategoryId && (
+                <button type="button" onClick={cancelEditCategory} className="bg-slate-700 hover:bg-slate-600 px-3 py-2.5 rounded font-semibold text-white text-xs">
+                  Cancelar
+                </button>
+              )}
+            </div>
           </form>
 
           {categories.length > 0 && (
             <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-700">
               {categories.map(cat => (
-                <span key={cat.id} className="bg-[#0f172a] border border-slate-600 text-emerald-300 text-xs px-3 py-1.5 rounded-full font-semibold">
-                  🏷️ {cat.name}
-                </span>
+                <div key={cat.id} className="flex items-center bg-[#0f172a] border border-slate-600 text-white text-xs px-3 py-1.5 rounded-full font-semibold gap-2">
+                  <span>🏷️ {cat.name}</span>
+                  <button onClick={() => startEditCategory(cat)} className="text-amber-400 hover:text-amber-300 font-bold" title="Renombrar">
+                    ✏️
+                  </button>
+                  <button onClick={() => deleteCategory(cat.id)} className="text-red-400 hover:text-red-300 font-bold" title="Dar de baja">
+                    ✕
+                  </button>
+                </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Formulario Productos (Crear / Editar con Selector de Categoría) */}
+        {/* Formulario Productos (Crear / Editar con Selector de Categoría y Checkbox Personalizado) */}
         <div className={`p-4 sm:p-6 rounded-lg shadow mb-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 sm:gap-4 items-end border ${editingId ? 'bg-amber-950/40 border-amber-500/50' : 'bg-[#1e293b] border-slate-700'}`}>
           <div className="col-span-full">
             <h3 className={`font-bold text-sm ${editingId ? 'text-amber-400' : 'text-emerald-400'}`}>
@@ -596,7 +665,21 @@ export default function Dashboard() {
 
           <input type="file" accept="image/*" onChange={e => setImageFile(e.target.files?.[0] || null)} className="text-xs text-slate-400 file:bg-slate-700 file:text-white file:border-0 file:p-2 file:rounded w-full" />
           
-          <div className="flex gap-2 w-full">
+          {/* Checkbox para Producto Personalizable / Precio Abierto */}
+          <div className="col-span-full flex items-center gap-2 pt-2 bg-[#0f172a] p-3 rounded border border-slate-700">
+            <input 
+              type="checkbox" 
+              id="customCheck"
+              checked={isCustomProduct} 
+              onChange={e => setIsCustomProduct(e.target.checked)} 
+              className="w-4 h-4 accent-emerald-500 cursor-pointer"
+            />
+            <label htmlFor="customCheck" className="text-xs text-slate-300 font-semibold cursor-pointer">
+              ¿Es un producto personalizable o de precio/medida abierta? (Ej. Mantas vinílicas)
+            </label>
+          </div>
+
+          <div className="col-span-full flex gap-2 w-full pt-2">
             <button onClick={handleSaveProduct} className={`flex-1 p-2.5 rounded font-semibold text-white shadow text-sm ${editingId ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}>
               {editingId ? 'Actualizar' : 'Agregar'}
             </button>
@@ -634,7 +717,9 @@ export default function Dashboard() {
                           <div className="w-12 h-12 bg-slate-800 rounded flex items-center justify-center text-xs text-slate-500">Sin foto</div>
                         )}
                       </td>
-                      <td className="p-4 font-semibold">{p.name}</td>
+                      <td className="p-4 font-semibold">
+                        {p.name} {p.is_custom && <span className="text-[10px] bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded ml-2">Personalizable</span>}
+                      </td>
                       <td className="p-4" translate="no">Q {p.price}</td>
                       <td className="p-4">{p.stock}</td>
                       <td className="p-4 text-center space-x-2">
