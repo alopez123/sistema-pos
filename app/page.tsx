@@ -8,9 +8,26 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   
-  // Estados para el modal de recuperación de contraseña
+  // Estados recuperación contraseña
   const [showForgotModal, setShowForgotModal] = useState(false)
   const [recoveryEmail, setRecoveryEmail] = useState('')
+
+  // Estados renovación QR + Token
+  const [showRenewalModal, setShowRenewalModal] = useState(false)
+  const [pendingBusiness, setPendingBusiness] = useState<any>(null)
+  const [selectedBank, setSelectedBank] = useState<'BI' | 'BAM'>('BI')
+  const [referenceCode, setReferenceCode] = useState('')
+  const [proofFile, setProofFile] = useState<File | null>(null)
+  const [uploadingProof, setUploadingProof] = useState(false)
+  const [inputToken, setInputToken] = useState('')
+  const [validatingToken, setValidatingToken] = useState(false)
+
+  // Estados para Modal de Cambio Obligatorio de Contraseña (Primer Uso)
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [changingPassword, setChangingPassword] = useState(false)
+  const [tempUserAccount, setTempUserAccount] = useState<any>(null)
 
   const router = useRouter()
 
@@ -19,17 +36,30 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      // 1. Intentar validar primero como Dueño o Administrador
       const { data, error } = await supabase
-        .rpc('verify_business_login', { 
-          p_email: email, 
-          p_password: password 
-        })
+        .rpc('verify_business_login', { p_email: email, p_password: password })
 
       if (!error && data && data.length > 0) {
         const userAccount = data[0]
 
-        // Verificación de estado de cuenta del negocio (Dueño)
+        if (userAccount.owner_email !== 'alopezadmin@admin.com') {
+          // 1. Validar si requiere cambio obligatorio de contraseña por primer uso
+          if (userAccount.must_change_password === true) {
+            setTempUserAccount(userAccount)
+            setShowPasswordModal(true)
+            setLoading(false)
+            return
+          }
+
+          // 2. Validar si requiere pago
+          if (userAccount.payment_status === 'Pendiente' || userAccount.payment_status === 'Atrasado') {
+            setPendingBusiness(userAccount)
+            setShowRenewalModal(true)
+            setLoading(false)
+            return
+          }
+        }
+
         const status = (userAccount.status || 'activo').toLowerCase();
         if (status !== 'activo') {
           alert('Esta cuenta se encuentra ' + status + '. Contacte al soporte.')
@@ -37,11 +67,9 @@ export default function LoginPage() {
           return
         }
 
-        // Guardar contexto en sesión local del Dueño
         localStorage.removeItem('currentStaff')
         localStorage.setItem('currentBusiness', JSON.stringify(userAccount))
 
-        // Redirección inteligente
         if (userAccount.owner_email === 'alopezadmin@admin.com') {
           router.push('/admin')
         } else {
@@ -50,12 +78,9 @@ export default function LoginPage() {
         return
       }
 
-      // 2. SI NO ES DUEÑO, verificar si es un empleado (vendedor o cajero)
+      // Validación de empleados (staff)
       const { data: staffData, error: staffError } = await supabase
-        .rpc('verify_staff_login', {
-          p_username: email.trim().toLowerCase(),
-          p_access_code: password.trim()
-        })
+        .rpc('verify_staff_login', { p_username: email.trim().toLowerCase(), p_access_code: password.trim() })
 
       if (staffError || !staffData || staffData.length === 0) {
         alert('Usuario, correo o contraseña incorrectos.')
@@ -64,49 +89,33 @@ export default function LoginPage() {
       }
 
       const staff = staffData[0]
-      
-      // --- LECTURA LIMPIA Y SEGURA DEL ROL ---
-      const userRole = (staff.role || 'vendedor').trim().toLowerCase();
+      const { data: bizData } = await supabase.from('businesses').select('*').eq('id', staff.business_id).single()
 
-      // --- VALIDACIÓN DE ESTADO DEL NEGOCIO PARA EMPLEADOS ---
-      const { data: bizData } = await supabase
-        .from('businesses')
-        .select('status')
-        .eq('id', staff.business_id)
-        .single()
-
-      const bizStatus = (bizData?.status || 'activo').toLowerCase();
-      if (bizStatus !== 'activo') {
-        alert('Acceso denegado: El negocio se encuentra ' + bizStatus + '. Contacte al administrador.')
+      if (bizData && (bizData.payment_status === 'Pendiente' || bizData.payment_status === 'Atrasado')) {
+        setPendingBusiness(bizData)
+        setShowRenewalModal(true)
         setLoading(false)
         return
       }
 
-      // Buscar el nombre de la sucursal para guardarlo en la sesión
-      const { data: branchData } = await supabase
-        .from('branches')
-        .select('name')
-        .eq('id', staff.branch_id)
-        .single()
+      const bizStatus = (bizData?.status || 'activo').toLowerCase();
+      if (bizStatus !== 'activo') {
+        alert('Acceso denegado: El negocio se encuentra ' + bizStatus + '.')
+        setLoading(false)
+        return
+      }
 
-      // Guardar sesión del empleado, su sucursal fija y su ROL corregido
+      const userRole = (staff.role || 'vendedor').trim().toLowerCase();
+      const { data: branchData } = await supabase.from('branches').select('name').eq('id', staff.branch_id).single()
+
       localStorage.removeItem('currentBusiness')
       localStorage.setItem('currentStaff', JSON.stringify({
-        id: staff.id,
-        name: staff.name,
-        username: staff.username || staff.email,
-        branch_id: staff.branch_id,
-        business_id: staff.business_id,
-        branch_name: branchData?.name || 'Sucursal',
-        role: userRole // Guardamos el rol normalizado
+        id: staff.id, name: staff.name, username: staff.username || staff.email,
+        branch_id: staff.branch_id, business_id: staff.business_id, branch_name: branchData?.name || 'Sucursal', role: userRole
       }))
 
-      // REDIRECCIÓN INTELIGENTE SEGÚN EL ROL
-      if (userRole === 'cajero') {
-        router.push('/cajero') // Envía directo a la pantalla exclusiva de caja
-      } else {
-        router.push('/pos') // Envía al POS normal de toma de pedidos
-      }
+      if (userRole === 'cajero') router.push('/cajero')
+      else router.push('/pos')
 
     } catch (err) {
       console.error("Error inesperado:", err)
@@ -116,21 +125,135 @@ export default function LoginPage() {
     }
   }
 
-  // --- CONTACTAR POR WHATSAPP ---
-  const handleWhatsAppSupport = () => {
-    if (!recoveryEmail.trim()) {
-      alert("Por favor ingresa tu correo o nombre del negocio primero.")
+  // --- CAMBIAR CONTRASEÑA OBLIGATORIA PRIMER USO ---
+  const handleUpdatePassword = async () => {
+    if (!newPassword.trim() || newPassword.length < 6) {
+      alert("La nueva contraseña debe tener al menos 6 caracteres.")
       return
     }
-    const phoneNumber = "48069299" // Reemplaza con tu número de WhatsApp real con código de país (ej. Guatemala)
-    const message = encodeURIComponent(`Hola Admin, necesito restablecer la contraseña de mi cuenta en Quantika POS. Mi correo/negocio es: ${recoveryEmail}`)
-    window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank')
-    setShowForgotModal(false)
-    setRecoveryEmail('')
+    if (newPassword !== confirmPassword) {
+      alert("Las contraseñas no coinciden.")
+      return
+    }
+
+    setChangingPassword(true)
+    try {
+      const { error } = await supabase.rpc('update_business_password_safe', {
+        p_business_id: tempUserAccount.id,
+        p_new_password: newPassword.trim()
+      })
+
+      if (error) throw error
+
+      alert("¡Contraseña actualizada con éxito! Ya puedes ingresar al sistema.")
+      setShowPasswordModal(false)
+      setNewPassword('')
+      setConfirmPassword('')
+
+      // Iniciar sesión automáticamente tras cambiar contraseña
+      const updatedAccount = { ...tempUserAccount, must_change_password: false }
+      localStorage.setItem('currentBusiness', JSON.stringify(updatedAccount))
+      router.push('/dashboard')
+
+    } catch (err: any) {
+      alert("Error al actualizar contraseña: " + err.message)
+    } finally {
+      setChangingPassword(false)
+    }
+  }
+
+  const compressImage = (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = (event) => {
+        const img = new Image()
+        img.src = event.target?.result as string
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          const MAX_WIDTH = 500
+          const MAX_HEIGHT = 500
+          let width = img.width; let height = img.height
+          if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } }
+          else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
+          canvas.width = width; canvas.height = height
+          const ctx = canvas.getContext('2d')
+          ctx?.drawImage(img, 0, 0, width, height)
+          canvas.toBlob((blob) => { if (blob) resolve(blob); else reject(new Error('Falló compresión')); }, 'image/jpeg', 0.8)
+        }
+        img.onerror = (error) => reject(error)
+      }
+      reader.onerror = (error) => reject(error)
+    })
+  }
+
+  const handleSendPaymentProof = async () => {
+    if (!referenceCode.trim()) {
+      alert("Por favor ingresa el número de boleta o referencia de pago.")
+      return
+    }
+
+    setUploadingProof(true)
+    try {
+      let proofUrl = ""
+      if (proofFile) {
+        const compressedBlob = await compressImage(proofFile)
+        const fileName = `proof-${pendingBusiness.id}-${Date.now()}.jpg`
+        const filePath = `proofs/${fileName}`
+
+        await supabase.storage.from('products').upload(filePath, compressedBlob, { contentType: 'image/jpeg', upsert: true })
+        const { data: pubUrl } = supabase.storage.from('products').getPublicUrl(filePath)
+        proofUrl = pubUrl.publicUrl
+      }
+
+      const phoneNumber = "50200000000" // Reemplaza con tu número real de WhatsApp
+      const message = encodeURIComponent(
+        `Hola Admin, he realizado el pago de mi suscripción para el negocio *${pendingBusiness?.name}* a través de *${selectedBank}*.\n\n*Monto:* Q${pendingBusiness?.amount || 300}\n*No. de Boleta / Referencia:* ${referenceCode}\n${proofUrl ? `*Comprobante:* ${proofUrl}` : ''}\n\nPor favor envíeme mi token de activación.`
+      )
+
+      window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank')
+    } catch (err: any) {
+      alert("Error al adjuntar comprobante: " + err.message)
+    } finally {
+      setUploadingProof(false)
+    }
+  }
+
+  const handleActivateWithToken = async () => {
+    if (!inputToken.trim()) {
+      alert("Por favor ingresa el token de activación.")
+      return
+    }
+
+    setValidatingToken(true)
+    try {
+      const { data: isValid, error } = await supabase
+        .rpc('validate_and_activate_business_token', {
+          p_business_id: pendingBusiness.id,
+          p_token: inputToken.trim()
+        })
+
+      if (error) throw error
+
+      if (isValid === true) {
+        alert("¡Suscripción activada con éxito! Ya puedes iniciar sesión.")
+        setShowRenewalModal(false)
+        setInputToken('')
+        setReferenceCode('')
+        setProofFile(null)
+        setPendingBusiness(null)
+      } else {
+        alert("Token incorrecto o inválido para este periodo. Verifica con el administrador.")
+      }
+    } catch (err: any) {
+      alert("Error al validar token: " + err.message)
+    } finally {
+      setValidatingToken(false)
+    }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0f172a] p-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#0f172a] p-4 notranslate" translate="no">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-white text-3xl font-extrabold tracking-wide">Quantika <span className="text-emerald-500">POS</span></h1>
@@ -162,17 +285,6 @@ export default function LoginPage() {
             />
           </div>
 
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-400">¿Problemas de acceso?</span>
-            <button 
-              type="button" 
-              onClick={() => setShowForgotModal(true)}
-              className="text-emerald-400 hover:text-emerald-300 font-semibold transition-colors"
-            >
-              ¿Olvidaste tu contraseña?
-            </button>
-          </div>
-
           <button 
             type="submit" 
             disabled={loading}
@@ -185,55 +297,156 @@ export default function LoginPage() {
         </form>
 
         <div className="text-center mt-8 space-y-1">
-          <p className="text-slate-500 text-xs">
-            © 2026 Quantika POS - Acceso Restringido
-          </p>
-          <p className="text-emerald-400/80 text-[11px] font-semibold tracking-wider uppercase">
-            Powered by CodeNexa Academy
-          </p>
+          <p className="text-slate-500 text-xs">© 2026 Quantika POS - Acceso Restringido</p>
+          <p className="text-emerald-400/80 text-[11px] font-semibold tracking-wider uppercase">Powered by CodeNexa Academy</p>
         </div>
       </div>
 
-      {/* --- MODAL DE RECUPERACIÓN DE CONTRASEÑA --- */}
-      {showForgotModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      {/* --- MODAL CAMBIO OBLIGATORIO DE CONTRASEÑA (PRIMER USO) --- */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
           <div className="bg-[#1e293b] p-6 rounded-xl border border-emerald-500 w-full max-w-sm text-white shadow-2xl space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-700 pb-3">
-              <h3 className="text-base font-bold text-emerald-400">🔑 Recuperar Acceso</h3>
-              <button onClick={() => setShowForgotModal(false)} className="text-slate-400 hover:text-white font-bold text-lg p-1">✕</button>
+            <div className="text-center space-y-1">
+              <h3 className="text-lg font-bold text-emerald-400">🔒 Establecer Nueva Contraseña</h3>
+              <p className="text-xs text-slate-300">Es tu primer inicio de sesión. Por seguridad, debes cambiar tu contraseña temporal.</p>
             </div>
 
-            <p className="text-xs text-slate-300">
-              Ingresa tu correo o nombre del negocio para solicitar el restablecimiento de tu contraseña por WhatsApp:
-            </p>
+            <div className="space-y-3 pt-2">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Nueva Contraseña:</label>
+                <input 
+                  type="password"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                  className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-xs outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Confirmar Nueva Contraseña:</label>
+                <input 
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="Repite tu nueva contraseña"
+                  className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-xs outline-none focus:border-emerald-500"
+                />
+              </div>
 
-            <div>
-              <input 
-                type="text" 
-                value={recoveryEmail}
-                onChange={e => setRecoveryEmail(e.target.value)}
-                placeholder="correo@negocio.com"
-                className="w-full bg-[#0f172a] border border-slate-600 p-3 rounded text-white text-sm outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div className="pt-2">
               <button 
                 type="button"
-                onClick={handleWhatsAppSupport}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 py-3 rounded-lg text-xs font-bold transition-colors shadow flex items-center justify-center gap-2"
+                onClick={handleUpdatePassword}
+                disabled={changingPassword}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 py-3 rounded-lg text-xs font-bold transition-colors shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 mt-4"
               >
-                💬 Solicitar por WhatsApp (Soporte)
+                {changingPassword ? 'Actualizando...' : 'Guardar y Entrar al Sistema'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL DE RENOVACIÓN CON QR, COMPROBANTE Y TOKEN --- */}
+      {showRenewalModal && pendingBusiness && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1e293b] p-6 rounded-xl border border-emerald-500 w-full max-w-md text-white shadow-2xl space-y-4 max-h-[95vh] overflow-y-auto">
+            
+            <div className="text-center space-y-1">
+              <h3 className="text-lg font-bold text-emerald-400">💳 Renovación y Activación por Token</h3>
+              <p className="text-xs text-slate-300">Escanea el código QR, sube tu captura y pide tu token de acceso.</p>
+            </div>
+
+            <div className="bg-[#0f172a] p-3 rounded-lg border border-slate-700 text-xs space-y-1">
+              <p><span className="text-slate-400">Negocio:</span> <strong className="text-white">{pendingBusiness.name}</strong></p>
+              <p><span className="text-slate-400">Monto a Cancelar:</span> <strong className="text-emerald-400 text-sm">Q {pendingBusiness.amount || 300}</strong></p>
+            </div>
+
+            {/* Selector de Banco */}
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-slate-300">Selecciona el banco:</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button 
+                  type="button"
+                  onClick={() => setSelectedBank('BI')}
+                  className={`py-2 rounded-lg font-bold text-xs border transition-all ${selectedBank === 'BI' ? 'bg-emerald-600 border-emerald-400 text-white' : 'bg-[#0f172a] border-slate-700 text-slate-400'}`}
+                >
+                  Banco BI
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setSelectedBank('BAM')}
+                  className={`py-2 rounded-lg font-bold text-xs border transition-all ${selectedBank === 'BAM' ? 'bg-emerald-600 border-emerald-400 text-white' : 'bg-[#0f172a] border-slate-700 text-slate-400'}`}
+                >
+                  Banco BAM
+                </button>
+              </div>
+            </div>
+
+            {/* QR */}
+            <div className="flex flex-col items-center justify-center bg-white p-4 rounded-lg space-y-2 shadow-inner">
+              <img src={selectedBank === 'BI' ? '/qr-bi.png' : '/qr-bam.png'} alt={`QR ${selectedBank}`} className="w-40 h-40 object-contain" />
+              <span className="text-[11px] font-bold text-slate-800">Escanea con tu app de {selectedBank === 'BI' ? 'Banco Industrial' : 'BAM'}</span>
+            </div>
+
+            {/* Subir comprobante y Referencia */}
+            <div className="space-y-3 border-t border-slate-700 pt-3">
+              <label className="block text-xs font-semibold text-slate-300">1. Datos del pago y comprobante:</label>
+              <input 
+                type="text"
+                value={referenceCode}
+                onChange={e => setReferenceCode(e.target.value)}
+                placeholder="No. de Boleta / Referencia"
+                className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-xs outline-none focus:border-emerald-500"
+              />
+              <div>
+                <label className="block text-[10px] text-slate-400 mb-1">Adjuntar captura de pantalla (opcional):</label>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={e => setProofFile(e.target.files?.[0] || null)}
+                  className="w-full bg-[#0f172a] border border-slate-600 p-1.5 rounded text-[11px] text-white file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:bg-emerald-600 file:text-white cursor-pointer"
+                />
+              </div>
+              <button 
+                type="button"
+                onClick={handleSendPaymentProof}
+                disabled={uploadingProof}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded text-xs font-bold transition-colors shadow flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {uploadingProof ? 'Subiendo imagen...' : '💬 Enviar Comprobante y Pedir Token por WhatsApp'}
+              </button>
+            </div>
+
+            {/* Ingresar Token de Activación */}
+            <div className="space-y-2 border-t border-slate-700 pt-3">
+              <label className="block text-xs font-semibold text-emerald-400">2. Ingresa el Token recibido por WhatsApp:</label>
+              <div className="flex gap-2">
+                <input 
+                  type="text"
+                  value={inputToken}
+                  onChange={e => setInputToken(e.target.value)}
+                  placeholder="Ej. E40A8973"
+                  className="flex-1 bg-[#0f172a] border border-emerald-500 p-2.5 rounded text-white text-xs font-bold uppercase tracking-wider outline-none"
+                />
+                <button 
+                  type="button"
+                  onClick={handleActivateWithToken}
+                  disabled={validatingToken}
+                  className="bg-blue-600 hover:bg-blue-500 px-4 py-2.5 rounded text-xs font-bold transition-colors disabled:opacity-50 whitespace-nowrap"
+                >
+                  {validatingToken ? 'Validando...' : '🔓 Activar'}
+                </button>
+              </div>
             </div>
 
             <button 
               type="button"
-              onClick={() => setShowForgotModal(false)}
-              className="w-full text-slate-400 hover:text-white py-1 text-xs transition-colors mt-2"
+              onClick={() => setShowRenewalModal(false)}
+              className="w-full bg-slate-700 hover:bg-slate-600 py-2 rounded-lg text-xs text-slate-300 transition-colors mt-2"
             >
-              Cancelar
+              Cerrar Ventana
             </button>
+
           </div>
         </div>
       )}
