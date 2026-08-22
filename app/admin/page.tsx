@@ -24,6 +24,7 @@ export default function AdminDashboard() {
 
   // Estados para el modal de gestión y edición
   const [selectedBusiness, setSelectedBusiness] = useState<any | null>(null)
+  const [editName, setEditName] = useState('')
   const [editPlan, setEditPlan] = useState('')
   const [editAmount, setEditAmount] = useState('')
   const [editPaymentDay, setEditPaymentDay] = useState(1)
@@ -53,7 +54,7 @@ export default function AdminDashboard() {
       }
 
       if ((!user || user.email !== 'alopezadmin@admin.com') && !isMaster) {
-        alert("Acceso denegado: No tienes privilegios de Administrador Master[cite: 1].")
+        alert("Acceso denegado: No tienes privilegios de Administrador Master.")
         router.push('/pos') 
         return
       }
@@ -69,7 +70,7 @@ export default function AdminDashboard() {
     const { data, error } = await supabase.rpc('get_all_businesses_safe')
 
     if (error) {
-      console.error("Error al cargar negocios[cite: 1]:", error.message)
+      console.error("Error al cargar negocios:", error.message)
       return
     }
 
@@ -84,7 +85,7 @@ export default function AdminDashboard() {
     })
 
     if (error) {
-      alert("Error al generar token[cite: 1]: " + error.message)
+      alert("Error al generar token: " + error.message)
     } else {
       alert(`Token generado con éxito: ${data}`)
       fetchBusinesses()
@@ -153,7 +154,7 @@ export default function AdminDashboard() {
 
           canvas.toBlob((blob) => {
             if (blob) resolve(blob)
-            else reject(new Error('Falló la compresión[cite: 1]'))
+            else reject(new Error('Falló la compresión'))
           }, 'image/jpeg', 0.8)
         }
         img.onerror = (error) => reject(error)
@@ -166,7 +167,7 @@ export default function AdminDashboard() {
     e.preventDefault()
 
     if (!name || !ownerEmail || !password || !amount) {
-      alert("Por favor completa los campos obligatorios principales[cite: 1].")
+      alert("Por favor completa los campos obligatorios principales.")
       return
     }
 
@@ -217,7 +218,7 @@ export default function AdminDashboard() {
           .eq('id', newBizData)
       }
 
-      alert("¡Negocio registrado con éxito[cite: 1]!")
+      alert("¡Negocio registrado con éxito!")
       setName('')
       setOwnerEmail('')
       setPassword('')
@@ -231,7 +232,7 @@ export default function AdminDashboard() {
       setLogoFile(null)
       fetchBusinesses()
     } catch (err: any) {
-      alert("Error al registrar negocio[cite: 1]: " + err.message)
+      alert("Error al registrar negocio: " + err.message)
     } finally {
       setUploadingLogo(false)
     }
@@ -244,9 +245,9 @@ export default function AdminDashboard() {
     })
 
     if (error) {
-      alert("Error al actualizar estado[cite: 1]: " + error.message)
+      alert("Error al actualizar estado: " + error.message)
     } else {
-      alert(`¡Suscripción actualizada a ${newStatus} con éxito[cite: 1]!`)
+      alert(`¡Suscripción actualizada a ${newStatus} con éxito!`)
       setSelectedBusiness(null)
       fetchBusinesses()
     }
@@ -281,6 +282,7 @@ export default function AdminDashboard() {
 
       const { error } = await supabase.rpc('update_business_details_safe', {
         p_business_id: selectedBusiness.id,
+        p_name: editName || selectedBusiness.name,
         p_subscription_plan: editPlan || selectedBusiness.subscription_plan,
         p_amount: parseFloat(editAmount !== '' ? editAmount : selectedBusiness.amount) || 0,
         p_payment_day: editPaymentDay,
@@ -297,13 +299,13 @@ export default function AdminDashboard() {
 
       if (error) throw error
 
-      alert("¡Suscripción, ciclo y detalles actualizados con éxito[cite: 1]!")
+      alert("¡Suscripción, nombre y detalles actualizados con éxito!")
       setSelectedBusiness(null)
       setEditLogoFile(null)
       setEditPassword('')
       fetchBusinesses()
     } catch (err: any) {
-      alert("Error al actualizar[cite: 1]: " + err.message)
+      alert("Error al actualizar: " + err.message)
     } finally {
       setUploadingLogo(false)
     }
@@ -318,7 +320,7 @@ export default function AdminDashboard() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0f172a] flex items-center justify-center text-white">
-        <p className="text-emerald-400 font-semibold text-lg">Verificando credenciales de acceso[cite: 1]...</p>
+        <p className="text-emerald-400 font-semibold text-lg">Verificando credenciales de acceso...</p>
       </div>
     )
   }
@@ -504,7 +506,7 @@ export default function AdminDashboard() {
               </thead>
               <tbody className="text-slate-200 text-xs sm:text-sm">
                 {businesses.length === 0 ? (
-                  <tr><td colSpan={11} className="p-6 text-center text-slate-400">No hay negocios registrados[cite: 1].</td></tr>
+                  <tr><td colSpan={11} className="p-6 text-center text-slate-400">No hay negocios registrados.</td></tr>
                 ) : (
                   businesses.map((b) => (
                     <tr key={b.id} className="border-b border-slate-700 hover:bg-slate-700/50">
@@ -512,7 +514,7 @@ export default function AdminDashboard() {
                         {b.logo_url ? (
                           <img src={b.logo_url} alt="Logo" className="w-10 h-10 object-contain bg-[#0f172a] rounded p-1 border border-slate-600" />
                         ) : (
-                          <div className="w-10 h-10 bg-[#0f172a] rounded flex items-center justify-center text-[9px] text-slate-500 border border-slate-600">Sin logo[cite: 1]</div>
+                          <div className="w-10 h-10 bg-[#0f172a] rounded flex items-center justify-center text-[9px] text-slate-500 border border-slate-600">Sin logo</div>
                         )}
                       </td>
                       <td className="p-4">
@@ -586,6 +588,7 @@ export default function AdminDashboard() {
                           <button 
                             onClick={() => {
                               setSelectedBusiness(b)
+                              setEditName(b.name || '')
                               setEditPlan(b.subscription_plan || 'Básico')
                               setEditAmount(b.amount || '')
                               setEditPaymentDay(b.payment_day || 1)
@@ -623,7 +626,7 @@ export default function AdminDashboard() {
             </div>
 
             <div className="space-y-3 text-xs sm:text-sm">
-              <p className="text-slate-300"><strong className="text-white">Total Sucursales[cite: 1]:</strong> <span className="text-emerald-400 font-bold">{selectedBusiness.branches_count ?? 0}</span></p>
+              <p className="text-slate-300"><strong className="text-white">Total Sucursales:</strong> <span className="text-emerald-400 font-bold">{selectedBusiness.branches_count ?? 0}</span></p>
 
               {/* TOKEN ACTUAL */}
               <div className="bg-[#0f172a] p-3 rounded-lg border border-slate-700 flex justify-between items-center">
@@ -640,9 +643,18 @@ export default function AdminDashboard() {
                 </button>
               </div>
 
-              {/* CREDENCIALES Y CONTACTO */}
+              {/* INFORMACIÓN GENERAL Y CREDENCIALES */}
               <div className="border-t border-slate-700 pt-3 space-y-2">
-                <h4 className="text-emerald-400 font-bold text-xs uppercase tracking-wider">Credenciales y Contacto[cite: 1]</h4>
+                <h4 className="text-emerald-400 font-bold text-xs uppercase tracking-wider">Datos, Credenciales y Contacto</h4>
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold text-xs">Nombre del Negocio</label>
+                  <input 
+                    type="text" 
+                    value={editName} 
+                    onChange={e => setEditName(e.target.value)} 
+                    className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-xs sm:text-sm outline-none focus:border-emerald-500" 
+                  />
+                </div>
                 <div>
                   <label className="block text-slate-400 mb-1 font-semibold text-xs">Correo del Dueño</label>
                   <input 
@@ -677,6 +689,21 @@ export default function AdminDashboard() {
                     className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-xs sm:text-sm outline-none focus:border-emerald-500" 
                     placeholder="Dejar en blanco para no cambiar" 
                   />
+                </div>
+                {/* CAMPO DE LOGOTIPO INSTITUCIONAL EN GESTIÓN */}
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold text-xs">Logotipo Institucional (Opcional)</label>
+                  <div className="flex items-center gap-3">
+                    {selectedBusiness.logo_url && (
+                      <img src={selectedBusiness.logo_url} alt="Logo actual" className="w-10 h-10 object-contain bg-[#0f172a] rounded p-1 border border-slate-600" />
+                    )}
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={e => setEditLogoFile(e.target.files?.[0] || null)} 
+                      className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-xs text-white file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer" 
+                    />
+                  </div>
                 </div>
               </div>
 

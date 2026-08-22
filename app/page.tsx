@@ -150,6 +150,35 @@ export default function LoginPage() {
     }
   }
 
+  // --- FUNCIÓN DE RECUPERACIÓN DE CONTRASEÑA POR WHATSAPP MEDIANTE RPC ---
+  const handleForgotPassword = async () => {
+    const inputVal = email.trim();
+    if (!inputVal) {
+      alert("Por favor ingresa tu correo o nombre de usuario en el campo superior para identificar el negocio.");
+      return;
+    }
+
+    let businessNameFound = inputVal;
+
+    try {
+      const { data, error } = await supabase.rpc('get_business_name_by_login', {
+        p_input: inputVal
+      });
+
+      if (!error && data && data.length > 0 && data[0].business_name) {
+        businessNameFound = data[0].business_name;
+      }
+    } catch (e) {
+      console.error("Error al buscar negocio para recuperación:", e);
+    }
+
+    const message = encodeURIComponent(
+      `Hola Admin, he olvidado la contraseña de acceso para el negocio *${businessNameFound}* (Cuenta: ${inputVal}). Por favor ayúdeme a restablecerla en Quantika POS.`
+    );
+    window.open(`https://wa.me/${adminPhone}?text=${message}`, '_blank');
+  };
+  
+
   const handleUpdatePassword = async () => {
     if (!newPassword.trim() || newPassword.length < 6) {
       alert("La nueva contraseña debe tener al menos 6 caracteres.")
@@ -316,6 +345,17 @@ export default function LoginPage() {
           >
             {loading ? 'Validando...' : 'Iniciar Sesión'}
           </button>
+
+          {/* BOTÓN O ENLACE DE OLVIDÉ MI CONTRASEÑA */}
+          <div className="text-center pt-1">
+            <button 
+              type="button"
+              onClick={handleForgotPassword}
+              className="text-xs text-emerald-400 hover:text-emerald-300 underline font-medium transition-colors"
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
+          </div>
         </form>
 
         <div className="text-center mt-8 space-y-1">

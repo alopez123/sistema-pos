@@ -449,7 +449,7 @@ export default function Dashboard() {
             <div>
               <label className="block text-[11px] sm:text-[10px] text-slate-400 mb-1 font-medium">Nombre</label>
               <input 
-                placeholder="Ej. Nancy Oliva" 
+                placeholder="Ej. pedro" 
                 value={staffName} 
                 onChange={handleNameChange} 
                 className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" 
@@ -461,7 +461,7 @@ export default function Dashboard() {
               <input 
                 placeholder="usuario" 
                 value={username} 
-                onChange={e => setUsername(e.target.value)} 
+               onChange={e => setUsername(e.target.value.replace(/\s+/g, ''))}
                 className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm outline-none" 
               />
             </div>
