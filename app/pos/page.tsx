@@ -149,19 +149,35 @@ export default function PosPage() {
     }
     document.addEventListener('mousedown', handleClickOutside)
     
-    async function initialLoad() {
+    async function initialLoadAndValidateStatus() {
+      const staffLocal = localStorage.getItem('currentStaff')
       const bizId = localStorage.getItem('currentBusiness') ? JSON.parse(localStorage.getItem('currentBusiness')!).id : null;
-      if (bizId) {
-        const { data } = await supabase.from('businesses').select('status, logo_url').eq('id', bizId).single();
+      
+      let resolvedBizId = bizId;
+      if (staffLocal) {
+        try {
+          const staff = JSON.parse(staffLocal);
+          resolvedBizId = staff.business_id || staff.busines_id;
+        } catch(e) {}
+      }
+
+      if (resolvedBizId) {
+        const { data } = await supabase.from('businesses').select('status, payment_status, logo_url').eq('id', resolvedBizId).single();
         if (data?.logo_url) setBusinessLogo(data.logo_url);
-        if (data?.status && data.status.toLowerCase() !== 'activo') {
-          localStorage.clear();
-          alert("El acceso ha sido suspendido por falta de pago.");
+        
+        if (
+          (data?.status && data.status.toLowerCase() !== 'activo') ||
+          data?.payment_status === 'Pendiente' ||
+          data?.payment_status === 'Atrasado'
+        ) {
+          localStorage.removeItem('currentStaff');
+          localStorage.removeItem('currentBusiness');
+          alert("Acceso bloqueado: La suscripción de este negocio se encuentra pendiente o suspendida. Realice el pago para continuar.");
           router.push('/');
         }
       }
     }
-    initialLoad();
+    initialLoadAndValidateStatus();
 
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [router])
@@ -266,8 +282,7 @@ export default function PosPage() {
     }
   }
 
-async function loadMovements(branchId: string) {
-    // Obtener la fecha y hora de inicio del día actual (00:00:00) en formato ISO
+  async function loadMovements(branchId: string) {
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
 
@@ -275,7 +290,7 @@ async function loadMovements(branchId: string) {
       .from('inventory_movements')
       .select('*, product:products(name)')
       .eq('branch_id', branchId)
-      .gte('created_at', todayStart.toISOString()) // Filtra desde el inicio de hoy
+      .gte('created_at', todayStart.toISOString())
       .order('created_at', { ascending: false })
 
     if (!error && data) {
@@ -747,7 +762,6 @@ async function loadMovements(branchId: string) {
     return isNotCurrentBranch && matchesSearch && matchesCategory;
   })
 
-  // Lista de productos con stock bajo (menor o igual a 5 unidades)
   const lowStockItems = products.filter(p => p.stock <= 5)
 
   return (
@@ -774,7 +788,6 @@ async function loadMovements(branchId: string) {
         </div>
           
         <div className="flex items-center gap-2 justify-end flex-wrap">
-           {/* BOTÓN DE ALERTA DE STOCK BAJO */}
            <button 
              onClick={() => setShowLowStockModal(true)} 
              className={`relative px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1.5 ${
@@ -830,7 +843,6 @@ async function loadMovements(branchId: string) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-6 flex-1 w-full">
         
-        {/* Columna 1: Menú Operativo Izquierdo */}
         <div className="bg-[#1e293b] p-5 rounded-lg shadow border border-slate-700 flex flex-col">
           <h2 className="text-base font-bold text-emerald-400 mb-3">Opciones Operativas</h2>
           
@@ -1230,7 +1242,6 @@ async function loadMovements(branchId: string) {
           )}
         </div>
 
-        {/* Columna 2 y 3: Catálogo de Productos */}
         <div className="lg:col-span-2 xl:col-span-2 bg-[#1e293b] p-5 rounded-lg shadow border border-slate-700 flex flex-col">
           <div className="mb-4 relative" ref={searchRef}>
             <input 
@@ -1324,7 +1335,6 @@ async function loadMovements(branchId: string) {
           </div>
         </div>
 
-        {/* Columna 4: Ticket de Venta Actual */}
         <div className="bg-[#1e293b] p-5 rounded-lg shadow border border-slate-700 flex flex-col justify-between">
           <div>
             <h2 className="text-lg font-bold text-emerald-400 mb-4">Ticket de Venta</h2>
@@ -1373,16 +1383,6 @@ async function loadMovements(branchId: string) {
               <span>Total:</span>
               <span className="text-emerald-400 text-2xl" translate="no">Q {totalCart}</span>
             </div>
-            
-           {/*} <button ------SE COMENTA POR QUE SOLO EL ROL DE CAJERO DEBE DE COBRAR
-              onClick={() => {
-                if (cart.length > 0) setShowPaymentModal(true);
-              }}
-              disabled={cart.length === 0}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white py-3 rounded-lg font-bold shadow transition-colors text-base"
-            >
-              Completar Venta / Cobrar Directo
-            </button>*/}
 
             <button 
               onClick={handleSavePendingOrder}
@@ -1396,7 +1396,6 @@ async function loadMovements(branchId: string) {
 
       </div>
 
-      {/* --- MODAL DE ALERTA DE STOCK BAJO --- */}
       {showLowStockModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 99999 }}>
           <div className="bg-[#1e293b] p-6 rounded-xl border border-amber-500 w-full max-w-md text-white shadow-2xl space-y-4">
@@ -1450,7 +1449,6 @@ async function loadMovements(branchId: string) {
         </div>
       )}
 
-      {/* --- MODAL DE DETALLE DE VENTA SELECCIONADA --- */}
       {selectedSaleDetails !== null && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center" style={{ zIndex: 9999 }}>
           <div className="bg-[#1e293b] p-6 rounded-xl border border-emerald-500 w-[420px] text-white shadow-2xl">
@@ -1485,7 +1483,6 @@ async function loadMovements(branchId: string) {
         </div>
       )}
 
-      {/* --- MODAL DE PAGO --- */}
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center" style={{ zIndex: 9999 }}>
           <div className="bg-[#1e293b] p-8 rounded-xl border border-emerald-500 w-[400px] text-white shadow-[0_0_50px_rgba(0,0,0,0.5)]">
@@ -1553,7 +1550,6 @@ async function loadMovements(branchId: string) {
         </div>
       )}
 
-      {/* --- MODAL PARA CREAR NUEVA CATEGORÍA --- */}
       {showNewCategoryModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" style={{ zIndex: 99999 }}>
           <div className="bg-[#1e293b] p-6 rounded-xl border border-emerald-500 w-full max-w-sm text-white shadow-2xl space-y-4">

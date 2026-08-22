@@ -36,6 +36,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
+      // 1. Intentar inicio de sesión como Dueño de Negocio
       const { data, error } = await supabase
         .rpc('verify_business_login', { p_email: email, p_password: password })
 
@@ -43,7 +44,6 @@ export default function LoginPage() {
         const userAccount = data[0]
 
         if (userAccount.owner_email !== 'alopezadmin@admin.com') {
-          // 1. Validar si requiere cambio obligatorio de contraseña por primer uso
           if (userAccount.must_change_password === true) {
             setTempUserAccount(userAccount)
             setShowPasswordModal(true)
@@ -51,7 +51,6 @@ export default function LoginPage() {
             return
           }
 
-          // 2. Validar si requiere pago
           if (userAccount.payment_status === 'Pendiente' || userAccount.payment_status === 'Atrasado') {
             setPendingBusiness(userAccount)
             setShowRenewalModal(true)
@@ -77,8 +76,7 @@ export default function LoginPage() {
         }
         return
       }
-
-      // Validación de empleados (staff)
+// 2. Intentar inicio de sesión como Empleado / Sucursal (Staff)
       const { data: staffData, error: staffError } = await supabase
         .rpc('verify_staff_login', { p_username: email.trim().toLowerCase(), p_access_code: password.trim() })
 
@@ -89,18 +87,31 @@ export default function LoginPage() {
       }
 
       const staff = staffData[0]
-      const { data: bizData } = await supabase.from('businesses').select('*').eq('id', staff.business_id).single()
+      const targetBizId = staff.business_id || staff.busines_id
 
-      if (bizData && (bizData.payment_status === 'Pendiente' || bizData.payment_status === 'Atrasado')) {
-        setPendingBusiness(bizData)
-        setShowRenewalModal(true)
+      // Consultar el negocio usando la función RPC segura para saltar el RLS de forma controlada
+      const { data: bizDataList, error: bizError } = await supabase
+        .rpc('get_business_status_by_id', { p_business_id: targetBizId })
+
+      if (bizError || !bizDataList || bizDataList.length === 0) {
+        alert('No se encontró información del negocio asociado.')
         setLoading(false)
         return
       }
 
-      const bizStatus = (bizData?.status || 'activo').toLowerCase();
-      if (bizStatus !== 'activo') {
+      const bizData = bizDataList[0]
+
+      // VALIDACIÓN ESTRICTA: Si el negocio está pendiente, atrasado o suspendido, desplegar modal de pago
+      const bizStatus = (bizData.status || 'activo').toLowerCase();
+      if (bizStatus !== 'activo' && bizStatus !== 'pendiente' && bizStatus !== 'atrasado') {
         alert('Acceso denegado: El negocio se encuentra ' + bizStatus + '.')
+        setLoading(false)
+        return
+      }
+
+      if (bizData.payment_status === 'Pendiente' || bizData.payment_status === 'Atrasado' || bizStatus === 'pendiente' || bizStatus === 'atrasado') {
+        setPendingBusiness(bizData)
+        setShowRenewalModal(true)
         setLoading(false)
         return
       }
@@ -125,7 +136,6 @@ export default function LoginPage() {
     }
   }
 
-  // --- CAMBIAR CONTRASEÑA OBLIGATORIA PRIMER USO ---
   const handleUpdatePassword = async () => {
     if (!newPassword.trim() || newPassword.length < 6) {
       alert("La nueva contraseña debe tener al menos 6 caracteres.")
@@ -150,7 +160,6 @@ export default function LoginPage() {
       setNewPassword('')
       setConfirmPassword('')
 
-      // Iniciar sesión automáticamente tras cambiar contraseña
       const updatedAccount = { ...tempUserAccount, must_change_password: false }
       localStorage.setItem('currentBusiness', JSON.stringify(updatedAccount))
       router.push('/dashboard')
@@ -206,12 +215,12 @@ export default function LoginPage() {
         proofUrl = pubUrl.publicUrl
       }
 
-      const phoneNumber = "50200000000" // Reemplaza con tu número real de WhatsApp
+      const adminPhone = "50200000000" // Cambia por tu número de WhatsApp Master
       const message = encodeURIComponent(
         `Hola Admin, he realizado el pago de mi suscripción para el negocio *${pendingBusiness?.name}* a través de *${selectedBank}*.\n\n*Monto:* Q${pendingBusiness?.amount || 300}\n*No. de Boleta / Referencia:* ${referenceCode}\n${proofUrl ? `*Comprobante:* ${proofUrl}` : ''}\n\nPor favor envíeme mi token de activación.`
       )
 
-      window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank')
+      window.open(`https://wa.me/${adminPhone}?text=${message}`, '_blank')
     } catch (err: any) {
       alert("Error al adjuntar comprobante: " + err.message)
     } finally {
@@ -302,7 +311,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* --- MODAL CAMBIO OBLIGATORIO DE CONTRASEÑA (PRIMER USO) --- */}
+      {/* --- MODAL CAMBIO OBLIGATORIO DE CONTRASEÑA --- */}
       {showPasswordModal && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
           <div className="bg-[#1e293b] p-6 rounded-xl border border-emerald-500 w-full max-w-sm text-white shadow-2xl space-y-4">
@@ -353,7 +362,7 @@ export default function LoginPage() {
             
             <div className="text-center space-y-1">
               <h3 className="text-lg font-bold text-emerald-400">💳 Renovación y Activación por Token</h3>
-              <p className="text-xs text-slate-300">Escanea el código QR, sube tu captura y pide tu token de acceso.</p>
+              <p className="text-xs text-slate-300">El negocio asociado se encuentra pendiente de pago. Escanea el QR, sube tu comprobante y pide tu token.</p>
             </div>
 
             <div className="bg-[#0f172a] p-3 rounded-lg border border-slate-700 text-xs space-y-1">
@@ -384,7 +393,7 @@ export default function LoginPage() {
 
             {/* QR */}
             <div className="flex flex-col items-center justify-center bg-white p-4 rounded-lg space-y-2 shadow-inner">
-              <img src={selectedBank === 'BI' ? '/qr-bi.png' : '/qr-bam.png'} alt={`QR ${selectedBank}`} className="w-40 h-40 object-contain" />
+              <img src={selectedBank === 'BI' ? '/qr-bi.png' : '/qr-bi.png'} alt={`QR ${selectedBank}`} className="w-40 h-40 object-contain" />
               <span className="text-[11px] font-bold text-slate-800">Escanea con tu app de {selectedBank === 'BI' ? 'Banco Industrial' : 'BAM'}</span>
             </div>
 
