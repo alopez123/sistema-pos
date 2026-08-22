@@ -91,6 +91,21 @@ export default function AdminDashboard() {
     }
   }
 
+  // --- FUNCIÓN DE MANTENIMIENTO Y DEPURACIÓN ---
+  const handleRunDatabaseCleanup = async () => {
+    if (!confirm("¿Deseas depurar los registros operativos y bitácoras con más de 1 mes de antigüedad? Se respetarán las relaciones de las tablas.")) {
+      return;
+    }
+
+    const { error } = await supabase.rpc('cleanup_old_operational_logs');
+
+    if (error) {
+      alert("Error al depurar la base de datos: " + error.message);
+    } else {
+      alert("¡Mantenimiento completado con éxito! Se han limpiado las tablas operativas y de bitácora antiguas, manteniendo intactas las ventas y compras.");
+    }
+  };
+
   const calculateNextBillingDate = (start: string, day: number, cycle: string) => {
     const baseDate = start ? new Date(start) : new Date();
     const targetDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), day);
@@ -320,6 +335,12 @@ export default function AdminDashboard() {
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             <button onClick={() => router.push('/pos')} className="bg-slate-700 text-white px-4 py-2.5 rounded-lg hover:bg-slate-600 transition-colors font-semibold text-sm text-center">
               Ir a mi POS
+            </button>
+            <button 
+              onClick={handleRunDatabaseCleanup}
+              className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2.5 rounded-lg text-xs font-bold transition-colors shadow text-center"
+            >
+              🧹 Depurar Datos (&gt; 1 Mes)
             </button>
             <button onClick={handleLogout} className="bg-red-600 text-white px-4 py-2.5 rounded-lg hover:bg-red-500 transition-colors font-semibold text-sm text-center">
               Cerrar Sesión
