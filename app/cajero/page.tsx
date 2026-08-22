@@ -41,34 +41,58 @@ export default function CashierPage() {
   const router = useRouter()
 
   useEffect(() => {
-    const staffStr = localStorage.getItem('currentStaff')
-    const bizStr = localStorage.getItem('currentBusiness')
-    
-    let resolvedBizId = ''
-    let resolvedBranchId = ''
-    let resolvedBranchName = 'Sucursal Asignada'
-    let resolvedStaffId = ''
-    let resolvedStaffName = 'Cajero'
+    async function checkBusinessStatusAndRedirect() {
+      const staffStr = localStorage.getItem('currentStaff')
+      const bizStr = localStorage.getItem('currentBusiness')
+      
+      let resolvedBizId = ''
+      let resolvedBranchId = ''
+      let resolvedBranchName = 'Sucursal Asignada'
+      let resolvedStaffId = ''
+      let resolvedStaffName = 'Cajero'
 
-    if (staffStr) {
-      try {
-        const staff = JSON.parse(staffStr)
-        resolvedBizId = staff.business_id
-        resolvedBranchId = staff.branch_id
-        resolvedBranchName = staff.branch_name || 'Sucursal Asignada'
-        resolvedStaffId = staff.id || ''
-        resolvedStaffName = staff.name || 'Cajero'
-      } catch (e) {}
-    }
+      if (staffStr) {
+        try {
+          const staff = JSON.parse(staffStr)
+          resolvedBizId = staff.business_id || staff.busines_id
+          resolvedBranchId = staff.branch_id
+          resolvedBranchName = staff.branch_name || 'Sucursal Asignada'
+          resolvedStaffId = staff.id || ''
+          resolvedStaffName = staff.name || 'Cajero'
+        } catch (e) {}
+      }
 
-    if (!resolvedBizId && bizStr) {
-      try {
-        const biz = JSON.parse(bizStr)
-        if (biz.id) resolvedBizId = biz.id
-      } catch (e) {}
-    }
+      if (!resolvedBizId && bizStr) {
+        try {
+          const biz = JSON.parse(bizStr)
+          if (biz.id) resolvedBizId = biz.id
+        } catch (e) {}
+      }
 
-    if (resolvedBizId) {
+      if (!resolvedBizId) {
+        router.push('/')
+        return
+      }
+
+      // Validación estricta de RLS mediante RPC para el estatus de pago del negocio
+      const { data: bizDataList, error } = await supabase.rpc('get_business_status_by_id', { p_business_id: resolvedBizId })
+
+      if (!error && bizDataList && bizDataList.length > 0) {
+        const bizData = bizDataList[0]
+        const bizStatus = (bizData.status || 'activo').toLowerCase()
+
+        if (
+          bizStatus !== 'activo' ||
+          bizData.payment_status === 'Pendiente' ||
+          bizData.payment_status === 'Atrasado'
+        ) {
+          localStorage.clear()
+          alert("Acceso bloqueado en Caja: La suscripción de este negocio se encuentra pendiente, atrasada o suspendida. Realice el pago para continuar.")
+          router.push('/')
+          return
+        }
+      }
+
       setBusinessId(resolvedBizId)
       setStaffId(resolvedStaffId)
       setStaffName(resolvedStaffName)
@@ -79,9 +103,9 @@ export default function CashierPage() {
         checkCashRegisterStatus(resolvedBranchId, resolvedBizId)
       }
       fetchBusinessInfo(resolvedBizId)
-    } else {
-      router.push('/')
     }
+
+    checkBusinessStatusAndRedirect()
   }, [router])
 
   // --- AUTOREFRESH CADA 10 SEGUNDOS (SI NO ESTÁ EN PLENA GESTIÓN DE COBRO) ---
@@ -95,7 +119,7 @@ export default function CashierPage() {
           loadTodaySales(businessId, selectedBranch, cashRegister.opened_at)
         }
       }
-    }, 10000) // 10 segundos[cite: 4]
+    }, 10000) // 10 segundos
 
     return () => clearInterval(interval)
   }, [selectedBranch, cashRegister, selectedOrder, businessId])

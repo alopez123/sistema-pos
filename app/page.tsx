@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useRouter } from 'next/navigation'
 
@@ -8,9 +8,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   
-  // Estados recuperación contraseña
-  const [showForgotModal, setShowForgotModal] = useState(false)
-  const [recoveryEmail, setRecoveryEmail] = useState('')
+  // Estado para el número de WhatsApp del Admin consultado desde la base de datos
+  const [adminPhone, setAdminPhone] = useState('50248069299') // Valor por defecto de respaldo
 
   // Estados renovación QR + Token
   const [showRenewalModal, setShowRenewalModal] = useState(false)
@@ -30,6 +29,21 @@ export default function LoginPage() {
   const [tempUserAccount, setTempUserAccount] = useState<any>(null)
 
   const router = useRouter()
+
+  // Consultar el número de WhatsApp del administrador al cargar la página
+  useEffect(() => {
+    async function fetchAdminWhatsApp() {
+      try {
+        const { data, error } = await supabase.rpc('get_admin_whatsapp_phone')
+        if (!error && data && data.length > 0 && data[0].whatsapp_number) {
+          setAdminPhone(data[0].whatsapp_number.replace(/\D/g, ''))
+        }
+      } catch (e) {
+        console.error("Error al obtener teléfono del admin:", e)
+      }
+    }
+    fetchAdminWhatsApp()
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -76,7 +90,8 @@ export default function LoginPage() {
         }
         return
       }
-// 2. Intentar inicio de sesión como Empleado / Sucursal (Staff)
+
+      // 2. Intentar inicio de sesión como Empleado / Sucursal (Staff)
       const { data: staffData, error: staffError } = await supabase
         .rpc('verify_staff_login', { p_username: email.trim().toLowerCase(), p_access_code: password.trim() })
 
@@ -89,7 +104,7 @@ export default function LoginPage() {
       const staff = staffData[0]
       const targetBizId = staff.business_id || staff.busines_id
 
-      // Consultar el negocio usando la función RPC segura para saltar el RLS de forma controlada
+      // Consultar el negocio usando la función RPC segura para saltar el RLS
       const { data: bizDataList, error: bizError } = await supabase
         .rpc('get_business_status_by_id', { p_business_id: targetBizId })
 
@@ -101,7 +116,6 @@ export default function LoginPage() {
 
       const bizData = bizDataList[0]
 
-      // VALIDACIÓN ESTRICTA: Si el negocio está pendiente, atrasado o suspendido, desplegar modal de pago
       const bizStatus = (bizData.status || 'activo').toLowerCase();
       if (bizStatus !== 'activo' && bizStatus !== 'pendiente' && bizStatus !== 'atrasado') {
         alert('Acceso denegado: El negocio se encuentra ' + bizStatus + '.')
@@ -122,7 +136,7 @@ export default function LoginPage() {
       localStorage.removeItem('currentBusiness')
       localStorage.setItem('currentStaff', JSON.stringify({
         id: staff.id, name: staff.name, username: staff.username || staff.email,
-        branch_id: staff.branch_id, business_id: staff.business_id, branch_name: branchData?.name || 'Sucursal', role: userRole
+        branch_id: staff.branch_id, business_id: targetBizId, branch_name: branchData?.name || 'Sucursal', role: userRole
       }))
 
       if (userRole === 'cajero') router.push('/cajero')
@@ -215,7 +229,6 @@ export default function LoginPage() {
         proofUrl = pubUrl.publicUrl
       }
 
-      const adminPhone = "50200000000" // Cambia por tu número de WhatsApp Master
       const message = encodeURIComponent(
         `Hola Admin, he realizado el pago de mi suscripción para el negocio *${pendingBusiness?.name}* a través de *${selectedBank}*.\n\n*Monto:* Q${pendingBusiness?.amount || 300}\n*No. de Boleta / Referencia:* ${referenceCode}\n${proofUrl ? `*Comprobante:* ${proofUrl}` : ''}\n\nPor favor envíeme mi token de activación.`
       )
@@ -393,7 +406,7 @@ export default function LoginPage() {
 
             {/* QR */}
             <div className="flex flex-col items-center justify-center bg-white p-4 rounded-lg space-y-2 shadow-inner">
-              <img src={selectedBank === 'BI' ? '/qr-bi.png' : '/qr-bi.png'} alt={`QR ${selectedBank}`} className="w-40 h-40 object-contain" />
+              <img src={selectedBank === 'BI' ? '/qr-bi.png' : '/qr-bam.png'} alt={`QR ${selectedBank}`} className="w-40 h-40 object-contain" />
               <span className="text-[11px] font-bold text-slate-800">Escanea con tu app de {selectedBank === 'BI' ? 'Banco Industrial' : 'BAM'}</span>
             </div>
 
@@ -434,7 +447,7 @@ export default function LoginPage() {
                   type="text"
                   value={inputToken}
                   onChange={e => setInputToken(e.target.value)}
-                  placeholder="Ej. E40A8973"
+                  placeholder="Ingrese su Token"
                   className="flex-1 bg-[#0f172a] border border-emerald-500 p-2.5 rounded text-white text-xs font-bold uppercase tracking-wider outline-none"
                 />
                 <button 
