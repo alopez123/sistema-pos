@@ -17,6 +17,22 @@ export default function NuevaCotizacionPage() {
   
   const [businessLogo, setBusinessLogo] = useState<string | null>(null)
   
+  // Estado para el Tema (Modo Oscuro / Modo Claro Local)
+  const [isDarkMode, setIsDarkMode] = useState(true)
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('quotes_theme')
+    if (savedTheme === 'light') {
+      setIsDarkMode(false)
+    }
+  }, [])
+
+  const toggleTheme = () => {
+    const newMode = !isDarkMode
+    setIsDarkMode(newMode)
+    localStorage.setItem('quotes_theme', newMode ? 'dark' : 'light')
+  }
+  
   const [categories, setCategories] = useState<any[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
 
@@ -127,7 +143,6 @@ export default function NuevaCotizacionPage() {
     }
   }
 
-  // CORREGIDO: Uso de get_products_by_branch igual que el POS para asegurar que traiga category_id
   const loadProducts = async (branchIdToLoad: string) => {
     const { data, error } = await supabase.rpc('get_products_by_branch', { p_branch_id: branchIdToLoad })
     if (!error && data) {
@@ -338,70 +353,87 @@ export default function NuevaCotizacionPage() {
     return matchesSearch && matchesCategory
   })
 
+  // Clases dinámicas según el tema (Modo Oscuro vs Modo Claro)
+  const themeBg = isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-slate-100 text-slate-900'
+  const panelBg = isDarkMode ? 'bg-[#1e293b] border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900 shadow-md'
+  const subPanelBg = isDarkMode ? 'bg-[#0f172a] border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+  const inputBg = isDarkMode ? 'bg-[#0f172a] text-white border-slate-600' : 'bg-white text-slate-900 border-slate-300'
+
   return (
-    <div className="min-h-screen bg-[#0f172a] p-4 sm:p-6 text-white flex flex-col notranslate" translate="no">
+    <div className={`min-h-screen p-4 sm:p-6 flex flex-col notranslate ${themeBg}`} translate="no">
       
       {/* Cabecera Responsive con Logotipo */}
-      <header className="bg-[#1e293b] p-4 rounded-lg shadow mb-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 border border-slate-700">
+      <header className={`p-4 rounded-lg shadow mb-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 border ${panelBg}`}>
         <div className="flex items-center gap-3">
           {businessLogo ? (
-            <img src={businessLogo} alt="Logo" className="w-12 h-12 object-contain bg-[#0f172a] rounded-lg p-1 border border-slate-600 shadow" />
+            <img src={businessLogo} alt="Logo" className={`w-12 h-12 object-contain rounded-lg p-1 border shadow ${isDarkMode ? 'bg-[#0f172a] border-slate-600' : 'bg-white border-slate-300'}`} />
           ) : (
-            <div className="w-12 h-12 bg-[#0f172a] rounded-lg flex items-center justify-center text-[10px] text-slate-500 border border-slate-600">POS</div>
+            <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-[10px] border ${isDarkMode ? 'bg-[#0f172a] border-slate-600 text-slate-500' : 'bg-slate-200 border-slate-300 text-slate-600'}`}>POS</div>
           )}
-          <h1 className="text-lg sm:text-xl font-bold text-emerald-400">Nueva Cotización / Proforma</h1>
+          <h1 className="text-lg sm:text-xl font-bold text-emerald-500">Nueva Cotización / Proforma</h1>
         </div>
-        <button onClick={() => router.push('/pos')} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition-colors text-center">
-          ← Volver al POS
-        </button>
+
+        <div className="flex items-center gap-2 justify-end">
+          {/* BOTÓN INTERRUPTOR DE TEMA (CLARO / OSCURO) */}
+          <button 
+            onClick={toggleTheme}
+            className={`px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors border ${isDarkMode ? 'bg-slate-700 hover:bg-slate-600 text-amber-300 border-slate-600' : 'bg-slate-200 hover:bg-slate-300 text-slate-800 border-slate-300'}`}
+          >
+            {isDarkMode ? '☀️ Modo Claro' : '🌙 Modo Oscuro'}
+          </button>
+
+          <button onClick={() => router.push('/pos')} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition-colors text-center text-white">
+            ← Volver al POS
+          </button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
         
         {/* COLUMNA 1: FORMULARIO Y RESUMEN */}
-        <div className="bg-[#1e293b] p-4 sm:p-5 rounded-lg shadow border border-slate-700 flex flex-col gap-4 justify-between">
+        <div className={`p-4 sm:p-5 rounded-lg shadow border flex flex-col gap-4 justify-between ${panelBg}`}>
           
           <div className="space-y-3">
-            <h2 className="text-md font-bold text-emerald-400 border-b border-slate-700 pb-2">Datos del Cliente</h2>
+            <h2 className="text-md font-bold text-emerald-500 border-b pb-2 border-opacity-50">Datos del Cliente</h2>
             <div>
-              <label className="text-xs text-slate-400 block mb-1">NIT *</label>
-              <input type="text" value={nit} onChange={e => setNit(e.target.value)} onBlur={handleNitBlur} placeholder="Ej. 123456-7 o C/F" className="w-full bg-[#0f172a] border border-slate-600 px-3 py-2 rounded text-sm outline-none focus:border-emerald-500"/>
+              <label className="text-xs opacity-75 block mb-1">NIT *</label>
+              <input type="text" value={nit} onChange={e => setNit(e.target.value)} onBlur={handleNitBlur} placeholder="Ej. 123456-7 o C/F" className={`w-full border px-3 py-2 rounded text-sm outline-none focus:border-emerald-500 ${inputBg}`}/>
             </div>
             <div>
-              <label className="text-xs text-slate-400 block mb-1">Nombre / Razón Social *</label>
-              <input type="text" value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Nombre del cliente o empresa" className="w-full bg-[#0f172a] border border-slate-600 px-3 py-2 rounded text-sm outline-none focus:border-emerald-500"/>
+              <label className="text-xs opacity-75 block mb-1">Nombre / Razón Social *</label>
+              <input type="text" value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Nombre del cliente o empresa" className={`w-full border px-3 py-2 rounded text-sm outline-none focus:border-emerald-500 ${inputBg}`}/>
             </div>
             <div>
-              <label className="text-xs text-slate-400 block mb-1">Dirección</label>
-              <input type="text" value={direccion} onChange={e => setDireccion(e.target.value)} placeholder="Dirección fiscal o entrega" className="w-full bg-[#0f172a] border border-slate-600 px-3 py-2 rounded text-sm outline-none focus:border-emerald-500"/>
+              <label className="text-xs opacity-75 block mb-1">Dirección</label>
+              <input type="text" value={direccion} onChange={e => setDireccion(e.target.value)} placeholder="Dirección fiscal o entrega" className={`w-full border px-3 py-2 rounded text-sm outline-none focus:border-emerald-500 ${inputBg}`}/>
             </div>
             <div>
-              <label className="text-xs text-slate-400 block mb-1">Teléfono</label>
-              <input type="text" value={telefono} onChange={e => setTelefono(e.target.value)} placeholder="Número de contacto" className="w-full bg-[#0f172a] border border-slate-600 px-3 py-2 rounded text-sm outline-none focus:border-emerald-500"/>
+              <label className="text-xs opacity-75 block mb-1">Teléfono</label>
+              <input type="text" value={telefono} onChange={e => setTelefono(e.target.value)} placeholder="Número de contacto" className={`w-full border px-3 py-2 rounded text-sm outline-none focus:border-emerald-500 ${inputBg}`}/>
             </div>
             <div>
-              <label className="text-xs text-slate-400 block mb-1">Correo Electrónico</label>
-              <input type="email" value={correo} onChange={e => setCorreo(e.target.value)} placeholder="correo@ejemplo.com" className="w-full bg-[#0f172a] border border-slate-600 px-3 py-2 rounded text-sm outline-none focus:border-emerald-500"/>
+              <label className="text-xs opacity-75 block mb-1">Correo Electrónico</label>
+              <input type="email" value={correo} onChange={e => setCorreo(e.target.value)} placeholder="correo@ejemplo.com" className={`w-full border px-3 py-2 rounded text-sm outline-none focus:border-emerald-500 ${inputBg}`}/>
             </div>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-slate-700 flex flex-col justify-between">
+          <div className="mt-4 pt-4 border-t border-opacity-50 flex flex-col justify-between">
             <div>
-              <h2 className="text-md font-bold text-emerald-400 mb-3 border-b border-slate-700 pb-2">Detalle de Artículos</h2>
+              <h2 className="text-md font-bold text-emerald-500 mb-3 border-b pb-2 border-opacity-50">Detalle de Artículos</h2>
               
               <div className="space-y-2 max-h-[25vh] overflow-y-auto pr-1">
                 {cart.length === 0 ? (
-                  <p className="text-slate-400 text-xs text-center py-4">No hay productos agregados.</p>
+                  <p className="opacity-75 text-xs text-center py-4">No hay productos agregados.</p>
                 ) : (
                   cart.map(item => (
-                    <div key={item.id} className="bg-[#0f172a] p-2 rounded border border-slate-700 flex justify-between items-center text-xs">
+                    <div key={item.id} className={`p-2 rounded border flex justify-between items-center text-xs ${subPanelBg}`}>
                       <div>
-                        <p className="font-semibold text-white">{item.name}</p>
-                        <p className="text-slate-400" translate="no">Q {item.price} x {item.quantity}</p>
+                        <p className="font-semibold">{item.name}</p>
+                        <p className="opacity-75" translate="no">Q {item.price} x {item.quantity}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-emerald-400 font-bold" translate="no">Q {item.price * item.quantity}</span>
-                        <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="text-red-400 font-bold px-1.5 bg-slate-800 rounded">×</button>
+                        <span className="text-emerald-500 font-bold" translate="no">Q {item.price * item.quantity}</span>
+                        <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="text-red-400 font-bold px-1.5 bg-slate-700 rounded">×</button>
                       </div>
                     </div>
                   ))
@@ -409,17 +441,17 @@ export default function NuevaCotizacionPage() {
               </div>
             </div>
 
-            <div className="mt-4 pt-4 border-t border-slate-700">
+            <div className="mt-4 pt-4 border-t border-opacity-50">
               <div className="flex justify-between items-center mb-4">
-                <span className="text-base font-bold text-slate-300">Total Cotización:</span>
-                <span className="text-xl font-extrabold text-emerald-400" translate="no">Q {totalAmount.toFixed(2)}</span>
+                <span className="text-base font-bold opacity-80">Total Cotización:</span>
+                <span className="text-xl font-extrabold text-emerald-500" translate="no">Q {totalAmount.toFixed(2)}</span>
               </div>
               
               <button onClick={handleGuardarYGenerarPDF} disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg shadow-lg transition-colors disabled:opacity-50">
                 {loading ? 'Generando...' : '💾 Guardar y Generar PDF'}
               </button>
 
-              <p className="text-[10px] text-slate-400 text-center mt-3 italic">
+              <p className="text-[10px] opacity-75 text-center mt-3 italic">
                 * Esta cotización tiene validez durante 24 horas, luego de eso puede estar sujeta a cambios.
               </p>
             </div>
@@ -427,23 +459,23 @@ export default function NuevaCotizacionPage() {
         </div>
 
         {/* COLUMNAS 2 y 3: Catálogo Web y Táctil con Buscador, Categorías y Feedback Táctil */}
-        <div className="lg:col-span-2 bg-[#1e293b] p-4 sm:p-6 rounded-lg shadow border border-slate-700 flex flex-col">
+        <div className={`lg:col-span-2 p-4 sm:p-6 rounded-lg shadow border flex flex-col ${panelBg}`}>
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-base sm:text-lg font-bold text-emerald-400">Catálogo de Productos (Matriz)</h2>
+            <h2 className="text-base sm:text-lg font-bold text-emerald-500">Catálogo de Productos (Matriz)</h2>
           </div>
 
           <div className="relative mb-4" ref={searchRef}>
-            <input type="text" value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setShowSuggestions(true); }} onFocus={() => setShowSuggestions(true)} placeholder="🔍 Buscar producto por nombre..." className="w-full bg-[#0f172a] border border-slate-600 px-4 py-2.5 rounded-lg text-white text-sm outline-none focus:border-emerald-500 transition-colors" />
+            <input type="text" value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setShowSuggestions(true); }} onFocus={() => setShowSuggestions(true)} placeholder="🔍 Buscar producto por nombre..." className={`w-full border px-4 py-2.5 rounded-lg text-sm outline-none focus:border-emerald-500 transition-colors ${inputBg}`} />
             
             {showSuggestions && searchTerm.trim() !== '' && (
-              <div className="absolute left-0 right-0 mt-1 bg-[#0f172a] border border-slate-600 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
+              <div className={`absolute left-0 right-0 mt-1 border rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto ${subPanelBg}`}>
                 {filteredProducts.length === 0 ? (
-                  <div className="p-3 text-xs text-slate-400 text-center">No se encontraron productos</div>
+                  <div className="p-3 text-xs opacity-75 text-center">No se encontraron productos</div>
                 ) : (
                   filteredProducts.map(p => (
-                    <button key={p.id} onClick={() => { addToCart(p); setSearchTerm(''); setShowSuggestions(false); }} className="w-full text-left px-4 py-2.5 hover:bg-slate-800 flex justify-between items-center border-b border-slate-800/60 transition-colors text-xs">
-                      <div><span className="font-semibold text-white">{p.name}</span><span className="text-slate-400 ml-2 text-[10px]">(Stock: {p.stock})</span></div>
-                      <span className="text-emerald-400 font-bold" translate="no">Q {p.price}</span>
+                    <button key={p.id} onClick={() => { addToCart(p); setSearchTerm(''); setShowSuggestions(false); }} className={`w-full text-left px-4 py-2.5 hover:opacity-75 flex justify-between items-center border-b transition-colors text-xs ${subPanelBg}`}>
+                      <div><span className="font-semibold">{p.name}</span><span className="opacity-75 ml-2 text-[10px]">(Stock: {p.stock})</span></div>
+                      <span className="text-emerald-500 font-bold" translate="no">Q {p.price}</span>
                     </button>
                   ))
                 )}
@@ -456,7 +488,7 @@ export default function NuevaCotizacionPage() {
             <button
               onClick={() => setSelectedCategory(null)}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
-                selectedCategory === null ? 'bg-emerald-600 text-white shadow' : 'bg-[#0f172a] text-slate-300 hover:bg-slate-800 border border-slate-700'
+                selectedCategory === null ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} border`
               }`}
             >
               ✨ Todos
@@ -466,7 +498,7 @@ export default function NuevaCotizacionPage() {
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
-                  selectedCategory === cat.id ? 'bg-emerald-600 text-white shadow' : 'bg-[#0f172a] text-slate-300 hover:bg-slate-800 border border-slate-700'
+                  selectedCategory === cat.id ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} border`
                 }`}
               >
                 {cat.name}
@@ -477,26 +509,26 @@ export default function NuevaCotizacionPage() {
           {/* TARJETAS DE PRODUCTOS CON FEEDBACK TÁCTIL Y RESPONSIVE */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 overflow-y-auto max-h-[55vh] pr-1">
             {filteredProducts.length === 0 ? (
-              <p className="text-slate-400 col-span-full text-center py-10">No hay productos que coincidan con la búsqueda.</p>
+              <p className="opacity-75 col-span-full text-center py-10">No hay productos que coincidan con la búsqueda.</p>
             ) : (
               filteredProducts.map(p => (
                 <div 
                   key={p.id} 
                   onClick={() => addToCart(p)} 
-                  className="bg-[#0f172a] border border-slate-700 hover:border-emerald-500 active:scale-95 active:bg-emerald-950/40 active:border-emerald-400 p-3 rounded-lg flex flex-col justify-between text-left transition-all duration-150 shadow hover:shadow-emerald-500/10 group cursor-pointer h-full select-none"
+                  className={`border hover:border-emerald-500 active:scale-95 active:border-emerald-400 p-3 rounded-lg flex flex-col justify-between text-left transition-all duration-150 shadow group cursor-pointer h-full select-none ${subPanelBg}`}
                 >
                   <div className="flex flex-col">
                     {p.image_url ? (
-                      <img src={p.image_url} alt={p.name} className="w-full h-24 object-cover rounded mb-2 border border-slate-700 pointer-events-none" />
+                      <img src={p.image_url} alt={p.name} className="w-full h-24 object-cover rounded mb-2 border border-opacity-50 pointer-events-none" />
                     ) : (
-                      <div className="w-full h-24 bg-[#1e293b] rounded mb-2 flex items-center justify-center text-xs text-slate-500 border border-slate-700/50">Sin imagen</div>
+                      <div className={`w-full h-24 rounded mb-2 flex items-center justify-center text-xs opacity-50 border border-opacity-50 ${panelBg}`}>Sin imagen</div>
                     )}
-                    <span className="text-[11px] text-slate-400 block mb-0.5">Stock: {p.stock}</span>
-                    <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-2 text-xs leading-snug">{p.name}</h3>
+                    <span className="text-[11px] opacity-75 block mb-0.5">Stock: {p.stock}</span>
+                    <h3 className="font-bold group-hover:text-emerald-500 transition-colors line-clamp-2 text-xs leading-snug">{p.name}</h3>
                   </div>
-                  <div className="mt-2 pt-1 border-t border-slate-800/80 flex items-center justify-between">
-                    <span className="text-[10px] text-slate-500 uppercase">Precio</span>
-                    <span className="text-emerald-400 font-extrabold text-sm sm:text-base" translate="no">Q {p.price}</span>
+                  <div className="mt-2 pt-1 border-t border-opacity-50 flex items-center justify-between">
+                    <span className="text-[10px] opacity-70 uppercase">Precio</span>
+                    <span className="text-emerald-500 font-extrabold text-sm sm:text-base" translate="no">Q {p.price}</span>
                   </div>
                 </div>
               ))

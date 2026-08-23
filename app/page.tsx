@@ -8,10 +8,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   
-  // Estado para el número de WhatsApp del Admin consultado desde la base de datos
-  const [adminPhone, setAdminPhone] = useState('50248069299') // Valor por defecto de respaldo
+  // Estado para el número de WhatsApp del Admin consultado desde la base de datos[cite: 7]
+  const [adminPhone, setAdminPhone] = useState('50248069299') // Valor por defecto de respaldo[cite: 7]
 
-  // Estados renovación QR + Token
+  // Estados renovación QR + Token[cite: 7]
   const [showRenewalModal, setShowRenewalModal] = useState(false)
   const [pendingBusiness, setPendingBusiness] = useState<any>(null)
   const [selectedBank, setSelectedBank] = useState<'BI' | 'BANRURAL'>('BI')
@@ -21,7 +21,7 @@ export default function LoginPage() {
   const [inputToken, setInputToken] = useState('')
   const [validatingToken, setValidatingToken] = useState(false)
 
-  // Estados para Modal de Cambio Obligatorio de Contraseña (Primer Uso)
+  // Estados para Modal de Cambio Obligatorio de Contraseña (Primer Uso)[cite: 7]
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -30,7 +30,7 @@ export default function LoginPage() {
 
   const router = useRouter()
 
-  // Consultar el número de WhatsApp del administrador al cargar la página
+  // Consultar el número de WhatsApp del administrador al cargar la página[cite: 7]
   useEffect(() => {
     async function fetchAdminWhatsApp() {
       try {
@@ -50,7 +50,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      // 1. Intentar inicio de sesión como Dueño de Negocio
+      // 1. Intentar inicio de sesión como Dueño de Negocio[cite: 7]
       const { data, error } = await supabase
         .rpc('verify_business_login', { p_email: email, p_password: password })
 
@@ -91,7 +91,7 @@ export default function LoginPage() {
         return
       }
 
-      // 2. Intentar inicio de sesión como Empleado / Sucursal (Staff)
+      // 2. Intentar inicio de sesión como Empleado / Sucursal (Staff)[cite: 7]
       const { data: staffData, error: staffError } = await supabase
         .rpc('verify_staff_login', { p_username: email.trim().toLowerCase(), p_access_code: password.trim() })
 
@@ -104,7 +104,7 @@ export default function LoginPage() {
       const staff = staffData[0]
       const targetBizId = staff.business_id || staff.busines_id
 
-      // Consultar el negocio usando la función RPC segura para saltar el RLS
+      // Consultar el negocio usando la función RPC segura para saltar el RLS[cite: 7]
       const { data: bizDataList, error: bizError } = await supabase
         .rpc('get_business_status_by_id', { p_business_id: targetBizId })
 
@@ -139,8 +139,14 @@ export default function LoginPage() {
         branch_id: staff.branch_id, business_id: targetBizId, branch_name: branchData?.name || 'Sucursal', role: userRole
       }))
 
-      if (userRole === 'cajero') router.push('/cajero')
-      else router.push('/pos')
+      // Validación corregida y ordenada de roles para redirección correcta[cite: 7]
+      if (userRole === 'cajero') {
+        router.push('/cajero')
+      } else if (userRole === 'bodega') {
+        router.push('/inventario')
+      } else {
+        router.push('/pos')
+      }
 
     } catch (err) {
       console.error("Error inesperado:", err)
@@ -150,7 +156,7 @@ export default function LoginPage() {
     }
   }
 
-  // --- FUNCIÓN DE RECUPERACIÓN DE CONTRASEÑA POR WHATSAPP MEDIANTE RPC ---
+  // --- FUNCIÓN DE RECUPERACIÓN DE CONTRASEÑA POR WHATSAPP MEDIANTE RPC ---[cite: 7]
   const handleForgotPassword = async () => {
     const inputVal = email.trim();
     if (!inputVal) {
@@ -177,7 +183,6 @@ export default function LoginPage() {
     );
     window.open(`https://wa.me/${adminPhone}?text=${message}`, '_blank');
   };
-
 
   const handleUpdatePassword = async () => {
     if (!newPassword.trim() || newPassword.length < 6) {
@@ -447,7 +452,7 @@ export default function LoginPage() {
             {/* QR */}
             <div className="flex flex-col items-center justify-center bg-white p-4 rounded-lg space-y-2 shadow-inner">
               <img src={selectedBank === 'BI' ? '/qr-bi.png' : '/qr-banrural.png'} alt={`QR ${selectedBank}`} className="w-40 h-40 object-contain" />
-              <span className="text-[11px] font-bold text-slate-800">Trasnfiera a: {selectedBank === 'BI' ? 'Banco Industrial' : 'Banrural'}</span>
+              <span className="text-[11px] font-bold text-slate-800">Transfiera a: {selectedBank === 'BI' ? 'Banco Industrial' : 'Banrural'}</span>
             </div>
 
             {/* Subir comprobante y Referencia */}

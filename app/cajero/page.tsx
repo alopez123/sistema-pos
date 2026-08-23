@@ -18,6 +18,22 @@ export default function CashierPage() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null)
   const [orderItems, setOrderItems] = useState<any[]>([])
   
+  // Estado para el Tema (Modo Oscuro / Modo Claro Local)
+  const [isDarkMode, setIsDarkMode] = useState(true)
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('cashier_theme')
+    if (savedTheme === 'light') {
+      setIsDarkMode(false)
+    }
+  }, [])
+
+  const toggleTheme = () => {
+    const newMode = !isDarkMode
+    setIsDarkMode(newMode)
+    localStorage.setItem('cashier_theme', newMode ? 'dark' : 'light')
+  }
+  
   // Estados para Cobro, Facturación y Vuelto
   const [paymentMethod, setPaymentMethod] = useState<'efectivo' | 'tarjeta'>('efectivo')
   const [customerNit, setCustomerNit] = useState('CF')
@@ -358,26 +374,32 @@ export default function CashierPage() {
   const totalTodaySales = todaySales.reduce((acc, s) => acc + Number(s.total_amount || 0), 0)
   const cashChange = paymentMethod === 'efectivo' && selectedOrder && cashGiven ? Math.max(0, parseFloat(cashGiven) - Number(selectedOrder.total_amount)) : 0
 
+  // Clases dinámicas según el tema (Modo Oscuro vs Modo Claro)
+  const themeBg = isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-slate-100 text-slate-900'
+  const panelBg = isDarkMode ? 'bg-[#1e293b] border-slate-750 text-white' : 'bg-white border-slate-300 text-slate-900 shadow-md'
+  const subPanelBg = isDarkMode ? 'bg-[#0f172a] border-slate-750 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+  const inputBg = isDarkMode ? 'bg-[#0f172a] text-white border-slate-600' : 'bg-white text-slate-900 border-slate-300'
+
   return (
-    <div className="min-h-screen bg-[#0f172a] p-6 text-white flex flex-col w-full notranslate" translate="no">
-      <header className="bg-[#1e293b] p-4 rounded-lg shadow mb-6 flex flex-wrap justify-between items-center gap-4 border border-slate-750">
+    <div className={`min-h-screen p-6 flex flex-col w-full notranslate ${themeBg}`} translate="no">
+      <header className={`p-4 rounded-lg shadow mb-6 flex flex-wrap justify-between items-center gap-4 border ${panelBg}`}>
         <div className="flex items-center gap-4">
           {businessLogo ? (
             <img src={businessLogo} alt="Logo" className="w-10 h-10 object-cover rounded-lg border border-slate-600 shadow" />
           ) : (
-            <div className="w-10 h-10 rounded-lg bg-emerald-600/30 border border-emerald-500/50 flex items-center justify-center font-bold text-emerald-400 text-sm uppercase">
+            <div className="w-10 h-10 rounded-lg bg-emerald-600/30 border border-emerald-500/50 flex items-center justify-center font-bold text-emerald-500 text-sm uppercase">
               {businessName ? businessName.substring(0, 2) : 'NE'}
             </div>
           )}
 
-          <h1 className="text-xl font-bold text-emerald-400">💵 Caja / Control de Órdenes</h1>
+          <h1 className="text-xl font-bold text-emerald-500">💵 Caja / Control de Órdenes</h1>
           
-          <div className="bg-[#0f172a] border border-slate-600 px-3 py-2 rounded text-emerald-300 font-bold text-sm flex items-center gap-2">
+          <div className={`border px-3 py-2 rounded font-bold text-sm flex items-center gap-2 ${subPanelBg}`}>
             <span>📍 {branchName}</span>
-            <span className="text-xs text-slate-400 font-normal">({staffName})</span>
+            <span className="text-xs opacity-75 font-normal">({staffName})</span>
           </div>
 
-          <div className="flex items-center gap-2 pl-4 border-l border-slate-750">
+          <div className="flex items-center gap-2 pl-4 border-l border-opacity-50">
             {cashRegister ? (
               <div className="flex items-center gap-3">
                 <span className="bg-emerald-500/20 text-emerald-400 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5">
@@ -386,7 +408,7 @@ export default function CashierPage() {
                 </span>
                 <button 
                   onClick={() => setShowCloseModal(true)}
-                  className="bg-amber-600 hover:bg-amber-500 text-xs px-3 py-1.5 rounded font-bold transition-colors"
+                  className="bg-amber-600 hover:bg-amber-500 text-xs px-3 py-1.5 rounded font-bold transition-colors text-white"
                 >
                   🔒 Cierre de Día
                 </button>
@@ -399,7 +421,7 @@ export default function CashierPage() {
                 </span>
                 <button 
                   onClick={() => setShowOpenModal(true)}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-xs px-3 py-1.5 rounded font-bold transition-colors shadow"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-xs px-3 py-1.5 rounded font-bold transition-colors shadow text-white"
                 >
                   ☀️ Inicio de Día
                 </button>
@@ -414,11 +436,19 @@ export default function CashierPage() {
             placeholder="🔍 Buscar No. Orden, NIT o Nombre..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full bg-[#0f172a] border border-slate-600 px-3 py-2 rounded text-white text-sm outline-none focus:border-emerald-500 placeholder-slate-500"
+            className={`w-full border px-3 py-2 rounded text-sm outline-none focus:border-emerald-500 ${inputBg}`}
           />
         </div>
         
         <div className="flex gap-2 items-center">
+          {/* BOTÓN INTERRUPTOR DE TEMA (CLARO / OSCURO) */}
+          <button 
+            onClick={toggleTheme}
+            className={`px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors border ${isDarkMode ? 'bg-slate-700 hover:bg-slate-600 text-amber-300 border-slate-600' : 'bg-slate-200 hover:bg-slate-300 text-slate-800 border-slate-300'}`}
+          >
+            {isDarkMode ? '☀️ Modo Claro' : '🌙 Modo Oscuro'}
+          </button>
+
           {/* BOTÓN RÁPIDO PARA ABRIR LA SAT EN VENTANA EMERGENTE */}
           <button 
             onClick={openSatPortal} 
@@ -428,10 +458,10 @@ export default function CashierPage() {
             🏛️ Facturar en SAT
           </button>
 
-          <button onClick={() => { loadPendingOrders(selectedBranch); if(cashRegister) loadTodaySales(businessId, selectedBranch, cashRegister.opened_at); }} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded font-semibold text-sm">
+          <button onClick={() => { loadPendingOrders(selectedBranch); if(cashRegister) loadTodaySales(businessId, selectedBranch, cashRegister.opened_at); }} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded font-semibold text-sm text-white">
             🔄 Actualizar
           </button>
-          <button onClick={handleLogout} className="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-semibold text-sm transition-colors shadow">
+          <button onClick={handleLogout} className="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-semibold text-sm transition-colors shadow text-white">
             🚪 Cerrar Sesión
           </button>
         </div>
@@ -440,12 +470,12 @@ export default function CashierPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
         
         {/* Columna 1 y 2: Listado de Órdenes Pendientes */}
-        <div className="lg:col-span-2 bg-[#1e293b] p-5 rounded-lg border border-slate-750 flex flex-col">
-          <h2 className="text-base font-bold text-slate-300 mb-4">Comandas en Espera de Pago ({filteredOrders.length})</h2>
+        <div className={`p-5 rounded-lg border flex flex-col ${panelBg}`}>
+          <h2 className="text-base font-bold opacity-80 mb-4">Comandas en Espera de Pago ({filteredOrders.length})</h2>
 
           <div className="space-y-3 overflow-y-auto max-h-[70vh] pr-1">
             {filteredOrders.length === 0 ? (
-              <div className="text-center py-16 text-slate-400">
+              <div className="text-center py-16 opacity-75">
                 <p className="text-lg">No hay órdenes pendientes en este momento.</p>
               </div>
             ) : (
@@ -453,8 +483,8 @@ export default function CashierPage() {
                 <div 
                   key={order.id} 
                   onClick={() => handleSelectOrder(order)}
-                  className={`bg-[#0f172a] p-4 rounded-lg border cursor-pointer transition-all flex justify-between items-center ${
-                    selectedOrder?.id === order.id ? 'border-emerald-500 shadow-lg bg-slate-800/60' : 'border-slate-750 hover:border-slate-500'
+                  className={`p-4 rounded-lg border cursor-pointer transition-all flex justify-between items-center ${subPanelBg} ${
+                    selectedOrder?.id === order.id ? 'border-emerald-500 shadow-lg' : 'hover:border-slate-500'
                   }`}
                 >
                   <div>
@@ -463,15 +493,15 @@ export default function CashierPage() {
                         Orden #{order.order_number || 'S/N'}
                       </span>
                       <span className="text-xs bg-amber-500/20 text-amber-400 font-bold px-2 py-0.5 rounded">Pendiente</span>
-                      <span className="text-xs text-slate-400">{new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="text-xs opacity-75">{new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
-                    <p className="font-bold text-white text-base">Cliente: {order.customer_name || 'Consumidor Final'}</p>
-                    <p className="text-xs text-slate-300">NIT: <span className="font-mono text-emerald-300">{order.customer_nit || 'CF'}</span></p>
+                    <p className="font-bold text-base">Cliente: {order.customer_name || 'Consumidor Final'}</p>
+                    <p className="text-xs opacity-75">NIT: <span className="font-mono text-emerald-500">{order.customer_nit || 'CF'}</span></p>
                   </div>
 
                   <div className="text-right">
-                    <span className="text-emerald-400 font-extrabold text-xl" translate="no">Q {order.total_amount}</span>
-                    <p className="text-xs text-slate-400 mt-1">Clic para gestionar</p>
+                    <span className="text-emerald-500 font-extrabold text-xl" translate="no">Q {order.total_amount}</span>
+                    <p className="text-xs opacity-75 mt-1">Clic para gestionar</p>
                   </div>
                 </div>
               ))
@@ -480,18 +510,18 @@ export default function CashierPage() {
         </div>
 
         {/* Columna 3: Pestañas de Cobro / Reporte de Ventas */}
-        <div className="bg-[#1e293b] p-5 rounded-lg border border-slate-750 flex flex-col justify-between">
+        <div className={`p-5 rounded-lg border flex flex-col justify-between ${panelBg}`}>
           <div>
-            <div className="grid grid-cols-2 gap-1.5 mb-4 bg-[#0f172a] p-1.5 rounded border border-slate-750 text-xs font-bold">
+            <div className={`grid grid-cols-2 gap-1.5 mb-4 p-1.5 rounded border text-xs font-bold ${subPanelBg}`}>
               <button 
                 onClick={() => setRightTab('gestion')}
-                className={`py-2 rounded transition-colors ${rightTab === 'gestion' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                className={`py-2 rounded transition-colors ${rightTab === 'gestion' ? 'bg-emerald-600 text-white' : 'opacity-75 hover:opacity-100'}`}
               >
                 💳 Cobrar Orden
               </button>
               <button 
                 onClick={() => setRightTab('ventas')}
-                className={`py-2 rounded transition-colors ${rightTab === 'ventas' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                className={`py-2 rounded transition-colors ${rightTab === 'ventas' ? 'bg-emerald-600 text-white' : 'opacity-75 hover:opacity-100'}`}
               >
                 📊 Ventas de mi Caja ({todaySales.length})
               </button>
@@ -499,57 +529,57 @@ export default function CashierPage() {
 
             {rightTab === 'gestion' && (
               <div>
-                <h2 className="text-base font-bold text-emerald-400 mb-3">Detalle de la Orden y Cobro</h2>
+                <h2 className="text-base font-bold text-emerald-500 mb-3">Detalle de la Orden y Cobro</h2>
 
                 {selectedOrder ? (
                   <div className="space-y-3">
-                    <div className="bg-[#0f172a] p-3 rounded border border-slate-750 text-xs space-y-1">
-                      <p><span className="text-slate-400">Orden No:</span> <span className="font-bold font-mono text-emerald-400 text-sm">#{selectedOrder.order_number || 'S/N'}</span></p>
+                    <div className={`p-3 rounded border text-xs space-y-1 ${subPanelBg}`}>
+                      <p><span className="opacity-75">Orden No:</span> <span className="font-bold font-mono text-emerald-500 text-sm">#{selectedOrder.order_number || 'S/N'}</span></p>
                     </div>
 
                     <div className="space-y-1.5 max-h-28 overflow-y-auto pr-1">
                       {loading ? (
-                        <p className="text-center text-slate-400 py-2">Cargando...</p>
+                        <p className="text-center opacity-75 py-2">Cargando...</p>
                       ) : orderItems.map((item, idx) => (
-                        <div key={idx} className="bg-[#0f172a] p-2 rounded border border-slate-800 flex justify-between items-center text-xs">
+                        <div key={idx} className={`p-2 rounded border flex justify-between items-center text-xs ${subPanelBg}`}>
                           <div>
-                            <p className="font-semibold text-white">{item.product_name}</p>
-                            <p className="text-slate-400">{item.quantity} x Q {item.price}</p>
+                            <p className="font-semibold">{item.product_name}</p>
+                            <p className="opacity-75">{item.quantity} x Q {item.price}</p>
                           </div>
-                          <span className="font-bold text-emerald-400" translate="no">Q {item.quantity * item.price}</span>
+                          <span className="font-bold text-emerald-500" translate="no">Q {item.quantity * item.price}</span>
                         </div>
                       ))}
                     </div>
 
-                    <div className="pt-2 border-t border-slate-750 space-y-2 text-xs">
+                    <div className="pt-2 border-t border-opacity-50 space-y-2 text-xs">
                       <div>
-                        <label className="text-slate-300 font-medium block mb-1">NIT del Cliente (o CF)</label>
+                        <label className="font-medium block mb-1">NIT del Cliente (o CF)</label>
                         <input 
                           type="text"
                           value={customerNit}
                           onChange={e => handleNitChange(e.target.value)}
                           placeholder="CF o Número de NIT"
-                          className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white font-semibold uppercase outline-none focus:border-emerald-500"
+                          className={`w-full border p-2 rounded font-semibold uppercase outline-none focus:border-emerald-500 ${inputBg}`}
                         />
                       </div>
 
                       <div>
-                        <label className="text-slate-300 font-medium block mb-1">Nombre / Razón Social</label>
+                        <label className="font-medium block mb-1">Nombre / Razón Social</label>
                         <input 
                           type="text"
                           value={customerName}
                           onChange={e => setCustomerName(e.target.value)}
                           placeholder="Nombre del cliente"
-                          className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white outline-none focus:border-emerald-500"
+                          className={`w-full border p-2 rounded outline-none focus:border-emerald-500 ${inputBg}`}
                         />
                       </div>
 
                       <div>
-                        <label className="text-slate-300 font-medium block mb-1">Método de Pago</label>
+                        <label className="font-medium block mb-1">Método de Pago</label>
                         <select 
                           value={paymentMethod} 
                           onChange={e => setPaymentMethod(e.target.value as any)} 
-                          className="w-full bg-[#0f172a] p-2 rounded border border-slate-600 outline-none text-white font-medium"
+                          className={`w-full p-2 rounded border outline-none font-medium ${inputBg}`}
                         >
                           <option value="efectivo">Efectivo</option>
                           <option value="tarjeta">Tarjeta de Crédito / Débito</option>
@@ -557,34 +587,34 @@ export default function CashierPage() {
                       </div>
 
                       {paymentMethod === 'efectivo' && (
-                        <div className="bg-[#0f172a] p-2.5 rounded border border-emerald-500/40 space-y-2">
+                        <div className={`p-2.5 rounded border border-emerald-500/40 space-y-2 ${subPanelBg}`}>
                           <div>
-                            <label className="text-emerald-400 font-bold block mb-1">💵 Efectivo Recibido (Q)</label>
+                            <label className="text-emerald-500 font-bold block mb-1">💵 Efectivo Recibido (Q)</label>
                             <input 
                               type="number"
                               step="0.01"
                               value={cashGiven}
                               onChange={e => setCashGiven(e.target.value)}
                               placeholder="Monto entregado..."
-                              className="w-full bg-[#1e293b] border border-slate-600 p-2 rounded text-white font-bold text-sm outline-none focus:border-emerald-500"
+                              className={`w-full border p-2 rounded font-bold text-sm outline-none focus:border-emerald-500 ${inputBg}`}
                             />
                           </div>
-                          <div className="flex justify-between items-center pt-1 border-t border-slate-800 font-bold text-sm">
-                            <span className="text-slate-300">Vuelto:</span>
-                            <span className="text-emerald-400" translate="no">Q {cashChange.toFixed(2)}</span>
+                          <div className="flex justify-between items-center pt-1 border-t border-opacity-50 font-bold text-sm">
+                            <span>Vuelto:</span>
+                            <span className="text-emerald-500" translate="no">Q {cashChange.toFixed(2)}</span>
                           </div>
                         </div>
                       )}
 
                       {paymentMethod === 'tarjeta' && (
                         <div>
-                          <label className="text-emerald-400 font-bold block mb-1">💳 No. de Voucher de Tarjeta</label>
+                          <label className="text-emerald-500 font-bold block mb-1">💳 No. de Voucher de Tarjeta</label>
                           <input 
                             type="text"
                             value={voucherNumber}
                             onChange={e => setVoucherNumber(e.target.value)}
-                            placeholder="Ingrese número de baucher..."
-                            className="w-full bg-[#0f172a] border border-emerald-500 p-2 rounded text-white outline-none font-mono"
+                            placeholder="Ingrese número de voucher..."
+                            className={`w-full border p-2 rounded outline-none font-mono ${inputBg}`}
                             required
                           />
                         </div>
@@ -592,7 +622,7 @@ export default function CashierPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center py-16 text-slate-400 text-sm">
+                  <div className="text-center py-16 opacity-75 text-sm">
                     Selecciona una orden de la lista para ver su detalle y cobrar.
                   </div>
                 )}
@@ -601,35 +631,35 @@ export default function CashierPage() {
 
             {rightTab === 'ventas' && (
               <div className="space-y-3">
-                <div className="bg-[#0f172a] p-3 rounded-lg border border-emerald-500/40 flex justify-between items-center shadow">
+                <div className={`p-3 rounded-lg border border-emerald-500/40 flex justify-between items-center shadow ${subPanelBg}`}>
                   <div>
-                    <p className="text-[10px] text-slate-400 uppercase font-medium">Ventas de mi Turno Actual</p>
-                    <p className="text-base font-extrabold text-emerald-400" translate="no">Q {totalTodaySales}</p>
+                    <p className="text-[10px] opacity-75 uppercase font-medium">Ventas de mi Turno Actual</p>
+                    <p className="text-base font-extrabold text-emerald-500" translate="no">Q {totalTodaySales}</p>
                   </div>
-                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded">
+                  <span className="text-[10px] bg-emerald-500/25 text-emerald-400 font-bold px-2 py-0.5 rounded">
                     {todaySales.length} {todaySales.length === 1 ? 'ticket' : 'tickets'}
                   </span>
                 </div>
 
-                <p className="text-[11px] text-slate-400">💡 Clic en cualquier venta para ver los productos.</p>
+                <p className="text-[11px] opacity-75">💡 Clic en cualquier venta para ver los productos.</p>
 
                 <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
                   {todaySales.length === 0 ? (
-                    <p className="text-slate-400 text-center py-10 text-xs">No hay ventas registradas en este turno aún.</p>
+                    <p className="opacity-75 text-center py-10 text-xs">No hay ventas registradas en este turno aún.</p>
                   ) : (
                     todaySales.map((sale) => (
                       <div 
                         key={sale.sale_id}
                         onClick={() => handleViewSaleDetails(sale.sale_id)}
-                        className="bg-[#0f172a] p-3 rounded border border-slate-750 hover:border-emerald-500 cursor-pointer transition-all space-y-1 text-xs"
+                        className={`p-3 rounded border hover:border-emerald-500 cursor-pointer transition-all space-y-1 text-xs ${subPanelBg}`}
                       >
-                        <div className="flex justify-between font-bold text-white">
+                        <div className="flex justify-between font-bold">
                           <span>NIT: {sale.customer_nit}</span>
-                          <span className="text-emerald-400" translate="no">Q {sale.total_amount}</span>
+                          <span className="text-emerald-500" translate="no">Q {sale.total_amount}</span>
                         </div>
-                        <p className="text-[11px] text-slate-300">Cliente: {sale.customer_name}</p>
-                        <div className="flex justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800">
-                          <span className="uppercase text-amber-300 font-semibold">{sale.payment_method} {sale.voucher_number ? `(#${sale.voucher_number})` : ''}</span>
+                        <p className="text-[11px] opacity-75">Cliente: {sale.customer_name}</p>
+                        <div className="flex justify-between text-[10px] opacity-75 pt-1 border-t border-opacity-50">
+                          <span className="uppercase text-amber-500 font-semibold">{sale.payment_method} {sale.voucher_number ? `(#${sale.voucher_number})` : ''}</span>
                           <span>{new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
@@ -641,22 +671,22 @@ export default function CashierPage() {
           </div>
 
           {rightTab === 'gestion' && selectedOrder && (
-            <div className="border-t border-slate-750 pt-3 mt-3 space-y-2">
+            <div className="border-t border-opacity-50 pt-3 mt-3 space-y-2">
               <div className="flex justify-between items-center font-bold text-base mb-1">
                 <span>Total a Cobrar:</span>
-                <span className="text-emerald-400 text-lg" translate="no">Q {selectedOrder.total_amount}</span>
+                <span className="text-emerald-500 text-lg" translate="no">Q {selectedOrder.total_amount}</span>
               </div>
 
               <button 
                 onClick={handlePayOrder}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-lg font-bold text-sm shadow transition-colors"
+                className="w-full bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-lg font-bold text-sm shadow transition-colors text-white"
               >
                 💳 Cobrar y Cerrar Orden
               </button>
 
               <button 
                 onClick={() => handleCancelOrder(selectedOrder.id)}
-                className="w-full bg-red-700 hover:bg-red-600 py-2 rounded-lg font-semibold text-xs shadow transition-colors"
+                className="w-full bg-red-700 hover:bg-red-600 py-2 rounded-lg font-semibold text-xs shadow transition-colors text-white"
               >
                 ❌ Cancelar Orden (Devuelve Stock)
               </button>
@@ -669,25 +699,25 @@ export default function CashierPage() {
       {/* --- MODAL DETALLE DE VENTA --- */}
       {selectedSaleDetails !== null && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
-          <div className="bg-[#1e293b] p-6 rounded-xl border border-emerald-500 w-full max-w-sm text-white shadow-2xl space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-700 pb-2">
-              <h3 className="text-base font-bold text-emerald-400">📦 Detalle de la Venta</h3>
-              <button onClick={() => setSelectedSaleDetails(null)} className="text-slate-400 hover:text-white font-bold text-base">✕</button>
+          <div className={`p-6 rounded-xl border border-emerald-500 w-full max-w-sm shadow-2xl space-y-4 ${panelBg}`}>
+            <div className="flex justify-between items-center border-b border-opacity-50 pb-2">
+              <h3 className="text-base font-bold text-emerald-500">📦 Detalle de la Venta</h3>
+              <button onClick={() => setSelectedSaleDetails(null)} className="opacity-75 hover:opacity-100 font-bold text-base">✕</button>
             </div>
 
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1 text-xs">
               {selectedSaleDetails.map((item, idx) => (
-                <div key={idx} className="bg-[#0f172a] p-2.5 rounded border border-slate-700 flex justify-between items-center">
+                <div key={idx} className={`p-2.5 rounded border flex justify-between items-center ${subPanelBg}`}>
                   <div>
-                    <p className="font-semibold text-white">{item.product_name}</p>
-                    <p className="text-slate-400">{item.quantity} x Q {item.price_at_sale}</p>
+                    <p className="font-semibold">{item.product_name}</p>
+                    <p className="opacity-75">{item.quantity} x Q {item.price_at_sale}</p>
                   </div>
-                  <span className="font-bold text-emerald-400" translate="no">Q {item.quantity * item.price_at_sale}</span>
+                  <span className="font-bold text-emerald-500" translate="no">Q {item.quantity * item.price_at_sale}</span>
                 </div>
               ))}
             </div>
 
-            <button onClick={() => setSelectedSaleDetails(null)} className="w-full bg-slate-700 hover:bg-slate-600 py-2.5 rounded text-sm font-semibold">
+            <button onClick={() => setSelectedSaleDetails(null)} className="w-full bg-slate-700 hover:bg-slate-600 py-2.5 rounded text-sm font-semibold text-white">
               Cerrar Detalle
             </button>
           </div>
@@ -697,9 +727,9 @@ export default function CashierPage() {
       {/* --- MODAL INICIO DE DÍA --- */}
       {showOpenModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 99999 }}>
-          <div className="bg-[#1e293b] p-6 rounded-xl border border-emerald-500 w-full max-w-sm text-white shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-emerald-400">☀️ Apertura de Caja</h3>
-            <p className="text-xs text-slate-300">Ingresa el fondo inicial en efectivo para esta sucursal:</p>
+          <div className={`p-6 rounded-xl border border-emerald-500 w-full max-w-sm shadow-2xl space-y-4 ${panelBg}`}>
+            <h3 className="text-lg font-bold text-emerald-500">☀️ Apertura de Caja</h3>
+            <p className="text-xs opacity-75">Ingresa el fondo inicial en efectivo para esta sucursal:</p>
             
             <form onSubmit={handleOpenDay} className="space-y-3">
               <input 
@@ -708,13 +738,13 @@ export default function CashierPage() {
                 value={openingAmountInput}
                 onChange={e => setOpeningAmountInput(e.target.value)}
                 placeholder="0.00"
-                className="w-full bg-[#0f172a] border border-slate-600 p-3 rounded text-white font-bold text-lg outline-none focus:border-emerald-500"
+                className={`w-full border p-3 rounded font-bold text-lg outline-none focus:border-emerald-500 ${inputBg}`}
                 required
                 autoFocus
               />
               <div className="flex gap-2 pt-2">
-                <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded font-bold text-sm">Abrir Caja</button>
-                <button type="button" onClick={() => setShowOpenModal(false)} className="bg-slate-700 px-4 py-2.5 rounded text-sm">Cancelar</button>
+                <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded font-bold text-sm text-white">Abrir Caja</button>
+                <button type="button" onClick={() => setShowOpenModal(false)} className="bg-slate-700 px-4 py-2.5 rounded text-sm text-white">Cancelar</button>
               </div>
             </form>
           </div>
@@ -736,20 +766,20 @@ export default function CashierPage() {
 
         return (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 99999 }}>
-            <div className="bg-[#1e293b] p-6 rounded-xl border border-amber-500 w-full max-w-sm text-white shadow-2xl space-y-4">
-              <h3 className="text-lg font-bold text-amber-400">🔒 Cierre de Caja / Arqueo</h3>
+            <div className={`p-6 rounded-xl border border-amber-500 w-full max-w-sm shadow-2xl space-y-4 ${panelBg}`}>
+              <h3 className="text-lg font-bold text-amber-500">🔒 Cierre de Caja / Arqueo</h3>
               
-              <div className="bg-[#0f172a] p-3 rounded border border-slate-700 text-xs space-y-1.5">
-                <p><span className="text-slate-400">Cajero en Turno:</span> <span className="font-bold text-white">{staffName}</span></p>
-                <p><span className="text-slate-400">Fondo Inicial:</span> <span className="font-bold text-emerald-400">Q {Number(cashRegister?.opening_amount || 0).toFixed(2)}</span></p>
+              <div className={`p-3 rounded border text-xs space-y-1.5 ${subPanelBg}`}>
+                <p><span className="opacity-75">Cajero en Turno:</span> <span className="font-bold">{staffName}</span></p>
+                <p><span className="opacity-75">Fondo Inicial:</span> <span className="font-bold text-emerald-500">Q {Number(cashRegister?.opening_amount || 0).toFixed(2)}</span></p>
                 
-                <div className="pt-2 border-t border-slate-800 space-y-1">
-                  <p><span className="text-slate-400">Ventas en Efectivo:</span> <span className="font-bold text-emerald-400">Q {totalEfectivo.toFixed(2)}</span></p>
-                  <p><span className="text-slate-400">Ventas con Tarjeta:</span> <span className="font-bold text-blue-400">Q {totalTarjeta.toFixed(2)}</span></p>
-                  <p className="font-bold text-white pt-1">Total de Ventas (Referencia): Q {totalVentasGeneral.toFixed(2)}</p>
+                <div className="pt-2 border-t border-opacity-50 space-y-1">
+                  <p><span className="opacity-75">Ventas en Efectivo:</span> <span className="font-bold text-emerald-500">Q {totalEfectivo.toFixed(2)}</span></p>
+                  <p><span className="opacity-75">Ventas con Tarjeta:</span> <span className="font-bold text-blue-500">Q {totalTarjeta.toFixed(2)}</span></p>
+                  <p className="font-bold pt-1">Total de Ventas (Referencia): Q {totalVentasGeneral.toFixed(2)}</p>
                 </div>
                 
-                <p className="pt-2 border-t border-slate-800 font-bold text-amber-300">
+                <p className="pt-2 border-t border-opacity-50 font-bold text-amber-500">
                   Efectivo Teórico Esperado en Gaveta: Q {expectedCash.toFixed(2)}
                 </p>
               </div>
@@ -763,22 +793,22 @@ export default function CashierPage() {
                  handleCloseDay(e, physicalCash, totalVentasGeneral);
               }} className="space-y-3 text-xs">
                 <div>
-                  <label className="text-emerald-400 font-bold block mb-1">💵 Efectivo Físico Contado (Q)</label>
+                  <label className="text-emerald-500 font-bold block mb-1">💵 Efectivo Físico Contado (Q)</label>
                   <input 
                     type="number"
                     step="0.01"
                     value={closingPhysicalCash}
                     onChange={e => setClosingPhysicalCash(e.target.value)}
                     placeholder="Monto exacto contado..."
-                    className="w-full bg-[#0f172a] border border-amber-500 p-3 rounded text-white font-bold text-base outline-none focus:border-emerald-500"
+                    className={`w-full border border-amber-500 p-3 rounded font-bold text-base outline-none focus:border-emerald-500 ${inputBg}`}
                     required
                     autoFocus
                   />
                 </div>
 
                 <div className="flex gap-2 pt-2">
-                  <button type="submit" className="flex-1 bg-amber-600 hover:bg-amber-500 py-2.5 rounded font-bold text-sm">Confirmar Cierre de Día</button>
-                  <button type="button" onClick={() => setShowCloseModal(false)} className="bg-slate-700 px-4 py-2.5 rounded text-sm">Cancelar</button>
+                  <button type="submit" className="flex-1 bg-amber-600 hover:bg-amber-500 py-2.5 rounded font-bold text-sm text-white">Confirmar Cierre de Día</button>
+                  <button type="button" onClick={() => setShowCloseModal(false)} className="bg-slate-700 px-4 py-2.5 rounded text-sm text-white">Cancelar</button>
                 </div>
               </form>
             </div>

@@ -10,6 +10,22 @@ export default function SalesHistoryPage() {
   const [branchId, setBranchId] = useState<string | null>(null)
   const [isStaff, setIsStaff] = useState(false)
   
+  // Estado para el Tema (Modo Oscuro / Modo Claro Local)
+  const [isDarkMode, setIsDarkMode] = useState(true)
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('sales_history_theme')
+    if (savedTheme === 'light') {
+      setIsDarkMode(false)
+    }
+  }, [])
+
+  const toggleTheme = () => {
+    const newMode = !isDarkMode
+    setIsDarkMode(newMode)
+    localStorage.setItem('sales_history_theme', newMode ? 'dark' : 'light')
+  }
+  
   const [selectedSaleDetails, setSelectedSaleDetails] = useState<any[] | null>(null)
   const router = useRouter()
 
@@ -82,61 +98,78 @@ export default function SalesHistoryPage() {
 
   const totalFilteredSales = sales.reduce((acc, s) => acc + Number(s.total_amount || 0), 0)
 
+  // Clases dinámicas según el tema (Modo Oscuro vs Modo Claro)
+  const themeBg = isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-slate-100 text-slate-900'
+  const panelBg = isDarkMode ? 'bg-[#1e293b] border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900 shadow-md'
+  const subPanelBg = isDarkMode ? 'bg-[#0f172a] border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+  const inputBg = isDarkMode ? 'bg-[#0f172a] text-white border-slate-600' : 'bg-white text-slate-900 border-slate-300'
+
   return (
-    <div className="min-h-screen bg-[#0f172a] p-8 text-white notranslate" translate="no">
-      <header className="bg-[#1e293b] p-4 rounded-lg shadow mb-6 flex justify-between items-center border border-slate-700">
+    <div className={`min-h-screen p-8 flex flex-col notranslate ${themeBg}`} translate="no">
+      <header className={`p-4 rounded-lg shadow mb-6 flex justify-between items-center border ${panelBg}`}>
         <div>
-          <h1 className="text-xl font-bold text-emerald-400">Historial y Ventas por Día</h1>
-          {isStaff && <p className="text-xs text-amber-400 mt-0.5">🔍 Vista restringida a tu sucursal asignada</p>}
+          <h1 className="text-xl font-bold text-emerald-500">Historial y Ventas por Día</h1>
+          {isStaff && <p className="text-xs text-amber-500 mt-0.5 font-medium">🔍 Vista restringida a tu sucursal asignada</p>}
         </div>
-        <button onClick={() => router.push('/pos')} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded font-semibold text-sm">
-          ← Volver al POS
-        </button>
+        
+        <div className="flex items-center gap-2">
+          {/* BOTÓN INTERRUPTOR DE TEMA (CLARO / OSCURO) */}
+          <button 
+            onClick={toggleTheme}
+            className={`px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors border ${isDarkMode ? 'bg-slate-700 hover:bg-slate-600 text-amber-300 border-slate-600' : 'bg-slate-200 hover:bg-slate-300 text-slate-800 border-slate-300'}`}
+          >
+            {isDarkMode ? '☀️ Modo Claro' : '🌙 Modo Oscuro'}
+          </button>
+
+          <button onClick={() => router.push('/pos')} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded font-semibold text-sm text-white">
+            ← Volver al POS
+          </button>
+        </div>
       </header>
 
-      <div className="bg-[#1e293b] p-6 rounded-lg shadow border border-slate-700 space-y-6">
+      <div className={`p-6 rounded-lg shadow border space-y-6 ${panelBg}`}>
         <div className="flex flex-wrap justify-between items-center gap-4">
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Seleccionar Fecha</label>
+            <label className="block text-xs opacity-75 mb-1">Seleccionar Fecha</label>
             <input 
               type="date" 
               value={selectedDate}
               onChange={e => setSelectedDate(e.target.value)}
-              className="bg-[#0f172a] border border-slate-600 px-3 py-2 rounded text-white text-sm outline-none focus:border-emerald-500 font-semibold"
+              className={`border px-3 py-2 rounded text-sm outline-none focus:border-emerald-500 font-semibold ${inputBg}`}
             />
           </div>
 
-          <div className="bg-[#0f172a] px-5 py-3 rounded-lg border border-emerald-500/40 flex items-center gap-6">
+          <div className={`px-5 py-3 rounded-lg border border-emerald-500/40 flex items-center gap-6 ${subPanelBg}`}>
             <div>
-              <p className="text-[10px] text-slate-400 uppercase tracking-wider">Total Fecha Seleccionada</p>
-              <p className="text-lg font-extrabold text-emerald-400" translate="no">Q {totalFilteredSales}</p>
+              <p className="text-[10px] opacity-75 uppercase tracking-wider">Total Fecha Seleccionada</p>
+              <p className="text-lg font-extrabold text-emerald-500" translate="no">Q {totalFilteredSales}</p>
             </div>
-            <div className="border-l border-slate-700 pl-6">
-              <p className="text-[10px] text-slate-400 uppercase tracking-wider">Transacciones</p>
-              <p className="text-lg font-bold text-white">{sales.length}</p>
+            <div className="border-l border-opacity-50 pl-6">
+              <p className="text-[10px] opacity-75 uppercase tracking-wider">Transacciones</p>
+              <p className="text-lg font-bold">{sales.length}</p>
             </div>
           </div>
         </div>
 
         <div className="space-y-3">
           {sales.length === 0 ? (
-            <p className="text-slate-400 text-center py-12">No hay ventas registradas para esta fecha en esta sucursal.</p>
+            <p className="opacity-75 text-center py-12">No hay ventas registradas para esta fecha en esta sucursal.</p>
           ) : (
             sales.map(sale => (
               <div 
                 key={sale.sale_id} 
                 onClick={() => handleViewSaleDetails(sale.sale_id)}
-                className="bg-[#0f172a] p-4 rounded-lg border border-slate-700 hover:border-emerald-500 cursor-pointer transition-all flex justify-between items-center shadow"
+                className={`p-4 rounded-lg border hover:border-emerald-500 cursor-pointer transition-all flex justify-between items-center shadow ${subPanelBg}`}
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-3">
-                    <span className="font-bold text-white">NIT: {sale.customer_nit}</span>
-                    <span className="text-xs text-slate-300">({sale.customer_name})</span>
+                    <span className="font-bold">NIT: {sale.customer_nit}</span>
+                    <span className="text-xs opacity-75">({sale.customer_name})</span>
                   </div>
-                  <p className="text-xs text-amber-400 font-medium">Sucursal: {sale.branch_name}</p>
-                  <p className="text-[10px] text-slate-400">Hora: {new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Pago: <span className="uppercase text-slate-300">{sale.payment_method}</span></p>
+                  <p className="text-xs text-amber-500 font-medium">Sucursal: {sale.branch_name}</p>
+                  <p className="text-[10px] opacity-75">Hora: {new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Pago: <span className="uppercase opacity-85">{sale.payment_method}</span></p>
                 </div>
-                <span className="text-lg font-extrabold text-emerald-400" translate="no">Q {sale.total_amount}</span>
+                <span className="text-lg font-extrabold text-emerald-500" translate="no">Q {sale.total_amount}</span>
               </div>
             ))
           )}
@@ -144,26 +177,26 @@ export default function SalesHistoryPage() {
       </div>
 
       {selectedSaleDetails !== null && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center" style={{ zIndex: 9999 }}>
-          <div className="bg-[#1e293b] p-6 rounded-xl border border-emerald-500 w-[420px] text-white shadow-2xl">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" style={{ zIndex: 9999 }}>
+          <div className={`p-6 rounded-xl border border-emerald-500 w-[420px] shadow-2xl ${panelBg}`}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-base font-bold text-emerald-400">📦 Detalle de la Venta</h3>
-              <button onClick={() => setSelectedSaleDetails(null)} className="text-slate-400 hover:text-white font-bold text-sm">✕</button>
+              <h3 className="text-base font-bold text-emerald-500">📦 Detalle de la Venta</h3>
+              <button onClick={() => setSelectedSaleDetails(null)} className="font-bold text-sm opacity-75 hover:opacity-100">✕</button>
             </div>
 
             <div className="space-y-2 max-h-64 overflow-y-auto pr-1 text-xs">
               {selectedSaleDetails.map((item, idx) => (
-                <div key={idx} className="bg-[#0f172a] p-2.5 rounded border border-slate-700 flex justify-between items-center">
+                <div key={idx} className={`p-2.5 rounded border flex justify-between items-center ${subPanelBg}`}>
                   <div>
-                    <p className="font-semibold text-white">{item.product_name}</p>
-                    <p className="text-[10px] text-slate-400">Cantidad: <span className="text-emerald-400 font-bold">{item.quantity}</span> x Q {item.price}</p>
+                    <p className="font-semibold">{item.product_name}</p>
+                    <p className="text-[10px] opacity-75">Cantidad: <span className="text-emerald-500 font-bold">{item.quantity}</span> x Q {item.price}</p>
                   </div>
-                  <span className="font-bold text-emerald-400 text-sm" translate="no">Q {item.quantity * item.price}</span>
+                  <span className="font-bold text-emerald-500 text-sm" translate="no">Q {item.quantity * item.price}</span>
                 </div>
               ))}
             </div>
 
-            <button onClick={() => setSelectedSaleDetails(null)} className="mt-6 w-full bg-slate-700 hover:bg-slate-600 py-2.5 rounded-lg font-semibold text-xs">
+            <button onClick={() => setSelectedSaleDetails(null)} className="mt-6 w-full bg-slate-600 hover:bg-slate-500 text-white py-2.5 rounded-lg font-semibold text-xs">
               Cerrar Detalle
             </button>
           </div>

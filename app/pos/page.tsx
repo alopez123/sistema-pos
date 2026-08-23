@@ -15,7 +15,22 @@ export default function PosPage() {
   const [isStaff, setIsStaff] = useState(false)
   const router = useRouter()
 
-  
+  // Estado para el Tema (Modo Oscuro / Modo Claro Local)
+  const [isDarkMode, setIsDarkMode] = useState(true)
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('pos_theme')
+    if (savedTheme === 'light') {
+      setIsDarkMode(false)
+    }
+  }, [])
+
+  const toggleTheme = () => {
+    const newMode = !isDarkMode
+    setIsDarkMode(newMode)
+    localStorage.setItem('pos_theme', newMode ? 'dark' : 'light')
+  }
+
   // Estado para el Logotipo del Negocio
   const [businessLogo, setBusinessLogo] = useState<string | null>(null)
 
@@ -801,14 +816,20 @@ export default function PosPage() {
 
   const lowStockItems = products.filter(p => p.stock <= 5 && !p.is_custom)
 
+  // Clases dinámicas según el tema (Modo Oscuro vs Modo Claro)
+  const themeBg = isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-slate-100 text-slate-900'
+  const panelBg = isDarkMode ? 'bg-[#1e293b] border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900 shadow-md'
+  const subPanelBg = isDarkMode ? 'bg-[#0f172a] border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+  const inputBg = isDarkMode ? 'bg-[#0f172a] text-white border-slate-600' : 'bg-white text-slate-900 border-slate-300'
+
   return (
-    <div className="min-h-screen bg-[#0f172a] p-4 md:p-6 text-white flex flex-col w-full px-6 notranslate" translate="no">
-      <header className="bg-[#1e293b] p-4 rounded-lg shadow mb-6 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 border border-slate-700 w-full">
+    <div className={`min-h-screen p-4 md:p-6 flex flex-col w-full px-6 notranslate ${themeBg}`} translate="no">
+      <header className={`p-4 rounded-lg shadow mb-6 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 border w-full ${panelBg}`}>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           {businessLogo ? (
-            <img src={businessLogo} alt="Logo" className="w-14 h-14 object-contain bg-[#0f172a] rounded-lg p-1 border border-slate-600 shadow" />
+            <img src={businessLogo} alt="Logo" className={`w-14 h-14 object-contain rounded-lg p-1 border shadow ${isDarkMode ? 'bg-[#0f172a] border-slate-600' : 'bg-white border-slate-300'}`} />
           ) : (
-            <div className="w-14 h-14 bg-[#0f172a] rounded-lg flex items-center justify-center text-[10px] text-slate-500 border border-slate-600">POS</div>
+            <div className={`w-14 h-14 rounded-lg flex items-center justify-center text-[10px] border ${isDarkMode ? 'bg-[#0f172a] border-slate-600 text-slate-500' : 'bg-slate-200 border-slate-300 text-slate-600'}`}>POS</div>
           )}
 
           <h1 className="text-xl font-bold">Punto de Venta</h1>
@@ -816,7 +837,7 @@ export default function PosPage() {
             value={selectedBranch} 
             onChange={e => handleBranchChange(e.target.value)}
             disabled={isStaff}
-            className="bg-[#0f172a] border border-slate-600 px-3 py-2 rounded text-white outline-none focus:border-emerald-500 font-semibold disabled:opacity-75 disabled:cursor-not-allowed w-full sm:w-auto"
+            className={`border px-3 py-2 rounded outline-none focus:border-emerald-500 font-semibold disabled:opacity-75 disabled:cursor-not-allowed w-full sm:w-auto ${inputBg}`}
           >
             {branches.map(b => (
               <option key={b.id} value={b.id}>{b.name}</option>
@@ -825,6 +846,14 @@ export default function PosPage() {
         </div>
           
         <div className="flex items-center gap-2 justify-end flex-wrap">
+           {/* BOTÓN INTERRUPTOR DE TEMA (CLARO / OSCURO) */}
+           <button 
+             onClick={toggleTheme}
+             className={`px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors border ${isDarkMode ? 'bg-slate-700 hover:bg-slate-600 text-amber-300 border-slate-600' : 'bg-slate-200 hover:bg-slate-300 text-slate-800 border-slate-300'}`}
+           >
+             {isDarkMode ? '☀️ Modo Claro' : '🌙 Modo Oscuro'}
+           </button>
+
            <button 
              onClick={() => setShowLowStockModal(true)} 
              className={`relative px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1.5 ${
@@ -841,37 +870,37 @@ export default function PosPage() {
 
            <button 
             onClick={() => router.push('/compras')} 
-            className="bg-amber-700 hover:bg-amber-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1"
+            className="bg-amber-700 hover:bg-amber-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1 text-white"
           >
             📦 Compras
           </button>
            <button 
             onClick={() => router.push('/clientes/reportes')} 
-            className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1"
+            className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1 text-white"
           >
             👥 Clientes
           </button>
           <button 
             onClick={() => router.push('/cotizaciones')} 
-            className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1"
+            className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1 text-white"
           >
             📄 Cotización
           </button>
           <button 
             onClick={() => router.push('/ventas-historia')} 
-            className="bg-emerald-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1"
+            className="bg-emerald-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1 text-white"
           >
             📅 Historial / Días
           </button>
           <button 
             onClick={() => router.push('/precios-especiales')} 
-            className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1"
+            className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1 text-white"
           >
             🛡️ Auditoría de Precios
           </button>
           <button 
             onClick={handleExit} 
-            className="bg-red-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors"
+            className="bg-red-700 hover:bg-slate-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors text-white"
           >
             {isStaff ? 'Cerrar Sesión' : 'Volver al Panel'}
           </button>
@@ -880,43 +909,43 @@ export default function PosPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-6 flex-1 w-full">
         
-        <div className="bg-[#1e293b] p-5 rounded-lg shadow border border-slate-700 flex flex-col">
-          <h2 className="text-base font-bold text-emerald-400 mb-3">Opciones Operativas</h2>
+        <div className={`p-5 rounded-lg shadow border flex flex-col ${panelBg}`}>
+          <h2 className="text-base font-bold text-emerald-500 mb-3">Opciones Operativas</h2>
           
-          <div className="grid grid-cols-2 gap-1.5 mb-4 bg-[#0f172a] p-1.5 rounded border border-slate-700 text-xs">
+          <div className={`grid grid-cols-2 gap-1.5 mb-4 p-1.5 rounded border text-xs ${subPanelBg}`}>
             <button 
               onClick={() => setActiveTab('addProduct')} 
-              className={`py-2.5 px-2 rounded font-semibold text-center transition-colors ${activeTab === 'addProduct' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:text-white'}`}
+              className={`py-2.5 px-2 rounded font-semibold text-center transition-colors ${activeTab === 'addProduct' ? 'bg-emerald-600 text-white' : 'opacity-75 hover:opacity-100'}`}
             >
               ➕ Agregar
             </button>
             <button 
               onClick={() => setActiveTab('otherStores')} 
-              className={`py-2.5 px-2 rounded font-semibold text-center transition-colors ${activeTab === 'otherStores' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:text-white'}`}
+              className={`py-2.5 px-2 rounded font-semibold text-center transition-colors ${activeTab === 'otherStores' ? 'bg-emerald-600 text-white' : 'opacity-75 hover:opacity-100'}`}
             >
               🏬 Otras Tiendas
             </button>
             <button 
               onClick={() => setActiveTab('transfers')} 
-              className={`py-2.5 px-2 rounded font-semibold text-center transition-colors ${activeTab === 'transfers' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:text-white'}`}
+              className={`py-2.5 px-2 rounded font-semibold text-center transition-colors ${activeTab === 'transfers' ? 'bg-emerald-600 text-white' : 'opacity-75 hover:opacity-100'}`}
             >
               🔄 Traslados
             </button>
             <button 
               onClick={() => setActiveTab('movements')} 
-              className={`py-2.5 px-2 rounded font-semibold text-center transition-colors ${activeTab === 'movements' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:text-white'}`}
+              className={`py-2.5 px-2 rounded font-semibold text-center transition-colors ${activeTab === 'movements' ? 'bg-emerald-600 text-white' : 'opacity-75 hover:opacity-100'}`}
             >
               📊 Movimientos
             </button>
             <button 
               onClick={() => { setActiveTab('salesReport'); loadSalesReport(businessIdState, selectedBranch); }} 
-              className={`py-2.5 px-2 rounded font-semibold text-center transition-colors ${activeTab === 'salesReport' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:text-white'}`}
+              className={`py-2.5 px-2 rounded font-semibold text-center transition-colors ${activeTab === 'salesReport' ? 'bg-emerald-600 text-white' : 'opacity-75 hover:opacity-100'}`}
             >
               💰 Ventas
             </button>
             <button 
               onClick={() => { setActiveTab('customers'); loadCustomers(businessIdState); }} 
-              className={`py-2.5 px-2 rounded font-semibold text-center transition-colors ${activeTab === 'customers' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:text-white'}`}
+              className={`py-2.5 px-2 rounded font-semibold text-center transition-colors ${activeTab === 'customers' ? 'bg-emerald-600 text-white' : 'opacity-75 hover:opacity-100'}`}
             >
               👥 Clientes
             </button>
@@ -924,21 +953,21 @@ export default function PosPage() {
 
           <div className="flex-1 overflow-y-auto max-h-[58vh] pr-1 text-sm">
             {activeTab === 'ticket' && (
-              <div className="text-center text-slate-300 text-sm py-12">
+              <div className="text-center text-sm py-12 opacity-75">
                 Selecciona una opción arriba para agregar inventario, consultar red, gestionar traslados, ver movimientos, ventas o clientes.
               </div>
             )}
 
             {activeTab === 'addProduct' && (
               <form onSubmit={handleAddOrRestockProduct} className="space-y-3 text-sm">
-                <p className="text-emerald-400 font-semibold mb-2 text-base">Ingresar Inventario / Producto</p>
+                <p className="text-emerald-500 font-semibold mb-2 text-base">Ingresar Inventario / Producto</p>
                 
                 <div>
-                  <label className="block text-slate-300 mb-1">Seleccionar Producto</label>
+                  <label className="block mb-1 opacity-90">Seleccionar Producto</label>
                   <select 
                     value={selectedExistingProduct}
                     onChange={e => setSelectedExistingProduct(e.target.value)}
-                    className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm"
+                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                   >
                     <option value="">-- Selecciona una opción --</option>
                     <option value="NEW">✨ [+ Crear Nuevo Producto]</option>
@@ -950,31 +979,31 @@ export default function PosPage() {
 
                 {selectedExistingProduct && selectedExistingProduct !== 'NEW' && (
                   <div>
-                    <label className="block text-slate-300 mb-1">Cantidad a Agregar (Ingreso)</label>
+                    <label className="block mb-1 opacity-90">Cantidad a Agregar (Ingreso)</label>
                     <input 
                       type="number" 
                       min="1" 
                       value={addMoreQuantity} 
                       onChange={e => setAddMoreQuantity(Number(e.target.value))} 
-                      className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" 
+                      className={`w-full border p-2.5 rounded text-sm ${inputBg}`} 
                       required 
                     />
                   </div>
                 )}
 
                 {selectedExistingProduct === 'NEW' && (
-                  <div className="space-y-3 border-t border-slate-700 pt-3 mt-2">
+                  <div className="space-y-3 border-t pt-3 mt-2 border-opacity-50">
                     <div>
-                      <label className="block text-slate-300 mb-1">Nombre del Nuevo Producto</label>
-                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ej. Plato Extra" className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" required />
+                      <label className="block mb-1 opacity-90">Nombre del Nuevo Producto</label>
+                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ej. Plato Extra" className={`w-full border p-2.5 rounded text-sm ${inputBg}`} required />
                     </div>
                     <div>
                       <div className="flex justify-between items-center mb-1">
-                        <label className="block text-slate-300">Categoría</label>
+                        <label className="block opacity-90">Categoría</label>
                         <button 
                           type="button" 
                           onClick={() => setShowNewCategoryModal(true)} 
-                          className="text-emerald-400 hover:text-emerald-300 font-bold text-xs"
+                          className="text-emerald-500 hover:opacity-75 font-bold text-xs"
                         >
                           + Crear Nueva
                         </button>
@@ -982,7 +1011,7 @@ export default function PosPage() {
                       <select 
                         value={newCategoryId} 
                         onChange={e => setNewCategoryId(e.target.value)} 
-                        className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm"
+                        className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                       >
                         <option value="">-- Sin Categoría --</option>
                         {categories.map(cat => (
@@ -991,19 +1020,19 @@ export default function PosPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-slate-300 mb-1">Precio (Q)</label>
-                      <input type="number" step="0.01" value={newPrice} onChange={e => setNewPrice(e.target.value)} placeholder="0.00" className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" required />
+                      <label className="block mb-1 opacity-90">Precio (Q)</label>
+                      <input type="number" step="0.01" value={newPrice} onChange={e => setNewPrice(e.target.value)} placeholder="0.00" className={`w-full border p-2.5 rounded text-sm ${inputBg}`} required />
                     </div>
                     <div>
-                      <label className="block text-slate-300 mb-1">Stock Inicial</label>
-                      <input type="number" value={newStock} onChange={e => setNewStock(e.target.value)} placeholder="0" className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" />
+                      <label className="block mb-1 opacity-90">Stock Inicial</label>
+                      <input type="number" value={newStock} onChange={e => setNewStock(e.target.value)} placeholder="0" className={`w-full border p-2.5 rounded text-sm ${inputBg}`} />
                     </div>
 
                     <div>
-                      <label className="block text-slate-300 mb-1">Imagen del Producto</label>
-                      <input type="file" accept="image/*" onChange={handleImageChange} className="w-full bg-[#0f172a] border border-slate-600 p-2 rounded text-white text-xs" />
+                      <label className="block mb-1 opacity-90">Imagen del Producto</label>
+                      <input type="file" accept="image/*" onChange={handleImageChange} className={`w-full border p-2 rounded text-xs ${inputBg}`} />
                       {imagePreview && (
-                        <div className="mt-2 relative w-full h-24 bg-[#0f172a] rounded border border-slate-600 overflow-hidden">
+                        <div className={`mt-2 relative w-full h-24 rounded border overflow-hidden ${subPanelBg}`}>
                           <img src={imagePreview} alt="Vista previa" className="w-full h-full object-cover" />
                         </div>
                       )}
@@ -1016,7 +1045,7 @@ export default function PosPage() {
                     <button type="submit" disabled={uploadingImage} className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 py-2.5 rounded font-bold text-white text-sm">
                       {uploadingImage ? 'Guardando...' : 'Guardar y Registrar'}
                     </button>
-                    <button type="button" onClick={() => { setSelectedExistingProduct(''); setActiveTab('ticket'); }} className="bg-slate-700 hover:bg-slate-600 px-3 py-2.5 rounded text-white text-sm">Cancelar</button>
+                    <button type="button" onClick={() => { setSelectedExistingProduct(''); setActiveTab('ticket'); }} className="bg-slate-600 hover:bg-slate-500 px-3 py-2.5 rounded text-white text-sm">Cancelar</button>
                   </div>
                 )}
               </form>
@@ -1024,20 +1053,20 @@ export default function PosPage() {
 
             {activeTab === 'otherStores' && (
               <div className="space-y-3 text-sm">
-                <p className="text-emerald-400 font-semibold mb-1 text-base">Inventario en Red (Otras Sucursales)</p>
+                <p className="text-emerald-500 font-semibold mb-1 text-base">Inventario en Red (Otras Sucursales)</p>
                 <input 
                   type="text"
                   value={otherStoresSearch}
                   onChange={e => setOtherStoresSearch(e.target.value)}
                   placeholder="🔍 Buscar en otras sucursales..."
-                  className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm outline-none focus:border-emerald-500"
+                  className={`w-full border p-2.5 rounded text-sm outline-none focus:border-emerald-500 ${inputBg}`}
                 />
 
                 <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
                   <button
                     onClick={() => setSelectedOtherStoreCategory(null)}
                     className={`px-3 py-1 rounded text-xs font-bold whitespace-nowrap transition-colors ${
-                      selectedOtherStoreCategory === null ? 'bg-emerald-600 text-white' : 'bg-[#0f172a] text-slate-300 hover:bg-slate-800 border border-slate-700'
+                      selectedOtherStoreCategory === null ? 'bg-emerald-600 text-white' : `${subPanelBg} border`
                     }`}
                   >
                     ✨ Todos
@@ -1047,7 +1076,7 @@ export default function PosPage() {
                       key={cat.id}
                       onClick={() => setSelectedOtherStoreCategory(cat.id)}
                       className={`px-3 py-1 rounded text-xs font-bold whitespace-nowrap transition-colors ${
-                        selectedOtherStoreCategory === cat.id ? 'bg-emerald-600 text-white' : 'bg-[#0f172a] text-slate-300 hover:bg-slate-800 border border-slate-700'
+                        selectedOtherStoreCategory === cat.id ? 'bg-emerald-600 text-white' : `${subPanelBg} border`
                       }`}
                     >
                       {cat.name}
@@ -1057,17 +1086,17 @@ export default function PosPage() {
 
                 <div className="space-y-2 max-h-[45vh] overflow-y-auto pr-1">
                   {filteredOtherStores.length === 0 ? (
-                    <p className="text-slate-400 text-center py-8">No hay registros coincidentes.</p>
+                    <p className="opacity-75 text-center py-8">No hay registros coincidentes.</p>
                   ) : (
                     filteredOtherStores.map((p, idx) => (
-                      <div key={idx} className="bg-[#0f172a] p-3 rounded border border-slate-700 flex justify-between items-center">
+                      <div key={idx} className={`p-3 rounded border flex justify-between items-center ${subPanelBg}`}>
                         <div>
-                          <p className="font-semibold text-white text-sm">{p.name}</p>
-                          <p className="text-xs text-amber-400 font-medium">Sucursal: {p.branch_name}</p>
-                          <p className="text-xs text-slate-300">Stock: <span className="text-emerald-400 font-bold text-sm">{p.stock}</span></p>
+                          <p className="font-semibold text-sm">{p.name}</p>
+                          <p className="text-xs text-amber-500 font-medium">Sucursal: {p.branch_name}</p>
+                          <p className="text-xs opacity-75">Stock: <span className="text-emerald-500 font-bold text-sm">{p.stock}</span></p>
                         </div>
                         <div className="flex flex-col items-end gap-1">
-                          <span className="font-bold text-emerald-400 text-sm" translate="no">Q {p.price}</span>
+                          <span className="font-bold text-emerald-500 text-sm" translate="no">Q {p.price}</span>
                           <button 
                             onClick={() => {
                               setTransferProduct(p)
@@ -1088,14 +1117,14 @@ export default function PosPage() {
 
             {activeTab === 'transfers' && (
               <div className="space-y-3 text-sm">
-                <p className="text-emerald-400 font-semibold mb-1 text-base">Módulo de Traslados</p>
+                <p className="text-emerald-500 font-semibold mb-1 text-base">Módulo de Traslados</p>
                 
                 {transferProduct && (
-                  <form onSubmit={handleRequestTransfer} className="bg-[#0f172a] p-3 rounded border border-emerald-500/50 space-y-2 mb-3">
-                    <p className="font-bold text-white text-sm">Solicitar: {transferProduct.name}</p>
-                    <p className="text-xs text-slate-300">Origen: {transferProduct.branch_name} (Stock: {transferProduct.stock})</p>
+                  <form onSubmit={handleRequestTransfer} className={`p-3 rounded border border-emerald-500/50 space-y-2 mb-3 ${subPanelBg}`}>
+                    <p className="font-bold text-sm">Solicitar: {transferProduct.name}</p>
+                    <p className="text-xs opacity-75">Origen: {transferProduct.branch_name} (Stock: {transferProduct.stock})</p>
                     <div>
-                      <label className="block text-slate-300 mb-1">Cantidad a solicitar:</label>
+                      <label className="block mb-1 opacity-90">Cantidad a solicitar:</label>
                       <input 
                         type="text" 
                         inputMode="numeric"
@@ -1110,39 +1139,39 @@ export default function PosPage() {
                             if (!isNaN(num)) setTransferQuantity(num);
                           }
                         }}
-                        className="w-full bg-slate-900 border border-slate-600 p-2 rounded text-white text-sm" 
+                        className={`w-full border p-2 rounded text-sm ${inputBg}`} 
                         required
                       />
                     </div>
                     <div className="flex gap-2 pt-1">
                       <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2 rounded font-bold text-white text-sm">Enviar Solicitud</button>
-                      <button type="button" onClick={() => setTransferProduct(null)} className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded text-white text-sm">Cancelar</button>
+                      <button type="button" onClick={() => setTransferProduct(null)} className="bg-slate-600 hover:bg-slate-500 px-3 py-2 rounded text-white text-sm">Cancelar</button>
                     </div>
                   </form>
                 )}
 
-                <p className="text-slate-300 text-xs leading-relaxed">
+                <p className="text-xs leading-relaxed opacity-80">
                   Historial de solicitudes y traslados activos entre sucursales:
                 </p>
 
                 <div className="space-y-2">
                   {transfersList.length === 0 ? (
-                    <div className="bg-[#0f172a] p-3 rounded border border-slate-700 text-center py-6">
-                      <p className="text-slate-400 text-sm">No hay traslados registrados.</p>
+                    <div className={`p-3 rounded border text-center py-6 ${subPanelBg}`}>
+                      <p className="opacity-75 text-sm">No hay traslados registrados.</p>
                     </div>
                   ) : (
                     transfersList.map((t) => (
-                      <div key={t.transfer_id} className="bg-[#0f172a] p-3 rounded border border-slate-700 space-y-1.5">
-                        <div className="flex justify-between font-semibold text-white text-sm">
-                          <span className="text-emerald-400 font-bold text-base">
+                      <div key={t.transfer_id} className={`p-3 rounded border space-y-1.5 ${subPanelBg}`}>
+                        <div className="flex justify-between font-semibold text-sm">
+                          <span className="text-emerald-500 font-bold text-base">
                             📦 {t.product_name || 'Artículo solicitado'}
                           </span>
-                          <span className={`px-2 py-0.5 rounded text-xs ${t.status === 'completado' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                          <span className={`px-2 py-0.5 rounded text-xs ${t.status === 'completado' ? 'bg-emerald-500/20 text-emerald-600' : 'bg-amber-500/20 text-amber-500'}`}>
                             {t.status}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-300">De: <span className="text-white font-medium">{t.source_branch_name}</span> → Para: <span className="text-white font-medium">{t.destination_branch_name}</span></p>
-                        <p className="text-xs text-slate-300">Cantidad: <span className="text-emerald-400 font-bold text-sm">{t.quantity} unidades</span></p>
+                        <p className="text-xs opacity-80">De: <span className="font-medium">{t.source_branch_name}</span> → Para: <span className="font-medium">{t.destination_branch_name}</span></p>
+                        <p className="text-xs opacity-80">Cantidad: <span className="text-emerald-500 font-bold text-sm">{t.quantity} unidades</span></p>
                         
                         {t.status === 'pendiente' && t.source_branch_id === selectedBranch && (
                           <button 
@@ -1162,36 +1191,36 @@ export default function PosPage() {
             {activeTab === 'movements' && (
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between items-center mb-1">
-                  <p className="text-emerald-400 font-semibold text-base">Movimientos (Cuadre)</p>
+                  <p className="text-emerald-500 font-semibold text-base">Movimientos (Cuadre)</p>
                   <button 
                     onClick={() => loadMovements(selectedBranch)} 
-                    className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1 rounded border border-slate-600 font-medium"
+                    className={`text-xs px-2.5 py-1 rounded border font-medium ${subPanelBg}`}
                   >
                     🔄 Actualizar
                   </button>
                 </div>
-                <p className="text-slate-300 text-xs leading-relaxed">
+                <p className="text-xs leading-relaxed opacity-80">
                   Registro de ventas y traslados de esta sucursal para tu cuadre diario:
                 </p>
 
                 <div className="space-y-2">
                   {branchMovements.length === 0 ? (
-                    <div className="bg-[#0f172a] p-3 rounded border border-slate-700 text-center py-6">
-                      <p className="text-slate-400 text-sm">No hay movimientos registrados en esta sucursal.</p>
+                    <div className={`p-3 rounded border text-center py-6 ${subPanelBg}`}>
+                      <p className="opacity-75 text-sm">No hay movimientos registrados en esta sucursal.</p>
                     </div>
                   ) : (
                     branchMovements.map((m) => (
-                      <div key={m.id} className="bg-[#0f172a] p-3 rounded border border-slate-700 space-y-1">
-                        <div className="flex justify-between font-semibold text-white text-sm">
+                      <div key={m.id} className={`p-3 rounded border space-y-1 ${subPanelBg}`}>
+                        <div className="flex justify-between font-semibold text-sm">
                           <span>{m.product?.name || 'Producto'}</span>
                           <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                            m.quantity < 0 ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'
+                            m.quantity < 0 ? 'bg-red-500/20 text-red-500' : 'bg-emerald-500/20 text-emerald-500'
                           }`}>
                             {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
                           </span>
                         </div>
-                        <div className="flex justify-between text-xs text-slate-300">
-                          <span className="uppercase tracking-wider font-semibold text-amber-300">{m.movement_type}</span>
+                        <div className="flex justify-between text-xs opacity-75">
+                          <span className="uppercase tracking-wider font-semibold text-amber-500">{m.movement_type}</span>
                           <span>{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
@@ -1204,40 +1233,40 @@ export default function PosPage() {
             {activeTab === 'salesReport' && (
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between items-center mb-1">
-                  <p className="text-emerald-400 font-semibold text-base">Reporte de Ventas (Hoy)</p>
-                  <button onClick={() => loadSalesReport(businessIdState, selectedBranch)} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1 rounded border border-slate-600 font-medium">🔄 Actualizar</button>
+                  <p className="text-emerald-500 font-semibold text-base">Reporte de Ventas (Hoy)</p>
+                  <button onClick={() => loadSalesReport(businessIdState, selectedBranch)} className={`text-xs px-2.5 py-1 rounded border font-medium ${subPanelBg}`}>🔄 Actualizar</button>
                 </div>
 
-                <div className="bg-[#0f172a] p-3.5 rounded-lg border border-emerald-500/40 flex justify-between items-center shadow">
+                <div className={`p-3.5 rounded-lg border border-emerald-500/40 flex justify-between items-center shadow ${subPanelBg}`}>
                   <div>
-                    <p className="text-xs text-slate-300 font-medium uppercase tracking-wider">Total Ventas (Día)</p>
-                    <p className="text-lg font-extrabold text-emerald-400 mt-0.5" translate="no">
+                    <p className="text-xs font-medium uppercase tracking-wider opacity-75">Total Ventas (Día)</p>
+                    <p className="text-lg font-extrabold text-emerald-500 mt-0.5" translate="no">
                       Q {salesReport.reduce((acc, sale) => acc + Number(sale.total_amount || 0), 0)}
                     </p>
                   </div>
-                  <span className="text-xs bg-emerald-500/20 text-emerald-300 font-bold px-2.5 py-1 rounded">
+                  <span className="text-xs bg-emerald-500/20 text-emerald-600 font-bold px-2.5 py-1 rounded">
                     {salesReport.length} {salesReport.length === 1 ? 'ticket' : 'tickets'}
                   </span>
                 </div>
 
-                <p className="text-xs text-slate-300">💡 Haz clic en cualquier venta para ver el detalle de productos.</p>
+                <p className="text-xs opacity-80">💡 Haz clic en cualquier venta para ver el detalle de productos.</p>
                 <div className="space-y-2">
                   {salesReport.length === 0 ? (
-                    <p className="text-slate-400 text-center py-6 text-sm">No hay ventas registradas hoy en esta sucursal.</p>
+                    <p className="opacity-75 text-center py-6 text-sm">No hay ventas registradas hoy en esta sucursal.</p>
                   ) : (
                     salesReport.map((sale) => (
                       <div 
                         key={sale.sale_id} 
                         onClick={() => handleViewSaleDetails(sale.sale_id)}
-                        className="bg-[#0f172a] p-3 rounded border border-slate-700 hover:border-emerald-500 cursor-pointer transition-all space-y-1 shadow hover:bg-slate-800/50"
+                        className={`p-3 rounded border hover:border-emerald-500 cursor-pointer transition-all space-y-1 shadow ${subPanelBg}`}
                       >
-                        <div className="flex justify-between font-semibold text-white text-sm">
+                        <div className="flex justify-between font-semibold text-sm">
                           <span>NIT: {sale.customer_nit}</span>
-                          <span className="text-emerald-400 text-sm font-bold" translate="no">Q {sale.total_amount}</span>
+                          <span className="text-emerald-500 text-sm font-bold" translate="no">Q {sale.total_amount}</span>
                         </div>
-                        <p className="text-xs text-slate-200">Cliente: {sale.customer_name}</p>
-                        <div className="flex justify-between text-xs text-slate-300">
-                          <span className="uppercase text-amber-300 font-semibold">{sale.payment_method}</span>
+                        <p className="text-xs opacity-90">Cliente: {sale.customer_name}</p>
+                        <div className="flex justify-between text-xs opacity-75">
+                          <span className="uppercase text-amber-500 font-semibold">{sale.payment_method}</span>
                           <span>{new Date(sale.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
                         </div>
                       </div>
@@ -1250,20 +1279,20 @@ export default function PosPage() {
             {activeTab === 'customers' && (
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between items-center mb-1">
-                  <p className="text-emerald-400 font-semibold text-base">Directorio de Clientes</p>
-                  <button onClick={() => loadCustomers(businessIdState)} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1 rounded border border-slate-600 font-medium">🔄 Actualizar</button>
+                  <p className="text-emerald-500 font-semibold text-base">Directorio de Clientes</p>
+                  <button onClick={() => loadCustomers(businessIdState)} className={`text-xs px-2.5 py-1 rounded border font-medium ${subPanelBg}`}>🔄 Actualizar</button>
                 </div>
                 <div className="space-y-2">
                   {customersList.length === 0 ? (
-                    <p className="text-slate-400 text-center py-6 text-sm">No hay clientes registrados.</p>
+                    <p className="opacity-75 text-center py-6 text-sm">No hay clientes registrados.</p>
                   ) : (
                     customersList.map((cust) => (
-                      <div key={cust.customer_id} className="bg-[#0f172a] p-3 rounded border border-slate-700 space-y-1">
-                        <div className="flex justify-between font-semibold text-white text-sm">
+                      <div key={cust.customer_id} className={`p-3 rounded border space-y-1 ${subPanelBg}`}>
+                        <div className="flex justify-between font-semibold text-sm">
                           <span>{cust.name}</span>
-                          <span className="text-emerald-400 text-xs bg-emerald-500/20 px-2 py-0.5 rounded font-bold">{cust.total_purchases} compras</span>
+                          <span className="text-emerald-500 text-xs bg-emerald-500/20 px-2 py-0.5 rounded font-bold">{cust.total_purchases} compras</span>
                         </div>
-                        <p className="text-xs text-slate-300">NIT: <span className="text-white font-mono font-medium">{cust.nit}</span></p>
+                        <p className="text-xs opacity-75">NIT: <span className="font-mono font-medium">{cust.nit}</span></p>
                       </div>
                     ))
                   )}
@@ -1273,13 +1302,13 @@ export default function PosPage() {
           </div>
 
           {activeTab !== 'ticket' && (
-            <button onClick={() => setActiveTab('ticket')} className="mt-3 w-full bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded text-sm font-semibold transition-colors">
+            <button onClick={() => setActiveTab('ticket')} className="mt-3 w-full bg-slate-600 hover:bg-slate-500 text-white py-2.5 rounded text-sm font-semibold transition-colors">
               ← Volver al Ticket
             </button>
           )}
         </div>
 
-        <div className="lg:col-span-2 xl:col-span-2 bg-[#1e293b] p-5 rounded-lg shadow border border-slate-700 flex flex-col">
+        <div className={`lg:col-span-2 xl:col-span-2 p-5 rounded-lg shadow border flex flex-col ${panelBg}`}>
           <div className="mb-4 relative" ref={searchRef}>
             <input 
               type="text"
@@ -1290,13 +1319,13 @@ export default function PosPage() {
               }}
               onFocus={() => setShowSuggestions(true)}
               placeholder="🔍 Buscar producto por nombre..."
-              className="w-full bg-[#0f172a] border border-slate-600 px-4 py-3 rounded-lg text-white text-base outline-none focus:border-emerald-500 transition-colors"
+              className={`w-full px-4 py-3 rounded-lg text-base outline-none focus:border-emerald-500 transition-colors border ${inputBg}`}
             />
 
             {showSuggestions && searchTerm.trim() !== '' && (
-              <div className="absolute left-0 right-0 mt-1 bg-[#0f172a] border border-slate-600 rounded-lg shadow-xl z-50 max-h-52 overflow-y-auto">
+              <div className={`absolute left-0 right-0 mt-1 rounded-lg shadow-xl z-50 max-h-52 overflow-y-auto border ${subPanelBg}`}>
                 {filteredProducts.length === 0 ? (
-                  <div className="p-3 text-sm text-slate-300 text-center">No se encontraron productos</div>
+                  <div className="p-3 text-sm opacity-75 text-center">No se encontraron productos</div>
                 ) : (
                   filteredProducts.map(p => (
                     <button
@@ -1306,13 +1335,13 @@ export default function PosPage() {
                         setSearchTerm('')
                         setShowSuggestions(false)
                       }}
-                      className="w-full text-left px-4 py-3 hover:bg-slate-800 flex justify-between items-center border-b border-slate-800/60 transition-colors text-sm"
+                      className="w-full text-left px-4 py-3 hover:opacity-75 flex justify-between items-center border-b border-opacity-50 transition-colors text-sm"
                     >
                       <div>
-                        <span className="font-semibold text-white text-base">{p.name}</span>
-                        <span className="text-slate-300 ml-2 text-xs font-semibold">(Stock: {p.stock})</span>
+                        <span className="font-semibold text-base">{p.name}</span>
+                        <span className="ml-2 text-xs font-semibold opacity-75">(Stock: {p.stock})</span>
                       </div>
-                      <span className="text-emerald-400 font-bold text-base" translate="no">Q {p.price}</span>
+                      <span className="text-emerald-500 font-bold text-base" translate="no">Q {p.price}</span>
                     </button>
                   ))
                 )}
@@ -1324,7 +1353,7 @@ export default function PosPage() {
             <button
               onClick={() => setSelectedCategory(null)}
               className={`px-3.5 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${
-                selectedCategory === null ? 'bg-emerald-600 text-white shadow' : 'bg-[#0f172a] text-slate-200 hover:bg-slate-800 border border-slate-700'
+                selectedCategory === null ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} border`
               }`}
             >
               ✨ Todos
@@ -1334,7 +1363,7 @@ export default function PosPage() {
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
                 className={`px-3.5 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${
-                  selectedCategory === cat.id ? 'bg-emerald-600 text-white shadow' : 'bg-[#0f172a] text-slate-200 hover:bg-slate-800 border border-slate-700'
+                  selectedCategory === cat.id ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} border`
                 }`}
               >
                 {cat.name}
@@ -1344,29 +1373,29 @@ export default function PosPage() {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 overflow-y-auto max-h-[55vh] pr-1 flex-1">
             {filteredProducts.length === 0 ? (
-              <p className="text-slate-300 col-span-full text-center py-10 text-base">No hay productos que coincidan con la búsqueda.</p>
+              <p className="col-span-full text-center py-10 text-base opacity-75">No hay productos que coincidan con la búsqueda.</p>
             ) : (
               filteredProducts.map(p => (
                 <div
                   key={p.id}
                   onClick={() => addToCart(p)}
-                  className="bg-[#0f172a] border border-slate-700 hover:border-emerald-500 active:scale-95 active:bg-emerald-950/40 active:border-emerald-400 p-3.5 rounded-lg flex flex-col justify-between text-left transition-all duration-150 shadow hover:shadow-emerald-500/10 group cursor-pointer h-full select-none"
+                  className={`border p-3.5 rounded-lg flex flex-col justify-between text-left transition-all duration-150 shadow group cursor-pointer h-full select-none ${subPanelBg} hover:border-emerald-500`}
                 >
                   <div className="flex flex-col">
                     {p.image_url ? (
-                      <img src={p.image_url} alt={p.name} className="w-full h-28 object-cover rounded mb-2.5 border border-slate-700 pointer-events-none" />
+                      <img src={p.image_url} alt={p.name} className="w-full h-28 object-cover rounded mb-2.5 border border-opacity-50 pointer-events-none" />
                     ) : (
-                      <div className="w-full h-28 bg-[#1e293b] rounded mb-2.5 flex items-center justify-center text-xs text-slate-400 border border-slate-700/50">Sin imagen</div>
+                      <div className="w-full h-28 rounded mb-2.5 flex items-center justify-center text-xs opacity-50 border border-opacity-50">Sin imagen</div>
                     )}
-                    <span className="text-xs sm:text-sm text-slate-300 block mb-1 font-semibold">
-                      Stock: <span className="text-emerald-400 font-bold">{p.is_custom ? 'N/A' : p.stock}</span>
+                    <span className="text-xs sm:text-sm block mb-1 font-semibold opacity-80">
+                      Stock: <span className="text-emerald-500 font-bold">{p.is_custom ? 'N/A' : p.stock}</span>
                     </span>
-                    <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-2 text-sm sm:text-base leading-snug">{p.name}</h3>
+                    <h3 className="font-bold group-hover:text-emerald-500 transition-colors line-clamp-2 text-sm sm:text-base leading-snug">{p.name}</h3>
                   </div>
                   
-                  <div className="mt-3 pt-2 border-t border-slate-800 flex items-center justify-between">
-                    <span className="text-xs text-slate-400 uppercase font-medium">{p.is_custom ? 'Variable' : 'Precio'}</span>
-                    <span className="text-emerald-400 font-extrabold text-base sm:text-lg" translate="no">
+                  <div className="mt-3 pt-2 border-t border-opacity-50 flex items-center justify-between">
+                    <span className="text-xs uppercase font-medium opacity-70">{p.is_custom ? 'Variable' : 'Precio'}</span>
+                    <span className="text-emerald-500 font-extrabold text-base sm:text-lg" translate="no">
                       {p.is_custom ? 'A cotizar' : `Q ${p.price}`}
                     </span>
                   </div>
@@ -1376,42 +1405,42 @@ export default function PosPage() {
           </div>
         </div>
 
-        <div className="bg-[#1e293b] p-5 rounded-lg shadow border border-slate-700 flex flex-col justify-between">
+        <div className={`p-5 rounded-lg shadow border flex flex-col justify-between ${panelBg}`}>
           <div>
-            <h2 className="text-lg font-bold text-emerald-400 mb-4">Ticket de Venta</h2>
+            <h2 className="text-lg font-bold text-emerald-500 mb-4">Ticket de Venta</h2>
             <div className="space-y-3 overflow-y-auto max-h-[48vh] pr-1">
               {cart.length === 0 ? (
-                <p className="text-slate-300 text-center py-10 text-base">El carrito está vacío.</p>
+                <p className="text-center py-10 text-base opacity-75">El carrito está vacío.</p>
               ) : (
                 cart.map(item => (
-                  <div key={item.id} className="flex flex-col gap-2.5 bg-[#0f172a] p-3.5 rounded-lg border border-slate-700 text-sm">
+                  <div key={item.id} className={`flex flex-col gap-2.5 p-3.5 rounded-lg border text-sm ${subPanelBg}`}>
                     <div className="flex justify-between items-center">
-                      <span className="font-bold text-white text-base">{item.name}</span>
-                      <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-300 font-bold px-2 py-0.5 bg-slate-800 rounded text-sm">✕</button>
+                      <span className="font-bold text-base">{item.name}</span>
+                      <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-300 font-bold px-2 py-0.5 rounded text-sm">✕</button>
                     </div>
                     
                     <div className="flex justify-between items-center gap-2">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-slate-300 text-xs font-medium">Precio Q:</span>
+                        <span className="text-xs font-medium opacity-80">Precio Q:</span>
                         <input 
                           type="number" 
                           step="0.01"
                           value={item.price} 
                           onChange={(e) => handlePriceChange(item.id, e.target.value)}
-                          className="w-24 bg-slate-900 border border-emerald-600 rounded px-2 py-1 text-emerald-400 font-bold text-sm outline-none focus:border-emerald-400" 
+                          className={`w-24 border rounded px-2 py-1 text-emerald-500 font-bold text-sm outline-none focus:border-emerald-500 ${inputBg}`} 
                         />
                         {item.isSpecial && (
-                          <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded font-bold uppercase">
+                          <span className="text-[10px] bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-bold uppercase">
                             Especial
                           </span>
                         )}
                       </div>
-                      <span className="text-slate-200 text-xs font-semibold">Cant: {item.quantity}</span>
+                      <span className="text-xs font-semibold opacity-90">Cant: {item.quantity}</span>
                     </div>
 
-                    <div className="flex justify-between items-center pt-1.5 border-t border-slate-800">
-                      <span className="text-slate-300 text-xs font-medium">Subtotal:</span>
-                      <span className="font-extrabold text-emerald-400 text-base" translate="no">Q {item.price * item.quantity}</span>
+                    <div className="flex justify-between items-center pt-1.5 border-t border-opacity-50">
+                      <span className="text-xs font-medium opacity-80">Subtotal:</span>
+                      <span className="font-extrabold text-emerald-500 text-base" translate="no">Q {item.price * item.quantity}</span>
                     </div>
                   </div>
                 ))
@@ -1419,27 +1448,17 @@ export default function PosPage() {
             </div>
           </div>
 
-          <div className="border-t border-slate-700 pt-4 mt-4 space-y-2">
+          <div className="border-t border-opacity-50 pt-4 mt-4 space-y-2">
             <div className="flex justify-between items-center mb-2 text-xl font-bold">
               <span>Total:</span>
-              <span className="text-emerald-400 text-2xl" translate="no">Q {totalCart}</span>
+              <span className="text-emerald-500 text-2xl" translate="no">Q {totalCart}</span>
             </div>
-
-            <button 
-              onClick={() => {
-                if (cart.length === 0) return;
-                setShowPaymentModal(true);
-              }}
-              disabled={cart.length === 0}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white py-3 rounded-lg font-bold shadow transition-colors text-sm mb-2"
-            >
-              💳 Cobrar / Finalizar Venta
-            </button>
+         
 
             <button 
               onClick={handleSavePendingOrder}
               disabled={cart.length === 0}
-              className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white py-2.5 rounded-lg font-bold shadow transition-colors text-sm"
+              className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-2.5 rounded-lg font-bold shadow transition-colors text-sm"
             >
               📝 Guardar Orden (Pasar a Caja)
             </button>
@@ -1450,27 +1469,27 @@ export default function PosPage() {
 
       {showLowStockModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 99999 }}>
-          <div className="bg-[#1e293b] p-6 rounded-xl border border-amber-500 w-full max-w-md text-white shadow-2xl space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-700 pb-2">
-              <h3 className="text-base font-bold text-amber-400 flex items-center gap-2">
+          <div className={`p-6 rounded-xl border border-amber-500 w-full max-w-md shadow-2xl space-y-4 ${panelBg}`}>
+            <div className="flex justify-between items-center border-b pb-2 border-opacity-50">
+              <h3 className="text-base font-bold text-amber-500 flex items-center gap-2">
                 ⚠️ Productos con Stock Bajo (≤ 5)
               </h3>
-              <button onClick={() => setShowLowStockModal(false)} className="text-slate-400 hover:text-white font-bold text-base">✕</button>
+              <button onClick={() => setShowLowStockModal(false)} className="font-bold text-base opacity-75 hover:opacity-100">✕</button>
             </div>
 
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1 text-sm">
               {lowStockItems.length === 0 ? (
-                <div className="text-center py-8 text-slate-400">
+                <div className="text-center py-8 opacity-75">
                   <p>¡Excelente! No hay productos con stock crítico en esta sucursal.</p>
                 </div>
               ) : (
                 lowStockItems.map(p => (
-                  <div key={p.id} className="bg-[#0f172a] p-3 rounded border border-slate-700 flex justify-between items-center">
+                  <div key={p.id} className={`p-3 rounded border flex justify-between items-center ${subPanelBg}`}>
                     <div>
-                      <p className="font-semibold text-white">{p.name}</p>
-                      <p className="text-xs text-slate-400">Estado crítico de inventario</p>
+                      <p className="font-semibold">{p.name}</p>
+                      <p className="text-xs opacity-75">Estado crítico de inventario</p>
                     </div>
-                    <span className="bg-red-500/20 text-red-400 font-bold px-2.5 py-1 rounded text-xs border border-red-500/30">
+                    <span className="bg-red-500/20 text-red-500 font-bold px-2.5 py-1 rounded text-xs border border-red-500/30">
                       Stock: {p.stock}
                     </span>
                   </div>
@@ -1492,7 +1511,7 @@ export default function PosPage() {
               )}
               <button 
                 onClick={() => setShowLowStockModal(false)} 
-                className="bg-slate-700 hover:bg-slate-600 px-4 py-2.5 rounded-lg font-semibold text-sm text-slate-200"
+                className="bg-slate-600 hover:bg-slate-500 px-4 py-2.5 rounded-lg font-semibold text-sm text-white"
               >
                 Cerrar
               </button>
@@ -1502,24 +1521,24 @@ export default function PosPage() {
       )}
 
       {selectedSaleDetails !== null && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center" style={{ zIndex: 9999 }}>
-          <div className="bg-[#1e293b] p-6 rounded-xl border border-emerald-500 w-[420px] text-white shadow-2xl">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+          <div className={`p-6 rounded-xl border border-emerald-500 w-[420px] shadow-2xl ${panelBg}`}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-base font-bold text-emerald-400">📦 Detalle de la Venta</h3>
-              <button onClick={() => setSelectedSaleDetails(null)} className="text-slate-400 hover:text-white font-bold text-base">✕</button>
+              <h3 className="text-base font-bold text-emerald-500">📦 Detalle de la Venta</h3>
+              <button onClick={() => setSelectedSaleDetails(null)} className="font-bold text-base opacity-75 hover:opacity-100">✕</button>
             </div>
 
             <div className="space-y-2 max-h-64 overflow-y-auto pr-1 text-sm">
               {selectedSaleDetails.length === 0 ? (
-                <p className="text-slate-400 text-center py-6">No se encontraron productos en esta venta.</p>
+                <p className="opacity-75 text-center py-6">No se encontraron productos en esta venta.</p>
               ) : (
                 selectedSaleDetails.map((item, idx) => (
-                  <div key={idx} className="bg-[#0f172a] p-3 rounded border border-slate-700 flex justify-between items-center">
+                  <div key={idx} className={`p-3 rounded border flex justify-between items-center ${subPanelBg}`}>
                     <div>
-                      <p className="font-semibold text-white text-sm">{item.product_name}</p>
-                      <p className="text-xs text-slate-300">Cantidad: <span className="text-emerald-400 font-bold">{item.quantity}</span> x Q {item.price}</p>
+                      <p className="font-semibold text-sm">{item.product_name}</p>
+                      <p className="text-xs opacity-75">Cantidad: <span className="text-emerald-500 font-bold">{item.quantity}</span> x Q {item.price}</p>
                     </div>
-                    <span className="font-bold text-emerald-400 text-base" translate="no">Q {item.quantity * item.price}</span>
+                    <span className="font-bold text-emerald-500 text-base" translate="no">Q {item.quantity * item.price}</span>
                   </div>
                 ))
               )}
@@ -1527,7 +1546,7 @@ export default function PosPage() {
 
             <button 
               onClick={() => setSelectedSaleDetails(null)} 
-              className="mt-6 w-full bg-slate-700 hover:bg-slate-600 py-3 rounded-lg font-semibold text-sm"
+              className="mt-6 w-full bg-slate-600 hover:bg-slate-500 text-white py-3 rounded-lg font-semibold text-sm"
             >
               Cerrar Detalle
             </button>
@@ -1536,30 +1555,30 @@ export default function PosPage() {
       )}
 
       {showPaymentModal && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center" style={{ zIndex: 9999 }}>
-          <div className="bg-[#1e293b] p-8 rounded-xl border border-emerald-500 w-[400px] text-white shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-            <h2 className="text-xl font-bold text-emerald-400 mb-6">Finalizar Venta</h2>
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+          <div className={`p-8 rounded-xl border border-emerald-500 w-[400px] shadow-[0_0_50px_rgba(0,0,0,0.5)] ${panelBg}`}>
+            <h2 className="text-xl font-bold text-emerald-500 mb-6">Finalizar Venta</h2>
             
             <div className="space-y-4 text-sm">
               <div>
-                <label className="text-xs text-slate-300 font-medium">NIT (o CF)</label>
+                <label className="text-xs font-medium opacity-80">NIT (o CF)</label>
                 <input 
                   type="text" 
                   value={customerNit} 
                   onChange={e => handleNitChange(e.target.value)} 
                   placeholder="Ej. 12345678 o CF"
-                  className="w-full bg-[#0f172a] p-3 rounded border border-slate-600 focus:border-emerald-500 outline-none uppercase font-semibold text-emerald-300 text-base" 
+                  className={`w-full p-3 rounded border focus:border-emerald-500 outline-none uppercase font-semibold text-emerald-500 text-base ${inputBg}`} 
                 />
               </div>
               
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <label className="text-xs text-slate-300 font-medium">Nombre / Razón Social</label>
+                  <label className="text-xs font-medium opacity-80">Nombre / Razón Social</label>
                   {customerName && customerName !== 'Consumidor Final' && customerName !== '' && (
-                    <span className="text-xs text-emerald-400 font-bold">✔ Cliente Registrado</span>
+                    <span className="text-xs text-emerald-500 font-bold">✔ Cliente Registrado</span>
                   )}
                   {(!customerName || customerName === '') && customerNit.toUpperCase() !== 'CF' && (
-                    <span className="text-xs text-amber-400 font-bold">✨ Nuevo Cliente (Se registrará)</span>
+                    <span className="text-xs text-amber-500 font-bold">✨ Nuevo Cliente (Se registrará)</span>
                   )}
                 </div>
                 <input 
@@ -1567,16 +1586,16 @@ export default function PosPage() {
                   value={customerName} 
                   onChange={e => setCustomerName(e.target.value)} 
                   placeholder="Nombre del cliente o razón social"
-                  className="w-full bg-[#0f172a] p-3 rounded border border-slate-600 focus:border-emerald-500 outline-none text-base" 
+                  className={`w-full p-3 rounded border focus:border-emerald-500 outline-none text-base ${inputBg}`} 
                 />
               </div>
 
               <div>
-                <label className="text-xs text-slate-300 font-medium">Método de Pago</label>
+                <label className="text-xs font-medium opacity-80">Método de Pago</label>
                 <select 
                   value={paymentMethod} 
                   onChange={e => setPaymentMethod(e.target.value as any)} 
-                  className="w-full bg-[#0f172a] p-3 rounded border border-slate-600 focus:border-emerald-500 outline-none text-base"
+                  className={`w-full p-3 rounded border focus:border-emerald-500 outline-none text-base ${inputBg}`}
                 >
                   <option value="efectivo">Efectivo</option>
                   <option value="tarjeta">Tarjeta</option>
@@ -1587,13 +1606,13 @@ export default function PosPage() {
             <div className="flex gap-3 mt-8">
               <button 
                 onClick={handleFinalizeSale} 
-                className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-3 rounded-lg font-bold text-base"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-3 rounded-lg font-bold text-white text-base"
               >
                 Cobrar Q {totalCart}
               </button>
               <button 
                 onClick={() => setShowPaymentModal(false)} 
-                className="bg-slate-700 hover:bg-slate-600 py-3 px-6 rounded-lg font-semibold text-base"
+                className="bg-slate-600 hover:bg-slate-500 py-3 px-6 rounded-lg font-semibold text-white text-base"
               >
                 Cancelar
               </button>
@@ -1604,21 +1623,21 @@ export default function PosPage() {
 
       {showNewCategoryModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" style={{ zIndex: 99999 }}>
-          <div className="bg-[#1e293b] p-6 rounded-xl border border-emerald-500 w-full max-w-sm text-white shadow-2xl space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-700 pb-2">
-              <h3 className="text-base font-bold text-emerald-400">✨ Nueva Categoría</h3>
-              <button onClick={() => setShowNewCategoryModal(false)} className="text-slate-400 hover:text-white font-bold text-base">✕</button>
+          <div className={`p-6 rounded-xl border border-emerald-500 w-full max-w-sm shadow-2xl space-y-4 ${panelBg}`}>
+            <div className="flex justify-between items-center border-b pb-2 border-opacity-50">
+              <h3 className="text-base font-bold text-emerald-500">✨ Nueva Categoría</h3>
+              <button onClick={() => setShowNewCategoryModal(false)} className="font-bold text-base opacity-75 hover:opacity-100">✕</button>
             </div>
 
             <form onSubmit={handleCreateCategory} className="space-y-3 text-sm">
               <div>
-                <label className="block text-xs text-slate-300 mb-1">Nombre (ej. Almuerzos, Bebidas)</label>
+                <label className="block text-xs mb-1 opacity-80">Nombre (ej. Almuerzos, Bebidas)</label>
                 <input 
                   type="text" 
                   value={newCategoryName} 
                   onChange={e => setNewCategoryName(e.target.value)} 
                   placeholder="Nombre de la categoría..." 
-                  className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm outline-none focus:border-emerald-500" 
+                  className={`w-full border p-2.5 rounded text-sm outline-none focus:border-emerald-500 ${inputBg}`} 
                   required
                   autoFocus
                 />
@@ -1635,7 +1654,7 @@ export default function PosPage() {
                 <button 
                   type="button" 
                   onClick={() => setShowNewCategoryModal(false)} 
-                  className="bg-slate-700 hover:bg-slate-600 px-4 py-2.5 rounded text-sm text-slate-200"
+                  className="bg-slate-600 hover:bg-slate-500 px-4 py-2.5 rounded text-sm text-white"
                 >
                   Cancelar
                 </button>

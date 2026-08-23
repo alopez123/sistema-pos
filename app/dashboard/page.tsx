@@ -7,7 +7,23 @@ export default function Dashboard() {
   const [products, setProducts] = useState<any[]>([])
   const [branches, setBranches] = useState<any[]>([])
   const [selectedBranch, setSelectedBranch] = useState<string>('')
-  const [isCustomProduct, setIsCustomProduct] = useState(false) // Estado para producto personalizable[cite: 3]
+  const [isCustomProduct, setIsCustomProduct] = useState(false)
+
+  // Estado para el Tema (Modo Oscuro / Modo Claro Local)
+  const [isDarkMode, setIsDarkMode] = useState(true)
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('dashboard_theme')
+    if (savedTheme === 'light') {
+      setIsDarkMode(false)
+    }
+  }, [])
+
+  const toggleTheme = () => {
+    const newMode = !isDarkMode
+    setIsDarkMode(newMode)
+    localStorage.setItem('dashboard_theme', newMode ? 'dark' : 'light')
+  }
 
   // Estados para personal / cajeros
   const [username, setUsername] = useState('')
@@ -328,7 +344,7 @@ export default function Dashboard() {
         p_branch_id: selectedBranch,
         p_image_url: imageUrl,
         p_category_id: selectedCategoryId || null,
-        p_is_custom: isCustomProduct // Enviando la bandera de producto personalizable
+        p_is_custom: isCustomProduct
       })
 
       if (error) alert("Error al agregar: " + error.message)
@@ -416,55 +432,70 @@ export default function Dashboard() {
     router.push('/')
   }
 
+  // Clases dinámicas según el tema (Modo Oscuro vs Modo Claro)
+  const themeBg = isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-slate-100 text-slate-900'
+  const panelBg = isDarkMode ? 'bg-[#1e293b] border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900 shadow-md'
+  const subPanelBg = isDarkMode ? 'bg-[#0f172a] border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+  const inputBg = isDarkMode ? 'bg-[#0f172a] text-white border-slate-600' : 'bg-white text-slate-900 border-slate-300'
+
   return (
-    <div className="min-h-screen bg-[#0f172a] p-4 sm:p-6 lg:p-8 text-white w-full max-w-[1600px] mx-auto notranslate" translate="no">
+    <div className={`min-h-screen p-4 sm:p-6 lg:p-8 w-full max-w-[1600px] mx-auto notranslate ${themeBg}`} translate="no">
       <div className="max-w-5xl mx-auto w-full">
         
         {/* HEADER */}
-        <header className="bg-[#1e293b] p-4 sm:p-6 rounded-lg shadow mb-6 flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4 border border-slate-700 w-full">
+        <header className={`p-4 sm:p-6 rounded-lg shadow mb-6 flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4 border w-full ${panelBg}`}>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-white">Panel de Control POS</h1>
-            <p className="text-xs sm:text-sm text-slate-400">Conectado como: {userEmail}</p>
+            <h1 className="text-xl sm:text-2xl font-bold">Panel de Control POS</h1>
+            <p className="text-xs sm:text-sm opacity-75">Conectado como: {userEmail}</p>
           </div>
-          <div className="flex flex-wrap gap-2 sm:gap-3">
-            <button onClick={() => router.push('/pos')} className="flex-1 sm:flex-initial bg-sky-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-sky-500 transition-colors font-semibold text-xs sm:text-sm shadow">🛒 POS</button>
-            <button onClick={() => router.push('/cajero')} className="flex-1 sm:flex-initial bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-500 transition-colors font-semibold text-xs sm:text-sm shadow">💵 Caja</button>
-            <button onClick={() => router.push('/compras')} className="flex-1 sm:flex-initial bg-amber-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-amber-500 transition-colors font-semibold text-xs sm:text-sm shadow">📦 Compras</button>
-            <button onClick={() => router.push('/reportes')} className="flex-1 sm:flex-initial bg-emerald-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-emerald-500 transition-colors font-semibold text-xs sm:text-sm shadow">📊 Reportes</button>
-            <button onClick={() => router.push('/inventario')} className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors flex items-center gap-1">📋 Inventario</button>
-            <button onClick={() => router.push('/estadisticas')} className="bg-indigo-600 hover:bg-indigo-500 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors text-white">📈 Estadísticas</button>
+          <div className="flex flex-wrap gap-2 sm:gap-3 items-center">
+            <button onClick={() => router.push('/pos')} className="bg-sky-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-sky-500 transition-colors font-semibold text-xs sm:text-sm shadow">🛒 POS</button>
+            <button onClick={() => router.push('/cajero')} className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-500 transition-colors font-semibold text-xs sm:text-sm shadow">💵 Caja</button>
+            <button onClick={() => router.push('/compras')} className="bg-amber-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-amber-500 transition-colors font-semibold text-xs sm:text-sm shadow">📦 Compras</button>
+            <button onClick={() => router.push('/inventario')} className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors text-white shadow flex items-center gap-1">📋 Inventario</button>
+            <button onClick={() => router.push('/ventas-historia')} className="bg-teal-600 hover:bg-teal-500 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors text-white shadow">📜 Historial</button>
+            <button onClick={() => router.push('/estadisticas')} className="bg-indigo-600 hover:bg-indigo-500 px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors text-white shadow">📈 Estadísticas</button>
+            
+            {/* BOTÓN INTERRUPTOR DE TEMA (CLARO / OSCURO) */}
+            <button 
+              onClick={toggleTheme}
+              className={`px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors border ${isDarkMode ? 'bg-slate-700 hover:bg-slate-600 text-amber-300 border-slate-600' : 'bg-slate-200 hover:bg-slate-300 text-slate-800 border-slate-300'}`}
+            >
+              {isDarkMode ? '☀️ Modo Claro' : '🌙 Modo Oscuro'}
+            </button>
+
             {isAdmin && <button onClick={() => router.push('/admin')} className="bg-slate-700 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-slate-600 transition-colors text-xs sm:text-sm font-semibold">Admin</button>}
-            <button onClick={handleLogout} className="bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-red-500 transition-colors text-xs sm:text-sm font-semibold">Salir</button>
+            <button onClick={handleLogout} className="bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-red-500 transition-colors text-xs sm:text-sm font-semibold shadow">Salir</button>
           </div>
         </header>
         
         {/* SECCIÓN 1: SUCURSALES */}
-        <div className="bg-[#1e293b] p-4 sm:p-6 rounded-lg shadow mb-6 space-y-4 border border-slate-700">
+        <div className={`p-4 sm:p-6 rounded-lg shadow mb-6 space-y-4 border ${panelBg}`}>
           <div>
-            <h2 className="text-base sm:text-lg font-bold text-emerald-400 mb-1">Creación y Mantenimiento de Sucursales</h2>
-            <p className="text-xs text-slate-400">Selecciona tu sucursal activa, crea nuevas localidades o da de baja las que ya no utilices.</p>
+            <h2 className="text-base sm:text-lg font-bold text-emerald-500 mb-1">Creación y Mantenimiento de Sucursales</h2>
+            <p className="text-xs opacity-75">Selecciona tu sucursal activa, crea nuevas localidades o da de baja las que ya no utilices.</p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
-            <label className="font-bold text-slate-300 sm:w-36 text-xs sm:text-sm">Sucursal Activa:</label>
-            <select value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)} className="bg-[#0f172a] border border-slate-600 p-2.5 rounded flex-1 text-white text-sm">
+            <label className="font-bold sm:w-36 text-xs sm:text-sm">Sucursal Activa:</label>
+            <select value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)} className={`border p-2.5 rounded flex-1 text-sm ${inputBg}`}>
               {branches.length === 0 ? <option value="">No hay sucursales</option> : branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 border-t border-slate-700 pt-4">
-            <label className="font-bold text-slate-300 sm:w-36 text-xs sm:text-sm">Nueva Sucursal:</label>
-            <input placeholder="Ej. Comedor Zona 1" value={newBranchName} onChange={e => setNewBranchName(e.target.value)} className="bg-[#0f172a] border border-slate-600 p-2.5 rounded flex-1 text-white text-sm" />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 border-t border-opacity-50 pt-4">
+            <label className="font-bold sm:w-36 text-xs sm:text-sm">Nueva Sucursal:</label>
+            <input placeholder="Ej. Comedor Zona 1" value={newBranchName} onChange={e => setNewBranchName(e.target.value)} className={`border p-2.5 rounded flex-1 text-sm ${inputBg}`} />
             <button onClick={addBranch} className="bg-emerald-600 text-white px-4 py-2.5 rounded font-semibold hover:bg-emerald-500 text-sm shadow">Crear Sucursal</button>
           </div>
 
           {branches.length > 0 && (
-            <div className="border-t border-slate-700 pt-4 mt-4">
-              <h3 className="text-xs font-bold text-slate-400 uppercase mb-3">Sucursales Registradas y Gestión</h3>
+            <div className="border-t border-opacity-50 pt-4 mt-4">
+              <h3 className="text-xs font-bold opacity-75 uppercase mb-3">Sucursales Registradas y Gestión</h3>
               <div className="space-y-2">
                 {branches.map(b => (
-                  <div key={b.id} className="flex justify-between items-center bg-[#0f172a] p-3 rounded border border-slate-700 gap-2">
-                    <span className="text-sm font-semibold text-emerald-400 truncate">{b.name}</span>
+                  <div key={b.id} className={`flex justify-between items-center p-3 rounded border gap-2 ${subPanelBg}`}>
+                    <span className="text-sm font-semibold text-emerald-500 truncate">{b.name}</span>
                     <button 
                       onClick={() => deleteBranch(b.id, b.name)}
                       className="bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded text-xs font-semibold transition-colors shrink-0"
@@ -479,9 +510,9 @@ export default function Dashboard() {
         </div>
 
         {/* SECCIÓN 2: PERSONAL */}
-        <div className={`p-4 sm:p-6 rounded-lg shadow mb-6 border ${editingStaffId ? 'bg-amber-950/40 border-amber-500/50' : 'bg-[#1e293b] border-slate-700'}`}>
+        <div className={`p-4 sm:p-6 rounded-lg shadow mb-6 border ${editingStaffId ? 'bg-amber-950/40 border-amber-500/50' : panelBg}`}>
           <div className="flex justify-between items-center mb-1">
-            <h2 className={`text-base sm:text-lg font-bold ${editingStaffId ? 'text-amber-400' : 'text-emerald-400'}`}>
+            <h2 className={`text-base sm:text-lg font-bold ${editingStaffId ? 'text-amber-400' : 'text-emerald-500'}`}>
               {editingStaffId ? '✏️ Editando Empleado' : 'Asignar Personal a Sucursal'}
             </h2>
             {editingStaffId && (
@@ -490,53 +521,54 @@ export default function Dashboard() {
               </button>
             )}
           </div>
-          <p className="text-xs text-slate-400 mb-4">El sistema genera el usuario con el prefijo: <span className="text-amber-400 font-mono">{businessNemonico}-</span></p>
+          <p className="text-xs opacity-75 mb-4">El sistema genera el usuario con el prefijo: <span className="text-amber-500 font-mono">{businessNemonico}-</span></p>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 sm:gap-4 items-end">
             <div>
-              <label className="block text-[11px] sm:text-[10px] text-slate-400 mb-1 font-medium">Nombre</label>
+              <label className="block text-[11px] sm:text-[10px] opacity-75 mb-1 font-medium">Nombre</label>
               <input 
                 placeholder="Ej. pedro" 
                 value={staffName} 
                 onChange={handleNameChange} 
-                className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" 
+                className={`w-full border p-2.5 rounded text-sm ${inputBg}`} 
               />
             </div>
             
             <div>
-              <label className="block text-[11px] sm:text-[10px] text-slate-400 mb-1 font-medium">Usuario</label>
+              <label className="block text-[11px] sm:text-[10px] opacity-75 mb-1 font-medium">Usuario</label>
               <input 
                 placeholder="usuario" 
                 value={username} 
                 onChange={e => setUsername(e.target.value.replace(/\s+/g, ''))}
-                className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm outline-none" 
+                className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`} 
               />
             </div>
 
             <div>
-              <label className="block text-[11px] sm:text-[10px] text-slate-400 mb-1 font-medium">Contraseña</label>
+              <label className="block text-[11px] sm:text-[10px] opacity-75 mb-1 font-medium">Contraseña</label>
               <input 
                 placeholder="Código de Acceso" 
                 type="password" 
                 value={accessCode} 
                 onFocus={() => { if (accessCode === '••••••••') setAccessCode(''); }}
                 onChange={e => setAccessCode(e.target.value)} 
-                className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" 
+                className={`w-full border p-2.5 rounded text-sm ${inputBg}`} 
               />
             </div>
             
             <div>
-              <label className="block text-[11px] sm:text-[10px] text-slate-400 mb-1 font-medium">Sucursal</label>
-              <select value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)} className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm">
+              <label className="block text-[11px] sm:text-[10px] opacity-75 mb-1 font-medium">Sucursal</label>
+              <select value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)} className={`w-full border p-2.5 rounded text-sm ${inputBg}`}>
                 {branches.length === 0 ? <option value="">No hay sucursales</option> : branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
 
             <div>
-              <label className="block text-[11px] sm:text-[10px] text-slate-400 mb-1 font-medium">Rol</label>
-              <select value={staffRole} onChange={e => setStaffRole(e.target.value)} className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm font-semibold text-emerald-300">
+              <label className="block text-[11px] sm:text-[10px] opacity-75 mb-1 font-medium">Rol</label>
+              <select value={staffRole} onChange={e => setStaffRole(e.target.value)} className={`w-full border p-2.5 rounded text-sm font-semibold text-emerald-500 ${inputBg}`}>
                 <option value="vendedor">🛒 Vendedor</option>
                 <option value="cajero">💵 Cajero</option>
+                <option value="bodega">📦 Bodega</option>
               </select>
             </div>
 
@@ -551,7 +583,7 @@ export default function Dashboard() {
           {staffList.length > 0 && (
             <div className="mt-6 overflow-x-auto">
               <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-slate-700 text-slate-300">
+                <thead className="opacity-75 border-b border-opacity-50">
                   <tr>
                     <th className="p-3">Nombre</th>
                     <th className="p-3">Usuario de Acceso</th>
@@ -564,10 +596,10 @@ export default function Dashboard() {
                   {staffList.map((s) => {
                     const branchObj = branches.find(b => b.id === s.branch_id)
                     return (
-                      <tr key={s.id} className="border-b border-slate-700 hover:bg-slate-700/50">
+                      <tr key={s.id} className="border-b border-opacity-50 hover:bg-opacity-50">
                         <td className="p-3 font-semibold">{s.name}</td>
-                        <td className="p-3 text-amber-300 font-mono">{s.username}</td>
-                        <td className="p-3 text-emerald-400">{branchObj ? branchObj.name : 'Sucursal'}</td>
+                        <td className="p-3 text-amber-500 font-mono">{s.username}</td>
+                        <td className="p-3 text-emerald-500">{branchObj ? branchObj.name : 'Sucursal'}</td>
                         <td className="p-3">
                           <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${s.role === 'cajero' ? 'bg-blue-500/20 text-blue-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
                             {s.role || 'vendedor'}
@@ -587,9 +619,9 @@ export default function Dashboard() {
         </div>
 
         {/* SECCIÓN 3: CATEGORÍAS */}
-        <div className={`p-4 sm:p-6 rounded-lg shadow mb-8 border ${editingCategoryId ? 'bg-amber-950/40 border-amber-500/50' : 'bg-[#1e293b] border-slate-700'}`}>
+        <div className={`p-4 sm:p-6 rounded-lg shadow mb-8 border ${editingCategoryId ? 'bg-amber-950/40 border-amber-500/50' : panelBg}`}>
           <div className="flex justify-between items-center mb-1">
-            <h2 className={`text-base sm:text-lg font-bold ${editingCategoryId ? 'text-amber-400' : 'text-emerald-400'}`}>
+            <h2 className={`text-base sm:text-lg font-bold ${editingCategoryId ? 'text-amber-400' : 'text-emerald-500'}`}>
               {editingCategoryId ? '✏️ Editando Categoría' : 'Gestión de Categorías'}
             </h2>
             {editingCategoryId && (
@@ -598,16 +630,16 @@ export default function Dashboard() {
               </button>
             )}
           </div>
-          <p className="text-xs text-slate-400 mb-4">Crea, renombra o da de baja tus categorías de forma segura considerando los productos asociados.</p>
+          <p className="text-xs opacity-75 mb-4">Crea, renombra o da de baja tus categorías de forma segura considerando los productos asociados.</p>
           
           <form onSubmit={handleSaveCategory} className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-end mb-4">
             <div className="flex-1">
-              <label className="block text-xs text-slate-300 mb-1">Nombre de la Categoría</label>
+              <label className="block text-xs opacity-75 mb-1">Nombre de la Categoría</label>
               <input 
                 placeholder="Ej. Refacciones" 
                 value={newCategoryName} 
                 onChange={e => setNewCategoryName(e.target.value)} 
-                className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm outline-none focus:border-emerald-500" 
+                className={`w-full border p-2.5 rounded text-sm outline-none focus:border-emerald-500 ${inputBg}`} 
                 required
               />
             </div>
@@ -624,11 +656,11 @@ export default function Dashboard() {
           </form>
 
           {categories.length > 0 && (
-            <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-700">
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-opacity-50">
               {categories.map(cat => (
-                <div key={cat.id} className="flex items-center bg-[#0f172a] border border-slate-600 text-white text-xs px-3 py-1.5 rounded-full font-semibold gap-2">
+                <div key={cat.id} className={`flex items-center border text-xs px-3 py-1.5 rounded-full font-semibold gap-2 ${subPanelBg}`}>
                   <span>🏷️ {cat.name}</span>
-                  <button onClick={() => startEditCategory(cat)} className="text-amber-400 hover:text-amber-300 font-bold" title="Renombrar">
+                  <button onClick={() => startEditCategory(cat)} className="text-amber-500 hover:text-amber-400 font-bold" title="Renombrar">
                     ✏️
                   </button>
                   <button onClick={() => deleteCategory(cat.id)} className="text-red-400 hover:text-red-300 font-bold" title="Dar de baja">
@@ -640,22 +672,22 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Formulario Productos (Crear / Editar con Selector de Categoría y Checkbox Personalizado) */}
-        <div className={`p-4 sm:p-6 rounded-lg shadow mb-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 sm:gap-4 items-end border ${editingId ? 'bg-amber-950/40 border-amber-500/50' : 'bg-[#1e293b] border-slate-700'}`}>
+        {/* Formulario Productos */}
+        <div className={`p-4 sm:p-6 rounded-lg shadow mb-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 sm:gap-4 items-end border ${editingId ? 'bg-amber-950/40 border-amber-500/50' : panelBg}`}>
           <div className="col-span-full">
-            <h3 className={`font-bold text-sm ${editingId ? 'text-amber-400' : 'text-emerald-400'}`}>
+            <h3 className={`font-bold text-sm ${editingId ? 'text-amber-400' : 'text-emerald-500'}`}>
               {editingId ? '✏️ Editando Producto Existente' : '➕ Agregar Nuevo Producto'}
             </h3>
           </div>
           
-          <input placeholder="Nombre" value={name} onChange={e => setName(e.target.value)} className="bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" />
-          <input placeholder="Precio" type="number" value={price} onChange={e => setPrice(e.target.value)} className="bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" />
-          <input placeholder="Stock" type="number" value={stock} onChange={e => setStock(e.target.value)} className="bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm" />
+          <input placeholder="Nombre" value={name} onChange={e => setName(e.target.value)} className={`border p-2.5 rounded text-sm ${inputBg}`} />
+          <input placeholder="Precio" type="number" value={price} onChange={e => setPrice(e.target.value)} className={`border p-2.5 rounded text-sm ${inputBg}`} />
+          <input placeholder="Stock" type="number" value={stock} onChange={e => setStock(e.target.value)} className={`border p-2.5 rounded text-sm ${inputBg}`} />
           
           <select 
             value={selectedCategoryId} 
             onChange={e => setSelectedCategoryId(e.target.value)} 
-            className="bg-[#0f172a] border border-slate-600 p-2.5 rounded text-white text-sm"
+            className={`border p-2.5 rounded text-sm ${inputBg}`}
           >
             <option value="">-- Sin Categoría --</option>
             {categories.map(cat => (
@@ -663,10 +695,9 @@ export default function Dashboard() {
             ))}
           </select>
 
-          <input type="file" accept="image/*" onChange={e => setImageFile(e.target.files?.[0] || null)} className="text-xs text-slate-400 file:bg-slate-700 file:text-white file:border-0 file:p-2 file:rounded w-full" />
+          <input type="file" accept="image/*" onChange={e => setImageFile(e.target.files?.[0] || null)} className="text-xs opacity-75 file:bg-slate-700 file:text-white file:border-0 file:p-2 file:rounded w-full" />
           
-          {/* Checkbox para Producto Personalizable / Precio Abierto */}
-          <div className="col-span-full flex items-center gap-2 pt-2 bg-[#0f172a] p-3 rounded border border-slate-700">
+          <div className={`col-span-full flex items-center gap-2 pt-2 p-3 rounded border ${subPanelBg}`}>
             <input 
               type="checkbox" 
               id="customCheck"
@@ -674,7 +705,7 @@ export default function Dashboard() {
               onChange={e => setIsCustomProduct(e.target.checked)} 
               className="w-4 h-4 accent-emerald-500 cursor-pointer"
             />
-            <label htmlFor="customCheck" className="text-xs text-slate-300 font-semibold cursor-pointer">
+            <label htmlFor="customCheck" className="text-xs font-semibold cursor-pointer">
               ¿Es un producto personalizable o de precio/medida abierta? (Ej. Mantas vinílicas)
             </label>
           </div>
@@ -692,10 +723,10 @@ export default function Dashboard() {
         </div>
 
         {/* Tabla de Productos */}
-        <div className="bg-[#1e293b] rounded-lg shadow overflow-hidden border border-slate-700">
+        <div className={`rounded-lg shadow overflow-hidden border ${panelBg}`}>
           <div className="overflow-x-auto">
             <table className="w-full text-left whitespace-nowrap">
-              <thead className="bg-slate-700 text-slate-300 border-b border-slate-600">
+              <thead className={`border-b opacity-75 ${subPanelBg}`}>
                 <tr>
                   <th className="p-4">Foto</th>
                   <th className="p-4">Producto</th>
@@ -706,15 +737,15 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {products.length === 0 ? (
-                  <tr><td colSpan={5} className="p-4 text-center text-slate-400">No hay productos en esta sucursal.</td></tr>
+                  <tr><td colSpan={5} className="p-4 text-center opacity-75">No hay productos en esta sucursal.</td></tr>
                 ) : (
                   products.map((p) => (
-                    <tr key={p.id} className="border-b border-slate-700 hover:bg-slate-700/50">
+                    <tr key={p.id} className="border-b border-opacity-50 hover:bg-opacity-50">
                       <td className="p-2">
                         {p.image_url ? (
                           <img src={p.image_url} className="w-12 h-12 object-cover rounded" alt={p.name} />
                         ) : (
-                          <div className="w-12 h-12 bg-slate-800 rounded flex items-center justify-center text-xs text-slate-500">Sin foto</div>
+                          <div className={`w-12 h-12 rounded flex items-center justify-center text-xs opacity-50 ${subPanelBg}`}>Sin foto</div>
                         )}
                       </td>
                       <td className="p-4 font-semibold">
