@@ -19,7 +19,8 @@ export default function CashierPage() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null)
   const [orderItems, setOrderItems] = useState<any[]>([])
   
-  // Estado para el panel deslizable en móviles al seleccionar orden
+  // Estado para el Menú Lateral Deslizante (Hamburguesa ☰) y Modal Móvil
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isMobileOrderModalOpen, setIsMobileOrderModalOpen] = useState(false)
   
   // Estado para el Tema (Modo Oscuro / Modo Claro Local)
@@ -54,8 +55,7 @@ export default function CashierPage() {
   const [openingAmountInput, setOpeningAmountInput] = useState('')
   const [closingPhysicalCash, setClosingPhysicalCash] = useState('')
 
-  // Pestañas y reportes del turno
-  const [rightTab, setRightTab] = useState<'gestion' | 'ventas'>('gestion')
+  // Reportes del turno
   const [todaySales, setTodaySales] = useState<any[]>([])
   const [selectedSaleDetails, setSelectedSaleDetails] = useState<any[] | null>(null)
 
@@ -98,8 +98,7 @@ export default function CashierPage() {
         return
       }
 
-      // Validación estricta de RLS mediante RPC para el estatus de pago del negocio[cite: 5]
-      const { data: bizDataList, error } = await supabase.rpc('get_business_status_by_id', { p_business_id: resolvedBizId })
+      const { data: bizDataList, error } = await supabase.rpc('get_business_status_by_id', { p_business_id: resolvedBizId }) //[cite: 2]
 
       if (!error && bizDataList && bizDataList.length > 0) {
         const bizData = bizDataList[0]
@@ -132,7 +131,6 @@ export default function CashierPage() {
     checkBusinessStatusAndRedirect()
   }, [router])
 
-  // --- AUTOREFRESH CADA 30 SEGUNDOS (OPTIMIZADO PARA EVITAR BLOQUEOS)[cite: 5] ---
   useEffect(() => {
     if (!selectedBranch || !cashRegister) return
 
@@ -149,7 +147,7 @@ export default function CashierPage() {
   }, [selectedBranch, cashRegister, selectedOrder, businessId])
 
   async function fetchBusinessInfo(bId: string) {
-    const { data, error } = await supabase.rpc('get_business_info_safe', { p_business_id: bId })
+    const { data, error } = await supabase.rpc('get_business_info_safe', { p_business_id: bId }) //[cite: 2]
     if (!error && data && data.length > 0) {
       if (data[0].business_name) setBusinessName(data[0].business_name)
       if (data[0].logo_url) setBusinessLogo(data[0].logo_url)
@@ -158,7 +156,7 @@ export default function CashierPage() {
 
   async function loadPendingOrders(branchId: string) {
     if (!branchId) return
-    const { data, error } = await supabase.rpc('get_pending_orders_safe', { p_branch_id: branchId })
+    const { data, error } = await supabase.rpc('get_pending_orders_safe', { p_branch_id: branchId }) //[cite: 2]
     if (!error && data) setPendingOrders(data)
   }
 
@@ -182,7 +180,7 @@ export default function CashierPage() {
 
   async function loadTodaySales(bId: string, branchId: string, openedAt: string) {
     if (!openedAt) return
-    const { data, error } = await supabase.rpc('get_today_sales_safe', {
+    const { data, error } = await supabase.rpc('get_today_sales_safe', { //[cite: 2]
       p_business_id: bId || businessId,
       p_branch_id: branchId,
       p_since_timestamp: openedAt
@@ -222,7 +220,7 @@ export default function CashierPage() {
     e.preventDefault()
     if (!cashRegister) return
 
-    const { error } = await supabase.rpc('close_cash_register', {
+    const { error } = await supabase.rpc('close_cash_register', { //[cite: 2]
       p_register_id: cashRegister.id,
       p_closing_amount: physicalCash,
       p_total_sales: totalSalesRecord,
@@ -256,7 +254,6 @@ export default function CashierPage() {
   async function handleSelectOrder(order: any) {
     setSelectedOrder(order)
     setLoading(true)
-    setRightTab('gestion')
     setIsMobileOrderModalOpen(true)
 
     if (order.customer_nit) setCustomerNit(order.customer_nit)
@@ -269,7 +266,7 @@ export default function CashierPage() {
     setCashGiven('')
     setCardAmountMixed('')
 
-    const { data, error } = await supabase.rpc('get_order_details_safe', { p_order_id: order.id })
+    const { data, error } = await supabase.rpc('get_order_details_safe', { p_order_id: order.id }) //[cite: 2]
     setLoading(false)
     if (!error && data) setOrderItems(data)
     else setOrderItems([])
@@ -284,7 +281,7 @@ export default function CashierPage() {
       return
     }
 
-    const { data, error } = await supabase.rpc('get_customer_by_nit', {
+    const { data, error } = await supabase.rpc('get_customer_by_nit', { //[cite: 2]
       p_business_id: businessId,
       p_customer_nit: nit.trim()
     })
@@ -328,7 +325,7 @@ export default function CashierPage() {
         return alert("Ingresa un monto válido a pagar con tarjeta en el pago mixto.")
       }
       if (cardPart >= totalOrderAmount) {
-        return alert("El monto con tarjeta no puede ser mayor o igual al total. Si es el total completo, selecciona método Tarjeta.")
+        return alert("El monto con tarjeta no puede ser mayor o igual al total.")
       }
       if (!voucherNumber.trim()) {
         return alert("Por favor ingresa el número de voucher para la parte pagada con tarjeta.")
@@ -336,11 +333,11 @@ export default function CashierPage() {
 
       const remainingToCover = totalOrderAmount - cardPart
       if (isNaN(cashPart) || cashPart < remainingToCover) {
-        return alert(`El efectivo entregado es insuficiente. El saldo restante en efectivo es Q ${remainingToCover.toFixed(2)}.`)
+        return alert(`El efectivo entregado es insuficiente. El saldo restante es Q ${remainingToCover.toFixed(2)}.`)
       }
     }
 
-    const { error } = await supabase.rpc('pay_and_close_order', {
+    const { error } = await supabase.rpc('pay_and_close_order', { //[cite: 2]
       p_order_id: selectedOrder.id,
       p_payment_method: paymentMethod,
       p_customer_nit: customerNit,
@@ -368,7 +365,7 @@ export default function CashierPage() {
   async function handleCancelOrder(orderId: string) {
     if (!confirm("¿Estás seguro de cancelar esta orden?")) return
 
-    const { error } = await supabase.rpc('cancel_order', { p_order_id: orderId })
+    const { error } = await supabase.rpc('cancel_order', { p_order_id: orderId }) //[cite: 2]
 
     if (error) {
       alert("Error al cancelar: " + error.message)
@@ -382,7 +379,7 @@ export default function CashierPage() {
   }
 
   async function handleViewSaleDetails(saleId: string) {
-    const { data, error } = await supabase.rpc('get_sale_details', { p_sale_id: saleId })
+    const { data, error } = await supabase.rpc('get_sale_details', { p_sale_id: saleId }) //[cite: 2]
     if (!error && data) setSelectedSaleDetails(data)
   }
 
@@ -424,9 +421,17 @@ export default function CashierPage() {
   return (
     <div className={`min-h-screen p-2 md:p-4 flex flex-col w-full notranslate pb-20 lg:pb-4 ${themeBg}`} translate="no">
       
-      {/* BARRA SUPERIOR ADAPTABLE PARA MÓVILES Y PC */}
+      {/* BARRA SUPERIOR LIMPIA CON BOTÓN HAMBURGUESA (☰) */}
       <header className={`p-3 rounded-lg shadow mb-3 flex flex-wrap justify-between items-center gap-2 border w-full ${panelBg}`}>
         <div className="flex items-center gap-2.5">
+          <button 
+            onClick={() => setIsDrawerOpen(true)}
+            className="p-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center shadow transition-colors"
+            title="Herramientas y Menú"
+          >
+            ☰
+          </button>
+
           {businessLogo ? (
             <img src={businessLogo} alt="Logo" className="w-12 h-12 md:w-14 md:h-14 object-contain rounded-xl border p-0.5 shadow-sm" />
           ) : (
@@ -436,7 +441,7 @@ export default function CashierPage() {
           )}
 
           <div>
-            <h1 className="text-xs md:text-sm font-bold leading-tight text-emerald-500">💵 Caja / Control</h1>
+            <h1 className="text-xs md:text-sm font-bold leading-tight text-emerald-500">Módulo de Caja</h1>
             <div className={`border px-2 py-0.5 rounded-md font-semibold text-xs mt-1 flex items-center gap-1.5 ${inputBg}`}>
               <span>📍 {branchName}</span>
               <span className="opacity-75">({staffName})</span>
@@ -444,10 +449,10 @@ export default function CashierPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
           {cashRegister ? (
             <div className="flex items-center gap-2">
-              <span className="bg-emerald-500/20 text-emerald-400 text-[11px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
+              <span className="bg-emerald-500/20 text-emerald-400 text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                 Abierta (Q {cashRegister.opening_amount})
               </span>
@@ -455,12 +460,12 @@ export default function CashierPage() {
                 onClick={() => setShowCloseModal(true)}
                 className="bg-amber-600 hover:bg-amber-500 text-[11px] px-2.5 py-1 rounded font-bold text-white shadow"
               >
-                🔒 Cierre
+                🔒 Cierre de Día
               </button>
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <span className="bg-red-500/20 text-red-400 text-[11px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
+              <span className="bg-red-500/20 text-red-400 text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-red-400"></span>
                 Cerrada
               </span>
@@ -468,57 +473,27 @@ export default function CashierPage() {
                 onClick={() => setShowOpenModal(true)}
                 className="bg-emerald-600 hover:bg-emerald-500 text-[11px] px-2.5 py-1 rounded font-bold text-white shadow"
               >
-                ☀️ Apertura
+                ☀️ Inicio de Día
               </button>
             </div>
           )}
         </div>
-        
-        <div className="flex gap-1.5 items-center flex-wrap w-full lg:w-auto justify-between pt-1 lg:pt-0 border-t lg:border-t-0 border-opacity-50">
-          <input 
-            type="text"
-            placeholder="🔍 Buscar orden, NIT..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className={`border px-3 py-1.5 rounded-md text-xs outline-none focus:border-emerald-500 flex-1 lg:w-48 ${inputBg}`}
-          />
-
-          <div className="flex gap-1.5 items-center">
-            {(userRole === 'encargado' || !staffId) && (
-              <>
-                <button onClick={() => router.push('/pos')} className="bg-sky-600 hover:bg-sky-500 px-2.5 py-1.5 rounded font-semibold text-xs text-white shadow">🛒 POS</button>
-                <button onClick={() => router.push('/inventario')} className="bg-emerald-700 hover:bg-emerald-600 px-2.5 py-1.5 rounded font-semibold text-xs text-white shadow">📋 Inv</button>
-              </>
-            )}
-
-            <button onClick={toggleTheme} className={`px-2.5 py-1.5 rounded text-xs font-semibold border ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}>
-              {isDarkMode ? '☀️' : '🌙'}
-            </button>
-
-            <button onClick={openSatPortal} className="bg-sky-600 hover:bg-sky-500 px-2.5 py-1.5 rounded text-xs font-semibold text-white shadow" title="Portal SAT">
-              🏛️ SAT
-            </button>
-
-            <button onClick={handleLogout} className="bg-red-600 hover:bg-red-500 px-2.5 py-1.5 rounded text-xs font-semibold text-white shadow">
-              Salir
-            </button>
-          </div>
-        </div>
       </header>
 
-      {/* DISEÑO PRINCIPAL DE DOS COLUMNAS */}
+      {/* DISEÑO PRINCIPAL: ÓRDENES EN ESPERA (IZQ) Y GESTIÓN/COBRO (DER) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 w-full">
         
-        {/* COLUMNA IZQUIERDA: COMANDAS EN ESPERA (Ocupa 12 cols en móvil, 7 en PC) */}
+        {/* COLUMNA IZQUIERDA: ÓRDENES EN ESPERA */}
         <div className={`p-3 md:p-4 rounded-lg shadow border flex flex-col lg:col-span-7 order-2 lg:order-1 ${panelBg}`}>
-          <div className="flex justify-between items-center mb-3 pb-2 border-b border-opacity-50">
-            <h2 className="text-sm md:text-base font-bold text-emerald-500">🎟️ Comandas en Espera de Pago ({filteredOrders.length})</h2>
-            <button 
-              onClick={() => { loadPendingOrders(selectedBranch); if(cashRegister) loadTodaySales(businessId, selectedBranch, cashRegister.opened_at); }} 
-              className="bg-slate-700 hover:bg-slate-600 text-xs px-2.5 py-1 rounded font-semibold text-white shadow"
-            >
-              🔄 Actualizar
-            </button>
+          <div className="flex justify-between items-center mb-3 pb-2 border-b border-opacity-50 gap-2">
+            <h2 className="text-sm md:text-base font-bold text-emerald-500">🎟️ Órdenes en Espera ({filteredOrders.length})</h2>
+            <input 
+              type="text"
+              placeholder="🔍 Buscar orden o NIT..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className={`border px-3 py-1 rounded text-xs outline-none focus:border-emerald-500 w-48 md:w-64 ${inputBg}`}
+            />
           </div>
 
           <div className="space-y-2.5 overflow-y-auto max-h-[65vh] lg:max-h-[60vh] pr-1 flex-1">
@@ -557,185 +532,234 @@ export default function CashierPage() {
           </div>
         </div>
 
-        {/* COLUMNA DERECHA: GESTIÓN Y VENTAS (Visible en PC [lg+], oculto en móviles) */}
+        {/* COLUMNA DERECHA: GESTIÓN Y COBRO (PC) */}
         <div className={`hidden lg:flex p-4 rounded-lg shadow border flex-col justify-between lg:col-span-5 order-1 lg:order-2 ${panelBg}`}>
           <div>
-            <div className={`grid grid-cols-2 gap-1.5 mb-3 p-1 rounded border text-xs font-bold ${subPanelBg}`}>
-              <button 
-                onClick={() => setRightTab('gestion')}
-                className={`py-1.5 rounded transition-colors ${rightTab === 'gestion' ? 'bg-emerald-600 text-white shadow' : 'opacity-75 hover:opacity-100'}`}
-              >
-                💳 Cobrar Orden
-              </button>
-              <button 
-                onClick={() => setRightTab('ventas')}
-                className={`py-1.5 rounded transition-colors ${rightTab === 'ventas' ? 'bg-emerald-600 text-white shadow' : 'opacity-75 hover:opacity-100'}`}
-              >
-                📊 Ventas Turno ({todaySales.length})
-              </button>
-            </div>
+            <h2 className="text-base font-bold text-emerald-500 mb-3 pb-2 border-b border-opacity-50">💳 Detalle de Cobro</h2>
 
-            {rightTab === 'gestion' && (
-              <div>
-                <h2 className="text-sm font-bold text-emerald-500 mb-2.5">Detalle y Cobro</h2>
+            {selectedOrder ? (
+              <div className="space-y-3 text-xs">
+                <div className={`p-2.5 rounded border space-y-1 ${subPanelBg}`}>
+                  <p><span className="opacity-75">Orden No:</span> <span className="font-bold font-mono text-emerald-500 text-sm">#{selectedOrder.order_number || 'S/N'}</span></p>
+                </div>
 
-                {selectedOrder ? (
-                  <div className="space-y-3 text-xs">
-                    <div className={`p-2.5 rounded border space-y-1 ${subPanelBg}`}>
-                      <p><span className="opacity-75">Orden No:</span> <span className="font-bold font-mono text-emerald-500">#{selectedOrder.order_number || 'S/N'}</span></p>
-                    </div>
-
-                    <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
-                      {loading ? (
-                        <p className="text-center opacity-75 py-2">Cargando...</p>
-                      ) : orderItems.map((item, idx) => (
-                        <div key={idx} className={`p-2 rounded border flex justify-between items-center ${subPanelBg}`}>
-                          <div>
-                            <p className="font-semibold">{item.product_name}</p>
-                            <p className="opacity-75">{item.quantity} x Q {item.price}</p>
-                          </div>
-                          <span className="font-bold text-emerald-500" translate="no">Q {item.quantity * item.price}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="space-y-2 pt-1 border-t border-opacity-50">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="font-medium block mb-0.5">NIT</label>
-                          <input 
-                            type="text"
-                            value={customerNit}
-                            onChange={e => handleNitChange(e.target.value)}
-                            placeholder="CF"
-                            className={`w-full border p-1.5 rounded font-semibold uppercase outline-none ${inputBg}`}
-                          />
-                        </div>
-                        <div>
-                          <label className="font-medium block mb-0.5">Nombre</label>
-                          <input 
-                            type="text"
-                            value={customerName}
-                            onChange={e => setCustomerName(e.target.value)}
-                            placeholder="Cliente"
-                            className={`w-full border p-1.5 rounded outline-none ${inputBg}`}
-                          />
-                        </div>
-                      </div>
-
+                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                  {loading ? (
+                    <p className="text-center opacity-75 py-2">Cargando...</p>
+                  ) : orderItems.map((item, idx) => (
+                    <div key={idx} className={`p-2 rounded border flex justify-between items-center ${subPanelBg}`}>
                       <div>
-                        <label className="font-medium block mb-0.5">Método de Pago</label>
-                        <select 
-                          value={paymentMethod} 
-                          onChange={e => setPaymentMethod(e.target.value as any)} 
-                          className={`w-full p-1.5 rounded border outline-none font-medium ${inputBg}`}
-                        >
-                          <option value="efectivo">Efectivo</option>
-                          <option value="tarjeta">Tarjeta</option>
-                          <option value="mixto">Mixto (Tarjeta + Efectivo)</option>
-                        </select>
+                        <p className="font-semibold">{item.product_name}</p>
+                        <p className="opacity-75">{item.quantity} x Q {item.price}</p>
                       </div>
+                      <span className="font-bold text-emerald-500" translate="no">Q {item.quantity * item.price}</span>
+                    </div>
+                  ))}
+                </div>
 
-                      {paymentMethod === 'efectivo' && (
-                        <div className={`p-2 rounded border border-emerald-500/40 space-y-1.5 ${subPanelBg}`}>
-                          <div>
-                            <label className="text-emerald-500 font-bold block mb-0.5">💵 Efectivo Recibido (Q)</label>
-                            <input 
-                              type="number"
-                              step="0.01"
-                              value={cashGiven}
-                              onChange={e => setCashGiven(e.target.value)}
-                              placeholder="0.00"
-                              className={`w-full border p-1.5 rounded font-bold text-sm outline-none ${inputBg}`}
-                            />
-                          </div>
-                          <div className="flex justify-between items-center font-bold">
-                            <span>Vuelto:</span>
-                            <span className="text-emerald-500" translate="no">Q {cashChange.toFixed(2)}</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {paymentMethod === 'tarjeta' && (
-                        <div>
-                          <label className="text-emerald-500 font-bold block mb-0.5">💳 No. de Voucher</label>
-                          <input 
-                            type="text"
-                            value={voucherNumber}
-                            onChange={e => setVoucherNumber(e.target.value)}
-                            placeholder="Voucher..."
-                            className={`w-full border p-1.5 rounded outline-none font-mono ${inputBg}`}
-                            required
-                          />
-                        </div>
-                      )}
-
-                      {paymentMethod === 'mixto' && (
-                        <div className={`p-2 rounded border border-emerald-500/40 space-y-2 ${subPanelBg}`}>
-                          <div>
-                            <label className="text-emerald-500 font-bold block mb-0.5">💳 Tarjeta (Q)</label>
-                            <input 
-                              type="number"
-                              step="0.01"
-                              value={cardAmountMixed}
-                              onChange={e => setCardAmountMixed(e.target.value)}
-                              placeholder="0.00"
-                              className={`w-full border p-1.5 rounded font-bold outline-none ${inputBg}`}
-                            />
-                          </div>
-                          <div>
-                            <label className="text-emerald-500 font-bold block mb-0.5">💳 No. de Voucher</label>
-                            <input 
-                              type="text"
-                              value={voucherNumber}
-                              onChange={e => setVoucherNumber(e.target.value)}
-                              placeholder="Voucher..."
-                              className={`w-full border p-1.5 rounded outline-none font-mono ${inputBg}`}
-                              required
-                            />
-                          </div>
-                          <div>
-                            <label className="text-emerald-500 font-bold block mb-0.5">💵 Efectivo Restante (Q)</label>
-                            <input 
-                              type="number"
-                              step="0.01"
-                              value={cashGiven}
-                              onChange={e => setCashGiven(e.target.value)}
-                              placeholder="0.00"
-                              className={`w-full border p-1.5 rounded font-bold outline-none ${inputBg}`}
-                            />
-                          </div>
-                          <div className="flex justify-between font-bold pt-1 border-t border-opacity-50">
-                            <span>Vuelto:</span>
-                            <span className="text-emerald-500" translate="no">Q {cashChange.toFixed(2)}</span>
-                          </div>
-                        </div>
-                      )}
+                <div className="space-y-2 pt-1 border-t border-opacity-50">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="font-medium block mb-0.5">NIT</label>
+                      <input 
+                        type="text"
+                        value={customerNit}
+                        onChange={e => handleNitChange(e.target.value)}
+                        placeholder="CF"
+                        className={`w-full border p-1.5 rounded font-semibold uppercase outline-none ${inputBg}`}
+                      />
+                    </div>
+                    <div>
+                      <label className="font-medium block mb-0.5">Nombre</label>
+                      <input 
+                        type="text"
+                        value={customerName}
+                        onChange={e => setCustomerName(e.target.value)}
+                        placeholder="Cliente"
+                        className={`w-full border p-1.5 rounded outline-none ${inputBg}`}
+                      />
                     </div>
                   </div>
-                ) : (
-                  <div className="text-center py-20 opacity-75 text-xs">
-                    Selecciona una orden de la lista para cobrar.
+
+                  <div>
+                    <label className="font-medium block mb-0.5">Método de Pago</label>
+                    <select 
+                      value={paymentMethod} 
+                      onChange={e => setPaymentMethod(e.target.value as any)} 
+                      className={`w-full p-1.5 rounded border outline-none font-medium ${inputBg}`}
+                    >
+                      <option value="efectivo">Efectivo</option>
+                      <option value="tarjeta">Tarjeta</option>
+                      <option value="mixto">Mixto (Tarjeta + Efectivo)</option>
+                    </select>
                   </div>
-                )}
+
+                  {paymentMethod === 'efectivo' && (
+                    <div className={`p-2.5 rounded border border-emerald-500/40 space-y-1.5 ${subPanelBg}`}>
+                      <div>
+                        <label className="text-emerald-500 font-bold block mb-0.5">💵 Efectivo Recibido (Q)</label>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          value={cashGiven}
+                          onChange={e => setCashGiven(e.target.value)}
+                          placeholder="0.00"
+                          className={`w-full border p-1.5 rounded font-bold text-sm outline-none ${inputBg}`}
+                        />
+                      </div>
+                      <div className="flex justify-between items-center font-bold text-sm">
+                        <span>Vuelto:</span>
+                        <span className="text-emerald-500" translate="no">Q {cashChange.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {paymentMethod === 'tarjeta' && (
+                    <div>
+                      <label className="text-emerald-500 font-bold block mb-0.5">💳 No. de Voucher</label>
+                      <input 
+                        type="text"
+                        value={voucherNumber}
+                        onChange={e => setVoucherNumber(e.target.value)}
+                        placeholder="Voucher..."
+                        className={`w-full border p-1.5 rounded outline-none font-mono ${inputBg}`}
+                        required
+                      />
+                    </div>
+                  )}
+
+                  {paymentMethod === 'mixto' && (
+                    <div className={`p-2.5 rounded border border-emerald-500/40 space-y-2 ${subPanelBg}`}>
+                      <div>
+                        <label className="text-emerald-500 font-bold block mb-0.5">💳 Tarjeta (Q)</label>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          value={cardAmountMixed}
+                          onChange={e => setCardAmountMixed(e.target.value)}
+                          placeholder="0.00"
+                          className={`w-full border p-1.5 rounded font-bold outline-none ${inputBg}`}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-emerald-500 font-bold block mb-0.5">💳 No. de Voucher</label>
+                        <input 
+                          type="text"
+                          value={voucherNumber}
+                          onChange={e => setVoucherNumber(e.target.value)}
+                          placeholder="Voucher..."
+                          className={`w-full border p-1.5 rounded outline-none font-mono ${inputBg}`}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="text-emerald-500 font-bold block mb-0.5">💵 Efectivo Restante (Q)</label>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          value={cashGiven}
+                          onChange={e => setCashGiven(e.target.value)}
+                          placeholder="0.00"
+                          className={`w-full border p-1.5 rounded font-bold outline-none ${inputBg}`}
+                        />
+                      </div>
+                      <div className="flex justify-between font-bold text-sm pt-1 border-t border-opacity-50">
+                        <span>Vuelto:</span>
+                        <span className="text-emerald-500" translate="no">Q {cashChange.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-28 opacity-75 text-sm">
+                Selecciona una orden de la izquierda para cobrar.
               </div>
             )}
+          </div>
 
-            {rightTab === 'ventas' && (
-              <div className="space-y-2.5">
+          {selectedOrder && (
+            <div className="border-t border-opacity-50 pt-3 mt-3 space-y-2">
+              <div className="flex justify-between items-center font-bold text-base">
+                <span>Total a Cobrar:</span>
+                <span className="text-emerald-500 text-lg" translate="no">Q {selectedOrder.total_amount}</span>
+              </div>
+
+              <button 
+                onClick={handlePayOrder}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 py-3 rounded-lg font-bold text-xs shadow transition-colors text-white"
+              >
+                💳 Cobrar y Cerrar Orden
+              </button>
+
+              <button 
+                onClick={() => handleCancelOrder(selectedOrder.id)}
+                className="w-full bg-red-700 hover:bg-red-600 py-2 rounded-lg font-semibold text-xs shadow transition-colors text-white"
+              >
+                ❌ Cancelar Orden (Devuelve Stock)
+              </button>
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* MENÚ LATERAL DESLIZANTE (☰) */}
+      {isDrawerOpen && (
+        <div className="fixed inset-0 bg-black/70 flex z-[9999]" onClick={() => setIsDrawerOpen(false)}>
+          <div 
+            className={`w-[380px] md:w-[420px] h-full p-6 flex flex-col shadow-2xl border-r ${panelBg}`}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4 pb-3 border-b border-opacity-50">
+              <h2 className="text-lg font-bold text-emerald-500">🛠️ Opciones de Caja</h2>
+              <button onClick={() => setIsDrawerOpen(false)} className="text-xl font-bold opacity-75 hover:opacity-100 p-1">✕</button>
+            </div>
+
+            <div className="space-y-3 flex-1 overflow-y-auto pr-1 text-xs">
+              <div className="space-y-2">
+                <p className="font-bold text-emerald-500 text-sm">Navegación del Sistema</p>
+                {(userRole === 'encargado' || !staffId) && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => router.push('/pos')} className="bg-sky-600 hover:bg-sky-500 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left">
+                      🛒 Ir al POS
+                    </button>
+                    <button onClick={() => router.push('/inventario')} className="bg-emerald-700 hover:bg-emerald-600 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left">
+                      📋 Inventario
+                    </button>
+                  </div>
+                )}
+                <button onClick={openSatPortal} className="w-full bg-sky-600 hover:bg-sky-500 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
+                  <span>🏛️ Facturar en Portal SAT</span>
+                  <span>➔</span>
+                </button>
+              </div>
+
+              <div className="pt-3 border-t border-opacity-50 space-y-2">
+                <p className="font-bold text-emerald-500 text-sm">Apariencia y Sesión</p>
+                <button onClick={toggleTheme} className={`w-full py-2.5 px-3 rounded-lg font-semibold border text-left ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}>
+                  {isDarkMode ? '☀️ Cambiar a Modo Claro' : '🌙 Cambiar a Modo Oscuro'}
+                </button>
+                <button onClick={handleLogout} className="w-full bg-red-600 hover:bg-red-500 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left">
+                  🚪 Cerrar Sesión
+                </button>
+              </div>
+
+              <div className="pt-3 border-t border-opacity-50 space-y-2">
+                <p className="font-bold text-emerald-500 text-sm">📊 Resumen de Turno Actual</p>
                 <div className={`p-3 rounded-lg border border-emerald-500/40 flex justify-between items-center shadow ${subPanelBg}`}>
                   <div>
-                    <p className="text-[10px] opacity-75 uppercase font-medium">Ventas de Turno</p>
-                    <p className="text-sm font-extrabold text-emerald-500" translate="no">Q {totalTodaySales}</p>
+                    <p className="text-[10px] opacity-75 uppercase font-medium">Ventas Totales</p>
+                    <p className="text-base font-extrabold text-emerald-500" translate="no">Q {totalTodaySales}</p>
                   </div>
                   <span className="text-[10px] bg-emerald-500/25 text-emerald-400 font-bold px-2 py-0.5 rounded">
                     {todaySales.length} {todaySales.length === 1 ? 'ticket' : 'tickets'}
                   </span>
                 </div>
 
-                <div className="space-y-1.5 max-h-[42vh] overflow-y-auto pr-1 text-xs">
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                   {todaySales.length === 0 ? (
-                    <p className="opacity-75 text-center py-8 text-xs">No hay ventas registradas aún.</p>
+                    <p className="opacity-75 text-center py-6 text-xs">No hay ventas registradas en este turno.</p>
                   ) : (
                     todaySales.map((sale) => (
                       <div 
@@ -747,42 +771,18 @@ export default function CashierPage() {
                           <span>NIT: {sale.customer_nit}</span>
                           <span className="text-emerald-500" translate="no">Q {sale.total_amount}</span>
                         </div>
-                        <p className="text-[10px] opacity-75">{sale.customer_name}</p>
+                        <p className="text-[10px] opacity-75">Cliente: {sale.customer_name}</p>
                       </div>
                     ))
                   )}
                 </div>
               </div>
-            )}
-          </div>
-
-          {rightTab === 'gestion' && selectedOrder && (
-            <div className="border-t border-opacity-50 pt-2.5 mt-2.5 space-y-2">
-              <div className="flex justify-between items-center font-bold text-sm">
-                <span>Total a Cobrar:</span>
-                <span className="text-emerald-500 text-base" translate="no">Q {selectedOrder.total_amount}</span>
-              </div>
-
-              <button 
-                onClick={handlePayOrder}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-lg font-bold text-xs shadow transition-colors text-white"
-              >
-                💳 Cobrar y Cerrar Orden
-              </button>
-
-              <button 
-                onClick={() => handleCancelOrder(selectedOrder.id)}
-                className="w-full bg-red-700 hover:bg-red-600 py-1.5 rounded-lg font-semibold text-[11px] shadow transition-colors text-white"
-              >
-                ❌ Cancelar Orden
-              </button>
             </div>
-          )}
+          </div>
         </div>
+      )}
 
-      </div>
-
-      {/* PANEL FLOTANTE PARA MÓVILES AL SELECCIONAR UNA ORDEN */}
+      {/* PANEL FLOTANTE MÓVIL AL SELECCIONAR ORDEN */}
       {isMobileOrderModalOpen && selectedOrder && (
         <div className="lg:hidden fixed inset-0 bg-black/85 flex items-end z-50 animate-fadeIn" onClick={() => setIsMobileOrderModalOpen(false)}>
           <div 
