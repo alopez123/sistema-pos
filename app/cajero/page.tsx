@@ -19,6 +19,9 @@ export default function CashierPage() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null)
   const [orderItems, setOrderItems] = useState<any[]>([])
   
+  // Estado para el panel deslizable en móviles al seleccionar orden
+  const [isMobileOrderModalOpen, setIsMobileOrderModalOpen] = useState(false)
+  
   // Estado para el Tema (Modo Oscuro / Modo Claro Local)
   const [isDarkMode, setIsDarkMode] = useState(true)
 
@@ -95,7 +98,7 @@ export default function CashierPage() {
         return
       }
 
-      // Validación estricta de RLS mediante RPC para el estatus de pago del negocio
+      // Validación estricta de RLS mediante RPC para el estatus de pago del negocio[cite: 5]
       const { data: bizDataList, error } = await supabase.rpc('get_business_status_by_id', { p_business_id: resolvedBizId })
 
       if (!error && bizDataList && bizDataList.length > 0) {
@@ -129,19 +132,18 @@ export default function CashierPage() {
     checkBusinessStatusAndRedirect()
   }, [router])
 
-  // --- AUTOREFRESH CADA 30 SEGUNDOS (OPTIMIZADO PARA EVITAR BLOQUEOS) ---
+  // --- AUTOREFRESH CADA 30 SEGUNDOS (OPTIMIZADO PARA EVITAR BLOQUEOS)[cite: 5] ---
   useEffect(() => {
     if (!selectedBranch || !cashRegister) return
 
     const interval = setInterval(() => {
-      // Solo refresca si el cajero NO está gestionando o cobrando activamente una orden
       if (!selectedOrder) {
         loadPendingOrders(selectedBranch)
         if (cashRegister) {
           loadTodaySales(businessId, selectedBranch, cashRegister.opened_at)
         }
       }
-    }, 30000) // 30 segundos
+    }, 30000)
 
     return () => clearInterval(interval)
   }, [selectedBranch, cashRegister, selectedOrder, businessId])
@@ -255,6 +257,7 @@ export default function CashierPage() {
     setSelectedOrder(order)
     setLoading(true)
     setRightTab('gestion')
+    setIsMobileOrderModalOpen(true)
 
     if (order.customer_nit) setCustomerNit(order.customer_nit)
     else setCustomerNit('CF')
@@ -356,6 +359,7 @@ export default function CashierPage() {
       setVoucherNumber('')
       setCashGiven('')
       setCardAmountMixed('')
+      setIsMobileOrderModalOpen(false)
       loadPendingOrders(selectedBranch)
       if (cashRegister) loadTodaySales(businessId, selectedBranch, cashRegister.opened_at)
     }
@@ -372,6 +376,7 @@ export default function CashierPage() {
       alert("Orden cancelada correctamente.")
       setSelectedOrder(null)
       setOrderItems([])
+      setIsMobileOrderModalOpen(false)
       loadPendingOrders(selectedBranch)
     }
   }
@@ -417,145 +422,134 @@ export default function CashierPage() {
   const inputBg = isDarkMode ? 'bg-[#0f172a] text-white border-slate-600' : 'bg-white text-slate-900 border-slate-300'
 
   return (
-    <div className={`min-h-screen p-6 flex flex-col w-full notranslate ${themeBg}`} translate="no">
-      <header className={`p-4 rounded-lg shadow mb-6 flex flex-wrap justify-between items-center gap-4 border ${panelBg}`}>
-        <div className="flex items-center gap-4">
+    <div className={`min-h-screen p-2 md:p-4 flex flex-col w-full notranslate pb-20 lg:pb-4 ${themeBg}`} translate="no">
+      
+      {/* BARRA SUPERIOR ADAPTABLE PARA MÓVILES Y PC */}
+      <header className={`p-3 rounded-lg shadow mb-3 flex flex-wrap justify-between items-center gap-2 border w-full ${panelBg}`}>
+        <div className="flex items-center gap-2.5">
           {businessLogo ? (
-            <img src={businessLogo} alt="Logo" className="w-10 h-10 object-cover rounded-lg border border-slate-600 shadow" />
+            <img src={businessLogo} alt="Logo" className="w-12 h-12 md:w-14 md:h-14 object-contain rounded-xl border p-0.5 shadow-sm" />
           ) : (
-            <div className="w-10 h-10 rounded-lg bg-emerald-600/30 border border-emerald-500/50 flex items-center justify-center font-bold text-emerald-500 text-sm uppercase">
+            <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-emerald-600/30 border border-emerald-500/50 flex items-center justify-center font-bold text-emerald-500 text-sm uppercase shadow-sm">
               {businessName ? businessName.substring(0, 2) : 'NE'}
             </div>
           )}
 
-          <h1 className="text-xl font-bold text-emerald-500">💵 Caja / Control de Órdenes</h1>
-          
-          <div className={`border px-3 py-2 rounded font-bold text-sm flex items-center gap-2 ${subPanelBg}`}>
-            <span>📍 {branchName}</span>
-            <span className="text-xs opacity-75 font-normal">({staffName})</span>
-          </div>
-
-          <div className="flex items-center gap-2 pl-4 border-l border-opacity-50">
-            {cashRegister ? (
-              <div className="flex items-center gap-3">
-                <span className="bg-emerald-500/20 text-emerald-400 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Caja Abierta (Inicio: Q {cashRegister.opening_amount})
-                </span>
-                <button 
-                  onClick={() => setShowCloseModal(true)}
-                  className="bg-amber-600 hover:bg-amber-500 text-xs px-3 py-1.5 rounded font-bold transition-colors text-white"
-                >
-                  🔒 Cierre de Día
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <span className="bg-red-500/20 text-red-400 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-red-400"></span>
-                  Caja Cerrada
-                </span>
-                <button 
-                  onClick={() => setShowOpenModal(true)}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-xs px-3 py-1.5 rounded font-bold transition-colors shadow text-white"
-                >
-                  ☀️ Inicio de Día
-                </button>
-              </div>
-            )}
+          <div>
+            <h1 className="text-xs md:text-sm font-bold leading-tight text-emerald-500">💵 Caja / Control</h1>
+            <div className={`border px-2 py-0.5 rounded-md font-semibold text-xs mt-1 flex items-center gap-1.5 ${inputBg}`}>
+              <span>📍 {branchName}</span>
+              <span className="opacity-75">({staffName})</span>
+            </div>
           </div>
         </div>
 
-        <div className="flex-1 max-w-xs">
-          <input 
-            type="text"
-            placeholder="🔍 Buscar No. Orden, NIT o Nombre..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className={`w-full border px-3 py-2 rounded text-sm outline-none focus:border-emerald-500 ${inputBg}`}
-          />
+        <div className="flex items-center gap-2 flex-wrap">
+          {cashRegister ? (
+            <div className="flex items-center gap-2">
+              <span className="bg-emerald-500/20 text-emerald-400 text-[11px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                Abierta (Q {cashRegister.opening_amount})
+              </span>
+              <button 
+                onClick={() => setShowCloseModal(true)}
+                className="bg-amber-600 hover:bg-amber-500 text-[11px] px-2.5 py-1 rounded font-bold text-white shadow"
+              >
+                🔒 Cierre
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="bg-red-500/20 text-red-400 text-[11px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-red-400"></span>
+                Cerrada
+              </span>
+              <button 
+                onClick={() => setShowOpenModal(true)}
+                className="bg-emerald-600 hover:bg-emerald-500 text-[11px] px-2.5 py-1 rounded font-bold text-white shadow"
+              >
+                ☀️ Apertura
+              </button>
+            </div>
+          )}
         </div>
         
-        <div className="flex gap-2 items-center">
-          {/* BOTONES EXCLUSIVOS PARA ROL ENCARGADO O ADMIN MASTER */}
-          {(userRole === 'encargado' || !staffId) && (
-            <>
-              <button 
-                onClick={() => router.push('/pos')} 
-                className="bg-sky-600 hover:bg-sky-500 px-3 py-2 rounded font-semibold text-sm transition-colors shadow flex items-center gap-1.5 text-white"
-                title="Regresar a la pantalla del POS"
-              >
-                🛒 POS
-              </button>
+        <div className="flex gap-1.5 items-center flex-wrap w-full lg:w-auto justify-between pt-1 lg:pt-0 border-t lg:border-t-0 border-opacity-50">
+          <input 
+            type="text"
+            placeholder="🔍 Buscar orden, NIT..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className={`border px-3 py-1.5 rounded-md text-xs outline-none focus:border-emerald-500 flex-1 lg:w-48 ${inputBg}`}
+          />
 
-              <button 
-                onClick={() => router.push('/inventario')} 
-                className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-sm transition-colors shadow flex items-center gap-1.5 text-white"
-                title="Ir al módulo de Inventario"
-              >
-                📋 Inventario
-              </button>
-            </>
-          )}
+          <div className="flex gap-1.5 items-center">
+            {(userRole === 'encargado' || !staffId) && (
+              <>
+                <button onClick={() => router.push('/pos')} className="bg-sky-600 hover:bg-sky-500 px-2.5 py-1.5 rounded font-semibold text-xs text-white shadow">🛒 POS</button>
+                <button onClick={() => router.push('/inventario')} className="bg-emerald-700 hover:bg-emerald-600 px-2.5 py-1.5 rounded font-semibold text-xs text-white shadow">📋 Inv</button>
+              </>
+            )}
 
-          <button 
-            onClick={toggleTheme}
-            className={`px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors border ${isDarkMode ? 'bg-slate-700 hover:bg-slate-600 text-amber-300 border-slate-600' : 'bg-slate-200 hover:bg-slate-300 text-slate-800 border-slate-300'}`}
-          >
-            {isDarkMode ? '☀️ Modo Claro' : '🌙 Modo Oscuro'}
-          </button>
+            <button onClick={toggleTheme} className={`px-2.5 py-1.5 rounded text-xs font-semibold border ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}>
+              {isDarkMode ? '☀️' : '🌙'}
+            </button>
 
-          <button 
-            onClick={openSatPortal} 
-            className="bg-sky-600 hover:bg-sky-500 px-4 py-2 rounded font-semibold text-sm transition-colors shadow flex items-center gap-1.5 text-white"
-            title="Abrir portal de la SAT para emitir factura"
-          >
-            🏛️ Facturar en SAT
-          </button>
+            <button onClick={openSatPortal} className="bg-sky-600 hover:bg-sky-500 px-2.5 py-1.5 rounded text-xs font-semibold text-white shadow" title="Portal SAT">
+              🏛️ SAT
+            </button>
 
-          <button onClick={() => { loadPendingOrders(selectedBranch); if(cashRegister) loadTodaySales(businessId, selectedBranch, cashRegister.opened_at); }} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded font-semibold text-sm text-white">
-            🔄 Actualizar
-          </button>
-          <button onClick={handleLogout} className="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-semibold text-sm transition-colors shadow text-white">
-            🚪 Cerrar Sesión
-          </button>
+            <button onClick={handleLogout} className="bg-red-600 hover:bg-red-500 px-2.5 py-1.5 rounded text-xs font-semibold text-white shadow">
+              Salir
+            </button>
+          </div>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
+      {/* DISEÑO PRINCIPAL DE DOS COLUMNAS */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 w-full">
         
-        <div className={`p-5 rounded-lg border flex flex-col ${panelBg}`}>
-          <h2 className="text-base font-bold opacity-80 mb-4">Comandas en Espera de Pago ({filteredOrders.length})</h2>
+        {/* COLUMNA IZQUIERDA: COMANDAS EN ESPERA (Ocupa 12 cols en móvil, 7 en PC) */}
+        <div className={`p-3 md:p-4 rounded-lg shadow border flex flex-col lg:col-span-7 order-2 lg:order-1 ${panelBg}`}>
+          <div className="flex justify-between items-center mb-3 pb-2 border-b border-opacity-50">
+            <h2 className="text-sm md:text-base font-bold text-emerald-500">🎟️ Comandas en Espera de Pago ({filteredOrders.length})</h2>
+            <button 
+              onClick={() => { loadPendingOrders(selectedBranch); if(cashRegister) loadTodaySales(businessId, selectedBranch, cashRegister.opened_at); }} 
+              className="bg-slate-700 hover:bg-slate-600 text-xs px-2.5 py-1 rounded font-semibold text-white shadow"
+            >
+              🔄 Actualizar
+            </button>
+          </div>
 
-          <div className="space-y-3 overflow-y-auto max-h-[70vh] pr-1">
+          <div className="space-y-2.5 overflow-y-auto max-h-[65vh] lg:max-h-[60vh] pr-1 flex-1">
             {filteredOrders.length === 0 ? (
-              <div className="text-center py-16 opacity-75">
-                <p className="text-lg">No hay órdenes pendientes en este momento.</p>
+              <div className="text-center py-16 opacity-75 text-sm">
+                No hay órdenes pendientes en este momento.
               </div>
             ) : (
               filteredOrders.map(order => (
                 <div 
                   key={order.id} 
                   onClick={() => handleSelectOrder(order)}
-                  className={`p-4 rounded-lg border cursor-pointer transition-all flex justify-between items-center ${subPanelBg} ${
-                    selectedOrder?.id === order.id ? 'border-emerald-500 shadow-lg' : 'hover:border-slate-500'
+                  className={`p-3 rounded-lg border cursor-pointer transition-all flex justify-between items-center ${subPanelBg} ${
+                    selectedOrder?.id === order.id ? 'border-emerald-500 ring-1 ring-emerald-500 shadow-md' : 'hover:border-slate-500'
                   }`}
                 >
                   <div>
-                    <div className="flex items-center gap-3 mb-1">
-                      <span className="bg-emerald-500/20 text-emerald-400 font-mono font-bold px-2.5 py-0.5 rounded text-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="bg-emerald-500/20 text-emerald-400 font-mono font-bold px-2 py-0.5 rounded text-xs">
                         Orden #{order.order_number || 'S/N'}
                       </span>
-                      <span className="text-xs bg-amber-500/20 text-amber-400 font-bold px-2 py-0.5 rounded">Pendiente</span>
-                      <span className="text-xs opacity-75">{new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="text-[10px] bg-amber-500/20 text-amber-400 font-bold px-1.5 py-0.5 rounded">Pendiente</span>
+                      <span className="text-[10px] opacity-75">{new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
-                    <p className="font-bold text-base">Cliente: {order.customer_name || 'Consumidor Final'}</p>
-                    <p className="text-xs opacity-75">NIT: <span className="font-mono text-emerald-500">{order.customer_nit || 'CF'}</span></p>
+                    <p className="font-bold text-xs md:text-sm">Cliente: {order.customer_name || 'Consumidor Final'}</p>
+                    <p className="text-[11px] opacity-75">NIT: <span className="font-mono text-emerald-500">{order.customer_nit || 'CF'}</span></p>
                   </div>
 
                   <div className="text-right">
-                    <span className="text-emerald-500 font-extrabold text-xl" translate="no">Q {order.total_amount}</span>
-                    <p className="text-xs opacity-75 mt-1">Clic para gestionar</p>
+                    <span className="text-emerald-500 font-extrabold text-sm md:text-base" translate="no">Q {order.total_amount}</span>
+                    <p className="text-[10px] opacity-60 mt-0.5">Cobrar ➔</p>
                   </div>
                 </div>
               ))
@@ -563,38 +557,39 @@ export default function CashierPage() {
           </div>
         </div>
 
-        <div className={`p-5 rounded-lg border flex flex-col justify-between ${panelBg}`}>
+        {/* COLUMNA DERECHA: GESTIÓN Y VENTAS (Visible en PC [lg+], oculto en móviles) */}
+        <div className={`hidden lg:flex p-4 rounded-lg shadow border flex-col justify-between lg:col-span-5 order-1 lg:order-2 ${panelBg}`}>
           <div>
-            <div className={`grid grid-cols-2 gap-1.5 mb-4 p-1.5 rounded border text-xs font-bold ${subPanelBg}`}>
+            <div className={`grid grid-cols-2 gap-1.5 mb-3 p-1 rounded border text-xs font-bold ${subPanelBg}`}>
               <button 
                 onClick={() => setRightTab('gestion')}
-                className={`py-2 rounded transition-colors ${rightTab === 'gestion' ? 'bg-emerald-600 text-white' : 'opacity-75 hover:opacity-100'}`}
+                className={`py-1.5 rounded transition-colors ${rightTab === 'gestion' ? 'bg-emerald-600 text-white shadow' : 'opacity-75 hover:opacity-100'}`}
               >
                 💳 Cobrar Orden
               </button>
               <button 
                 onClick={() => setRightTab('ventas')}
-                className={`py-2 rounded transition-colors ${rightTab === 'ventas' ? 'bg-emerald-600 text-white' : 'opacity-75 hover:opacity-100'}`}
+                className={`py-1.5 rounded transition-colors ${rightTab === 'ventas' ? 'bg-emerald-600 text-white shadow' : 'opacity-75 hover:opacity-100'}`}
               >
-                📊 Ventas de mi Caja ({todaySales.length})
+                📊 Ventas Turno ({todaySales.length})
               </button>
             </div>
 
             {rightTab === 'gestion' && (
               <div>
-                <h2 className="text-base font-bold text-emerald-500 mb-3">Detalle de la Orden y Cobro</h2>
+                <h2 className="text-sm font-bold text-emerald-500 mb-2.5">Detalle y Cobro</h2>
 
                 {selectedOrder ? (
-                  <div className="space-y-3">
-                    <div className={`p-3 rounded border text-xs space-y-1 ${subPanelBg}`}>
-                      <p><span className="opacity-75">Orden No:</span> <span className="font-bold font-mono text-emerald-500 text-sm">#{selectedOrder.order_number || 'S/N'}</span></p>
+                  <div className="space-y-3 text-xs">
+                    <div className={`p-2.5 rounded border space-y-1 ${subPanelBg}`}>
+                      <p><span className="opacity-75">Orden No:</span> <span className="font-bold font-mono text-emerald-500">#{selectedOrder.order_number || 'S/N'}</span></p>
                     </div>
 
-                    <div className="space-y-1.5 max-h-28 overflow-y-auto pr-1">
+                    <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
                       {loading ? (
                         <p className="text-center opacity-75 py-2">Cargando...</p>
                       ) : orderItems.map((item, idx) => (
-                        <div key={idx} className={`p-2 rounded border flex justify-between items-center text-xs ${subPanelBg}`}>
+                        <div key={idx} className={`p-2 rounded border flex justify-between items-center ${subPanelBg}`}>
                           <div>
                             <p className="font-semibold">{item.product_name}</p>
                             <p className="opacity-75">{item.quantity} x Q {item.price}</p>
@@ -604,56 +599,57 @@ export default function CashierPage() {
                       ))}
                     </div>
 
-                    <div className="pt-2 border-t border-opacity-50 space-y-2 text-xs">
-                      <div>
-                        <label className="font-medium block mb-1">NIT del Cliente (o CF)</label>
-                        <input 
-                          type="text"
-                          value={customerNit}
-                          onChange={e => handleNitChange(e.target.value)}
-                          placeholder="CF o Número de NIT"
-                          className={`w-full border p-2 rounded font-semibold uppercase outline-none focus:border-emerald-500 ${inputBg}`}
-                        />
+                    <div className="space-y-2 pt-1 border-t border-opacity-50">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="font-medium block mb-0.5">NIT</label>
+                          <input 
+                            type="text"
+                            value={customerNit}
+                            onChange={e => handleNitChange(e.target.value)}
+                            placeholder="CF"
+                            className={`w-full border p-1.5 rounded font-semibold uppercase outline-none ${inputBg}`}
+                          />
+                        </div>
+                        <div>
+                          <label className="font-medium block mb-0.5">Nombre</label>
+                          <input 
+                            type="text"
+                            value={customerName}
+                            onChange={e => setCustomerName(e.target.value)}
+                            placeholder="Cliente"
+                            className={`w-full border p-1.5 rounded outline-none ${inputBg}`}
+                          />
+                        </div>
                       </div>
 
                       <div>
-                        <label className="font-medium block mb-1">Nombre / Razón Social</label>
-                        <input 
-                          type="text"
-                          value={customerName}
-                          onChange={e => setCustomerName(e.target.value)}
-                          placeholder="Nombre del cliente"
-                          className={`w-full border p-2 rounded outline-none focus:border-emerald-500 ${inputBg}`}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="font-medium block mb-1">Método de Pago</label>
+                        <label className="font-medium block mb-0.5">Método de Pago</label>
                         <select 
                           value={paymentMethod} 
                           onChange={e => setPaymentMethod(e.target.value as any)} 
-                          className={`w-full p-2 rounded border outline-none font-medium ${inputBg}`}
+                          className={`w-full p-1.5 rounded border outline-none font-medium ${inputBg}`}
                         >
                           <option value="efectivo">Efectivo</option>
-                          <option value="tarjeta">Tarjeta de Crédito / Débito</option>
+                          <option value="tarjeta">Tarjeta</option>
                           <option value="mixto">Mixto (Tarjeta + Efectivo)</option>
                         </select>
                       </div>
 
                       {paymentMethod === 'efectivo' && (
-                        <div className={`p-2.5 rounded border border-emerald-500/40 space-y-2 ${subPanelBg}`}>
+                        <div className={`p-2 rounded border border-emerald-500/40 space-y-1.5 ${subPanelBg}`}>
                           <div>
-                            <label className="text-emerald-500 font-bold block mb-1">💵 Efectivo Recibido (Q)</label>
+                            <label className="text-emerald-500 font-bold block mb-0.5">💵 Efectivo Recibido (Q)</label>
                             <input 
                               type="number"
                               step="0.01"
                               value={cashGiven}
                               onChange={e => setCashGiven(e.target.value)}
-                              placeholder="Monto entregado..."
-                              className={`w-full border p-2 rounded font-bold text-sm outline-none focus:border-emerald-500 ${inputBg}`}
+                              placeholder="0.00"
+                              className={`w-full border p-1.5 rounded font-bold text-sm outline-none ${inputBg}`}
                             />
                           </div>
-                          <div className="flex justify-between items-center pt-1 border-t border-opacity-50 font-bold text-sm">
+                          <div className="flex justify-between items-center font-bold">
                             <span>Vuelto:</span>
                             <span className="text-emerald-500" translate="no">Q {cashChange.toFixed(2)}</span>
                           </div>
@@ -662,113 +658,96 @@ export default function CashierPage() {
 
                       {paymentMethod === 'tarjeta' && (
                         <div>
-                          <label className="text-emerald-500 font-bold block mb-1">💳 No. de Voucher de Tarjeta</label>
+                          <label className="text-emerald-500 font-bold block mb-0.5">💳 No. de Voucher</label>
                           <input 
                             type="text"
                             value={voucherNumber}
                             onChange={e => setVoucherNumber(e.target.value)}
-                            placeholder="Ingrese número de voucher..."
-                            className={`w-full border p-2 rounded outline-none font-mono ${inputBg}`}
+                            placeholder="Voucher..."
+                            className={`w-full border p-1.5 rounded outline-none font-mono ${inputBg}`}
                             required
                           />
                         </div>
                       )}
 
                       {paymentMethod === 'mixto' && (
-                        <div className={`p-2.5 rounded border border-emerald-500/40 space-y-2.5 ${subPanelBg}`}>
+                        <div className={`p-2 rounded border border-emerald-500/40 space-y-2 ${subPanelBg}`}>
                           <div>
-                            <label className="text-emerald-500 font-bold block mb-1">💳 Monto a pagar con Tarjeta (Q)</label>
+                            <label className="text-emerald-500 font-bold block mb-0.5">💳 Tarjeta (Q)</label>
                             <input 
                               type="number"
                               step="0.01"
                               value={cardAmountMixed}
                               onChange={e => setCardAmountMixed(e.target.value)}
-                              placeholder="Ej. 50.00"
-                              className={`w-full border p-2 rounded font-bold text-sm outline-none focus:border-emerald-500 ${inputBg}`}
+                              placeholder="0.00"
+                              className={`w-full border p-1.5 rounded font-bold outline-none ${inputBg}`}
                             />
                           </div>
-
                           <div>
-                            <label className="text-emerald-500 font-bold block mb-1">💳 No. de Voucher de Tarjeta</label>
+                            <label className="text-emerald-500 font-bold block mb-0.5">💳 No. de Voucher</label>
                             <input 
                               type="text"
                               value={voucherNumber}
                               onChange={e => setVoucherNumber(e.target.value)}
-                              placeholder="Ingrese número de voucher..."
-                              className={`w-full border p-2 rounded outline-none font-mono ${inputBg}`}
+                              placeholder="Voucher..."
+                              className={`w-full border p-1.5 rounded outline-none font-mono ${inputBg}`}
                               required
                             />
                           </div>
-
                           <div>
-                            <label className="text-emerald-500 font-bold block mb-1">💵 Efectivo Recibido para el Restante (Q)</label>
+                            <label className="text-emerald-500 font-bold block mb-0.5">💵 Efectivo Restante (Q)</label>
                             <input 
                               type="number"
                               step="0.01"
                               value={cashGiven}
                               onChange={e => setCashGiven(e.target.value)}
-                              placeholder="Efectivo entregado..."
-                              className={`w-full border p-2 rounded font-bold text-sm outline-none focus:border-emerald-500 ${inputBg}`}
+                              placeholder="0.00"
+                              className={`w-full border p-1.5 rounded font-bold outline-none ${inputBg}`}
                             />
                           </div>
-
-                          <div className="pt-1 border-t border-opacity-50 space-y-1 text-xs">
-                            <div className="flex justify-between">
-                              <span className="opacity-75">Restante a pagar en efectivo:</span>
-                              <span className="font-bold text-amber-500" translate="no">
-                                Q {Math.max(0, totalAmountNum - (parseFloat(cardAmountMixed) || 0)).toFixed(2)}
-                              </span>
-                            </div>
-                            <div className="flex justify-between font-bold text-sm">
-                              <span>Vuelto:</span>
-                              <span className="text-emerald-500" translate="no">Q {cashChange.toFixed(2)}</span>
-                            </div>
+                          <div className="flex justify-between font-bold pt-1 border-t border-opacity-50">
+                            <span>Vuelto:</span>
+                            <span className="text-emerald-500" translate="no">Q {cashChange.toFixed(2)}</span>
                           </div>
                         </div>
                       )}
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center py-16 opacity-75 text-sm">
-                    Selecciona una orden de la lista para ver su detalle y cobrar.
+                  <div className="text-center py-20 opacity-75 text-xs">
+                    Selecciona una orden de la lista para cobrar.
                   </div>
                 )}
               </div>
             )}
 
             {rightTab === 'ventas' && (
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 <div className={`p-3 rounded-lg border border-emerald-500/40 flex justify-between items-center shadow ${subPanelBg}`}>
                   <div>
-                    <p className="text-[10px] opacity-75 uppercase font-medium">Ventas de mi Turno Actual</p>
-                    <p className="text-base font-extrabold text-emerald-500" translate="no">Q {totalTodaySales}</p>
+                    <p className="text-[10px] opacity-75 uppercase font-medium">Ventas de Turno</p>
+                    <p className="text-sm font-extrabold text-emerald-500" translate="no">Q {totalTodaySales}</p>
                   </div>
                   <span className="text-[10px] bg-emerald-500/25 text-emerald-400 font-bold px-2 py-0.5 rounded">
                     {todaySales.length} {todaySales.length === 1 ? 'ticket' : 'tickets'}
                   </span>
                 </div>
 
-                <p className="text-[11px] opacity-75">💡 Clic en cualquier venta para ver los productos.</p>
-
-                <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                <div className="space-y-1.5 max-h-[42vh] overflow-y-auto pr-1 text-xs">
                   {todaySales.length === 0 ? (
-                    <p className="opacity-75 text-center py-10 text-xs">No hay ventas registradas en este turno aún.</p>
+                    <p className="opacity-75 text-center py-8 text-xs">No hay ventas registradas aún.</p>
                   ) : (
                     todaySales.map((sale) => (
                       <div 
                         key={sale.sale_id}
                         onClick={() => handleViewSaleDetails(sale.sale_id)}
-                        className={`p-3 rounded border hover:border-emerald-500 cursor-pointer transition-all space-y-1 text-xs ${subPanelBg}`}
+                        className={`p-2.5 rounded border hover:border-emerald-500 cursor-pointer transition-all space-y-1 ${subPanelBg}`}
                       >
                         <div className="flex justify-between font-bold">
                           <span>NIT: {sale.customer_nit}</span>
                           <span className="text-emerald-500" translate="no">Q {sale.total_amount}</span>
                         </div>
-                        <p className="text-[11px] opacity-75">Cliente: {sale.customer_name}</p>
-                        <div className="flex justify-between text-[10px] opacity-75 pt-1 border-t border-opacity-50">
-                          <span className="uppercase text-amber-500 font-semibold">{sale.payment_method} {sale.voucher_number ? `(#${sale.voucher_number})` : ''}</span>
-                          <span>{new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
+                        <p className="text-[10px] opacity-75">{sale.customer_name}</p>
                       </div>
                     ))
                   )}
@@ -778,15 +757,185 @@ export default function CashierPage() {
           </div>
 
           {rightTab === 'gestion' && selectedOrder && (
+            <div className="border-t border-opacity-50 pt-2.5 mt-2.5 space-y-2">
+              <div className="flex justify-between items-center font-bold text-sm">
+                <span>Total a Cobrar:</span>
+                <span className="text-emerald-500 text-base" translate="no">Q {selectedOrder.total_amount}</span>
+              </div>
+
+              <button 
+                onClick={handlePayOrder}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-lg font-bold text-xs shadow transition-colors text-white"
+              >
+                💳 Cobrar y Cerrar Orden
+              </button>
+
+              <button 
+                onClick={() => handleCancelOrder(selectedOrder.id)}
+                className="w-full bg-red-700 hover:bg-red-600 py-1.5 rounded-lg font-semibold text-[11px] shadow transition-colors text-white"
+              >
+                ❌ Cancelar Orden
+              </button>
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* PANEL FLOTANTE PARA MÓVILES AL SELECCIONAR UNA ORDEN */}
+      {isMobileOrderModalOpen && selectedOrder && (
+        <div className="lg:hidden fixed inset-0 bg-black/85 flex items-end z-50 animate-fadeIn" onClick={() => setIsMobileOrderModalOpen(false)}>
+          <div 
+            className={`w-full max-h-[92vh] rounded-t-2xl p-4 flex flex-col justify-between shadow-2xl border-t ${panelBg}`}
+            onClick={e => e.stopPropagation()}
+          >
+            <div>
+              <div className="flex justify-between items-center mb-3 pb-2 border-b border-opacity-50">
+                <h2 className="text-sm font-bold text-emerald-500">💳 Cobrar Orden #{selectedOrder.order_number}</h2>
+                <button onClick={() => setIsMobileOrderModalOpen(false)} className="text-lg font-bold opacity-75">✕</button>
+              </div>
+
+              <div className="space-y-3 overflow-y-auto max-h-[55vh] pr-1 text-xs">
+                <div className={`p-2.5 rounded border space-y-1 ${subPanelBg}`}>
+                  <p><span className="opacity-75">Cliente:</span> <span className="font-bold">{selectedOrder.customer_name}</span></p>
+                  <p><span className="opacity-75">NIT:</span> <span className="font-mono text-emerald-500">{selectedOrder.customer_nit}</span></p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="font-bold opacity-80">Productos:</p>
+                  {orderItems.map((item, idx) => (
+                    <div key={idx} className={`p-2 rounded border flex justify-between items-center ${subPanelBg}`}>
+                      <span>{item.quantity} x {item.product_name}</span>
+                      <span className="text-emerald-500 font-bold" translate="no">Q {item.quantity * item.price}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-2 pt-1 border-t border-opacity-50">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="font-medium block mb-0.5">NIT</label>
+                      <input 
+                        type="text"
+                        value={customerNit}
+                        onChange={e => handleNitChange(e.target.value)}
+                        placeholder="CF"
+                        className={`w-full border p-2 rounded font-semibold uppercase outline-none ${inputBg}`}
+                      />
+                    </div>
+                    <div>
+                      <label className="font-medium block mb-0.5">Nombre</label>
+                      <input 
+                        type="text"
+                        value={customerName}
+                        onChange={e => setCustomerName(e.target.value)}
+                        placeholder="Cliente"
+                        className={`w-full border p-2 rounded outline-none ${inputBg}`}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-medium block mb-0.5">Método de Pago</label>
+                    <select 
+                      value={paymentMethod} 
+                      onChange={e => setPaymentMethod(e.target.value as any)} 
+                      className={`w-full p-2 rounded border outline-none font-medium ${inputBg}`}
+                    >
+                      <option value="efectivo">Efectivo</option>
+                      <option value="tarjeta">Tarjeta</option>
+                      <option value="mixto">Mixto (Tarjeta + Efectivo)</option>
+                    </select>
+                  </div>
+
+                  {paymentMethod === 'efectivo' && (
+                    <div className={`p-2.5 rounded border border-emerald-500/40 space-y-1.5 ${subPanelBg}`}>
+                      <div>
+                        <label className="text-emerald-500 font-bold block mb-0.5">💵 Efectivo Recibido (Q)</label>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          value={cashGiven}
+                          onChange={e => setCashGiven(e.target.value)}
+                          placeholder="0.00"
+                          className={`w-full border p-2 rounded font-bold text-sm outline-none ${inputBg}`}
+                        />
+                      </div>
+                      <div className="flex justify-between items-center font-bold text-sm">
+                        <span>Vuelto:</span>
+                        <span className="text-emerald-500" translate="no">Q {cashChange.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {paymentMethod === 'tarjeta' && (
+                    <div>
+                      <label className="text-emerald-500 font-bold block mb-0.5">💳 No. de Voucher</label>
+                      <input 
+                        type="text"
+                        value={voucherNumber}
+                        onChange={e => setVoucherNumber(e.target.value)}
+                        placeholder="Voucher..."
+                        className={`w-full border p-2 rounded outline-none font-mono ${inputBg}`}
+                        required
+                      />
+                    </div>
+                  )}
+
+                  {paymentMethod === 'mixto' && (
+                    <div className={`p-2.5 rounded border border-emerald-500/40 space-y-2 ${subPanelBg}`}>
+                      <div>
+                        <label className="text-emerald-500 font-bold block mb-0.5">💳 Tarjeta (Q)</label>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          value={cardAmountMixed}
+                          onChange={e => setCardAmountMixed(e.target.value)}
+                          placeholder="0.00"
+                          className={`w-full border p-2 rounded font-bold outline-none ${inputBg}`}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-emerald-500 font-bold block mb-0.5">💳 No. de Voucher</label>
+                        <input 
+                          type="text"
+                          value={voucherNumber}
+                          onChange={e => setVoucherNumber(e.target.value)}
+                          placeholder="Voucher..."
+                          className={`w-full border p-2 rounded outline-none font-mono ${inputBg}`}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="text-emerald-500 font-bold block mb-0.5">💵 Efectivo Restante (Q)</label>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          value={cashGiven}
+                          onChange={e => setCashGiven(e.target.value)}
+                          placeholder="0.00"
+                          className={`w-full border p-2 rounded font-bold outline-none ${inputBg}`}
+                        />
+                      </div>
+                      <div className="flex justify-between font-bold text-sm pt-1 border-t border-opacity-50">
+                        <span>Vuelto:</span>
+                        <span className="text-emerald-500" translate="no">Q {cashChange.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className="border-t border-opacity-50 pt-3 mt-3 space-y-2">
-              <div className="flex justify-between items-center font-bold text-base mb-1">
+              <div className="flex justify-between items-center font-bold text-base">
                 <span>Total a Cobrar:</span>
                 <span className="text-emerald-500 text-lg" translate="no">Q {selectedOrder.total_amount}</span>
               </div>
 
               <button 
                 onClick={handlePayOrder}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-lg font-bold text-sm shadow transition-colors text-white"
+                className="w-full bg-emerald-600 hover:bg-emerald-500 py-3 rounded-lg font-bold text-xs shadow transition-colors text-white"
               >
                 💳 Cobrar y Cerrar Orden
               </button>
@@ -795,13 +944,12 @@ export default function CashierPage() {
                 onClick={() => handleCancelOrder(selectedOrder.id)}
                 className="w-full bg-red-700 hover:bg-red-600 py-2 rounded-lg font-semibold text-xs shadow transition-colors text-white"
               >
-                ❌ Cancelar Orden (Devuelve Stock)
+                ❌ Cancelar Orden
               </button>
             </div>
-          )}
+          </div>
         </div>
-
-      </div>
+      )}
 
       {selectedSaleDetails !== null && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
@@ -880,11 +1028,11 @@ export default function CashierPage() {
                 <div className="pt-2 border-t border-opacity-50 space-y-1">
                   <p><span className="opacity-75">Ventas con Efectivo:</span> <span className="font-bold text-emerald-500">Q {totalEfectivo.toFixed(2)}</span></p>
                   <p><span className="opacity-75">Ventas con Tarjeta:</span> <span className="font-bold text-blue-500">Q {totalTarjeta.toFixed(2)}</span></p>
-                  <p className="font-bold pt-1">Total de Ventas (Referencia): Q {totalVentasGeneral.toFixed(2)}</p>
+                  <p className="font-bold pt-1">Total de Ventas: Q {totalVentasGeneral.toFixed(2)}</p>
                 </div>
                 
                 <p className="pt-2 border-t border-opacity-50 font-bold text-amber-500">
-                  Efectivo Teórico Esperado en Gaveta: Q {expectedCash.toFixed(2)}
+                  Efectivo Esperado en Gaveta: Q {expectedCash.toFixed(2)}
                 </p>
               </div>
 
@@ -892,7 +1040,7 @@ export default function CashierPage() {
                  e.preventDefault();
                  const physicalCash = parseFloat(closingPhysicalCash);
                  if (Math.abs(physicalCash - expectedCash) > 0.01) {
-                   return alert(`❌ Error: El efectivo físico (Q ${physicalCash.toFixed(2)}) no cuadra con el efectivo esperado (Q ${expectedCash.toFixed(2)}). Revisa el dinero en caja.`);
+                   return alert(`❌ Error: El efectivo físico (Q ${physicalCash.toFixed(2)}) no cuadra con el esperado (Q ${expectedCash.toFixed(2)}).`);
                  }
                  handleCloseDay(e, physicalCash, totalVentasGeneral);
               }} className="space-y-3 text-xs">
@@ -911,7 +1059,7 @@ export default function CashierPage() {
                 </div>
 
                 <div className="flex gap-2 pt-2">
-                  <button type="submit" className="flex-1 bg-amber-600 hover:bg-amber-500 py-2.5 rounded font-bold text-sm text-white">Confirmar Cierre de Día</button>
+                  <button type="submit" className="flex-1 bg-amber-600 hover:bg-amber-500 py-2.5 rounded font-bold text-sm text-white">Confirmar Cierre</button>
                   <button type="button" onClick={() => setShowCloseModal(false)} className="bg-slate-700 px-4 py-2.5 rounded text-sm text-white">Cancelar</button>
                 </div>
               </form>
