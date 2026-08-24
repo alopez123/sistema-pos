@@ -569,6 +569,8 @@ export default function Dashboard() {
                 <option value="vendedor">🛒 Vendedor</option>
                 <option value="cajero">💵 Cajero</option>
                 <option value="bodega">📦 Bodega</option>
+                <option value="encargado">⭐ Encargado (POS + Caja + Inv)</option>
+
               </select>
             </div>
 

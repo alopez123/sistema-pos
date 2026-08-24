@@ -12,6 +12,7 @@ export default function CashierPage() {
   const [branchName, setBranchName] = useState<string>('Sucursal')
   const [staffId, setStaffId] = useState<string>('')
   const [staffName, setStaffName] = useState<string>('Cajero')
+  const [userRole, setUserRole] = useState<string>('')
   const [pendingOrders, setPendingOrders] = useState<any[]>([])
   
   const [searchTerm, setSearchTerm] = useState('')
@@ -34,12 +35,13 @@ export default function CashierPage() {
     localStorage.setItem('cashier_theme', newMode ? 'dark' : 'light')
   }
   
-  // Estados para Cobro, Facturación y Vuelto
-  const [paymentMethod, setPaymentMethod] = useState<'efectivo' | 'tarjeta'>('efectivo')
+  // Estados para Cobro, Facturación, Vuelto y Pagos Mixtos
+  const [paymentMethod, setPaymentMethod] = useState<'efectivo' | 'tarjeta' | 'mixto'>('efectivo')
   const [customerNit, setCustomerNit] = useState('CF')
   const [customerName, setCustomerName] = useState('Consumidor Final')
   const [voucherNumber, setVoucherNumber] = useState('')
   const [cashGiven, setCashGiven] = useState<string>('')
+  const [cardAmountMixed, setCardAmountMixed] = useState<string>('')
   const [loading, setLoading] = useState(false)
 
   // Estados para Apertura y Cierre de Caja (Día)
@@ -75,6 +77,9 @@ export default function CashierPage() {
           resolvedBranchName = staff.branch_name || 'Sucursal Asignada'
           resolvedStaffId = staff.id || ''
           resolvedStaffName = staff.name || 'Cajero'
+          if (staff.role) {
+            setUserRole(staff.role.toLowerCase())
+          }
         } catch (e) {}
       }
 
@@ -124,18 +129,19 @@ export default function CashierPage() {
     checkBusinessStatusAndRedirect()
   }, [router])
 
-  // --- AUTOREFRESH CADA 10 SEGUNDOS (SI NO ESTÁ EN PLENA GESTIÓN DE COBRO) ---
+  // --- AUTOREFRESH CADA 30 SEGUNDOS (OPTIMIZADO PARA EVITAR BLOQUEOS) ---
   useEffect(() => {
     if (!selectedBranch || !cashRegister) return
 
     const interval = setInterval(() => {
+      // Solo refresca si el cajero NO está gestionando o cobrando activamente una orden
       if (!selectedOrder) {
         loadPendingOrders(selectedBranch)
         if (cashRegister) {
           loadTodaySales(businessId, selectedBranch, cashRegister.opened_at)
         }
       }
-    }, 10000) // 10 segundos
+    }, 30000) // 30 segundos
 
     return () => clearInterval(interval)
   }, [selectedBranch, cashRegister, selectedOrder, businessId])
@@ -232,7 +238,6 @@ export default function CashierPage() {
     }
   }
 
-  // --- FUNCIÓN PARA ABRIR VENTANA EMERGENTE DE LA SAT ---
   const openSatPortal = () => {
     const width = 1050
     const height = 700
@@ -259,6 +264,7 @@ export default function CashierPage() {
 
     setVoucherNumber('')
     setCashGiven('')
+    setCardAmountMixed('')
 
     const { data, error } = await supabase.rpc('get_order_details_safe', { p_order_id: order.id })
     setLoading(false)
@@ -300,16 +306,34 @@ export default function CashierPage() {
       return
     }
 
-    if (paymentMethod === 'tarjeta' && !voucherNumber.trim()) {
-      alert("Por favor ingresa el número de voucher de la tarjeta de crédito.")
-      return
-    }
+    const totalOrderAmount = Number(selectedOrder.total_amount)
 
-    if (paymentMethod === 'efectivo') {
+    if (paymentMethod === 'tarjeta') {
+      if (!voucherNumber.trim()) {
+        return alert("Por favor ingresa el número de voucher de la tarjeta de crédito.")
+      }
+    } else if (paymentMethod === 'efectivo') {
       const given = parseFloat(cashGiven)
-      const total = Number(selectedOrder.total_amount)
-      if (isNaN(given) || given < total) {
+      if (isNaN(given) || given < totalOrderAmount) {
         return alert("El efectivo entregado por el cliente es menor al total a cobrar.")
+      }
+    } else if (paymentMethod === 'mixto') {
+      const cardPart = parseFloat(cardAmountMixed)
+      const cashPart = parseFloat(cashGiven)
+
+      if (isNaN(cardPart) || cardPart <= 0) {
+        return alert("Ingresa un monto válido a pagar con tarjeta en el pago mixto.")
+      }
+      if (cardPart >= totalOrderAmount) {
+        return alert("El monto con tarjeta no puede ser mayor o igual al total. Si es el total completo, selecciona método Tarjeta.")
+      }
+      if (!voucherNumber.trim()) {
+        return alert("Por favor ingresa el número de voucher para la parte pagada con tarjeta.")
+      }
+
+      const remainingToCover = totalOrderAmount - cardPart
+      if (isNaN(cashPart) || cashPart < remainingToCover) {
+        return alert(`El efectivo entregado es insuficiente. El saldo restante en efectivo es Q ${remainingToCover.toFixed(2)}.`)
       }
     }
 
@@ -318,7 +342,7 @@ export default function CashierPage() {
       p_payment_method: paymentMethod,
       p_customer_nit: customerNit,
       p_customer_name: customerName,
-      p_voucher_number: paymentMethod === 'tarjeta' ? voucherNumber.trim() : null
+      p_voucher_number: (paymentMethod === 'tarjeta' || paymentMethod === 'mixto') ? voucherNumber.trim() : null
     })
 
     if (error) {
@@ -331,6 +355,7 @@ export default function CashierPage() {
       setCustomerName('Consumidor Final')
       setVoucherNumber('')
       setCashGiven('')
+      setCardAmountMixed('')
       loadPendingOrders(selectedBranch)
       if (cashRegister) loadTodaySales(businessId, selectedBranch, cashRegister.opened_at)
     }
@@ -372,9 +397,20 @@ export default function CashierPage() {
   })
 
   const totalTodaySales = todaySales.reduce((acc, s) => acc + Number(s.total_amount || 0), 0)
-  const cashChange = paymentMethod === 'efectivo' && selectedOrder && cashGiven ? Math.max(0, parseFloat(cashGiven) - Number(selectedOrder.total_amount)) : 0
+  
+  const totalAmountNum = selectedOrder ? Number(selectedOrder.total_amount) : 0
+  let cashChange = 0
+  if (selectedOrder) {
+    if (paymentMethod === 'efectivo' && cashGiven) {
+      cashChange = Math.max(0, parseFloat(cashGiven) - totalAmountNum)
+    } else if (paymentMethod === 'mixto' && cardAmountMixed && cashGiven) {
+      const cardVal = parseFloat(cardAmountMixed) || 0
+      const cashVal = parseFloat(cashGiven) || 0
+      const remaining = Math.max(0, totalAmountNum - cardVal)
+      cashChange = Math.max(0, cashVal - remaining)
+    }
+  }
 
-  // Clases dinámicas según el tema (Modo Oscuro vs Modo Claro)
   const themeBg = isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-slate-100 text-slate-900'
   const panelBg = isDarkMode ? 'bg-[#1e293b] border-slate-750 text-white' : 'bg-white border-slate-300 text-slate-900 shadow-md'
   const subPanelBg = isDarkMode ? 'bg-[#0f172a] border-slate-750 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
@@ -441,7 +477,27 @@ export default function CashierPage() {
         </div>
         
         <div className="flex gap-2 items-center">
-          {/* BOTÓN INTERRUPTOR DE TEMA (CLARO / OSCURO) */}
+          {/* BOTONES EXCLUSIVOS PARA ROL ENCARGADO O ADMIN MASTER */}
+          {(userRole === 'encargado' || !staffId) && (
+            <>
+              <button 
+                onClick={() => router.push('/pos')} 
+                className="bg-sky-600 hover:bg-sky-500 px-3 py-2 rounded font-semibold text-sm transition-colors shadow flex items-center gap-1.5 text-white"
+                title="Regresar a la pantalla del POS"
+              >
+                🛒 POS
+              </button>
+
+              <button 
+                onClick={() => router.push('/inventario')} 
+                className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-sm transition-colors shadow flex items-center gap-1.5 text-white"
+                title="Ir al módulo de Inventario"
+              >
+                📋 Inventario
+              </button>
+            </>
+          )}
+
           <button 
             onClick={toggleTheme}
             className={`px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors border ${isDarkMode ? 'bg-slate-700 hover:bg-slate-600 text-amber-300 border-slate-600' : 'bg-slate-200 hover:bg-slate-300 text-slate-800 border-slate-300'}`}
@@ -449,7 +505,6 @@ export default function CashierPage() {
             {isDarkMode ? '☀️ Modo Claro' : '🌙 Modo Oscuro'}
           </button>
 
-          {/* BOTÓN RÁPIDO PARA ABRIR LA SAT EN VENTANA EMERGENTE */}
           <button 
             onClick={openSatPortal} 
             className="bg-sky-600 hover:bg-sky-500 px-4 py-2 rounded font-semibold text-sm transition-colors shadow flex items-center gap-1.5 text-white"
@@ -469,7 +524,6 @@ export default function CashierPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
         
-        {/* Columna 1 y 2: Listado de Órdenes Pendientes */}
         <div className={`p-5 rounded-lg border flex flex-col ${panelBg}`}>
           <h2 className="text-base font-bold opacity-80 mb-4">Comandas en Espera de Pago ({filteredOrders.length})</h2>
 
@@ -509,7 +563,6 @@ export default function CashierPage() {
           </div>
         </div>
 
-        {/* Columna 3: Pestañas de Cobro / Reporte de Ventas */}
         <div className={`p-5 rounded-lg border flex flex-col justify-between ${panelBg}`}>
           <div>
             <div className={`grid grid-cols-2 gap-1.5 mb-4 p-1.5 rounded border text-xs font-bold ${subPanelBg}`}>
@@ -583,6 +636,7 @@ export default function CashierPage() {
                         >
                           <option value="efectivo">Efectivo</option>
                           <option value="tarjeta">Tarjeta de Crédito / Débito</option>
+                          <option value="mixto">Mixto (Tarjeta + Efectivo)</option>
                         </select>
                       </div>
 
@@ -617,6 +671,59 @@ export default function CashierPage() {
                             className={`w-full border p-2 rounded outline-none font-mono ${inputBg}`}
                             required
                           />
+                        </div>
+                      )}
+
+                      {paymentMethod === 'mixto' && (
+                        <div className={`p-2.5 rounded border border-emerald-500/40 space-y-2.5 ${subPanelBg}`}>
+                          <div>
+                            <label className="text-emerald-500 font-bold block mb-1">💳 Monto a pagar con Tarjeta (Q)</label>
+                            <input 
+                              type="number"
+                              step="0.01"
+                              value={cardAmountMixed}
+                              onChange={e => setCardAmountMixed(e.target.value)}
+                              placeholder="Ej. 50.00"
+                              className={`w-full border p-2 rounded font-bold text-sm outline-none focus:border-emerald-500 ${inputBg}`}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-emerald-500 font-bold block mb-1">💳 No. de Voucher de Tarjeta</label>
+                            <input 
+                              type="text"
+                              value={voucherNumber}
+                              onChange={e => setVoucherNumber(e.target.value)}
+                              placeholder="Ingrese número de voucher..."
+                              className={`w-full border p-2 rounded outline-none font-mono ${inputBg}`}
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-emerald-500 font-bold block mb-1">💵 Efectivo Recibido para el Restante (Q)</label>
+                            <input 
+                              type="number"
+                              step="0.01"
+                              value={cashGiven}
+                              onChange={e => setCashGiven(e.target.value)}
+                              placeholder="Efectivo entregado..."
+                              className={`w-full border p-2 rounded font-bold text-sm outline-none focus:border-emerald-500 ${inputBg}`}
+                            />
+                          </div>
+
+                          <div className="pt-1 border-t border-opacity-50 space-y-1 text-xs">
+                            <div className="flex justify-between">
+                              <span className="opacity-75">Restante a pagar en efectivo:</span>
+                              <span className="font-bold text-amber-500" translate="no">
+                                Q {Math.max(0, totalAmountNum - (parseFloat(cardAmountMixed) || 0)).toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between font-bold text-sm">
+                              <span>Vuelto:</span>
+                              <span className="text-emerald-500" translate="no">Q {cashChange.toFixed(2)}</span>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -696,7 +803,6 @@ export default function CashierPage() {
 
       </div>
 
-      {/* --- MODAL DETALLE DE VENTA --- */}
       {selectedSaleDetails !== null && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
           <div className={`p-6 rounded-xl border border-emerald-500 w-full max-w-sm shadow-2xl space-y-4 ${panelBg}`}>
@@ -724,7 +830,6 @@ export default function CashierPage() {
         </div>
       )}
 
-      {/* --- MODAL INICIO DE DÍA --- */}
       {showOpenModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 99999 }}>
           <div className={`p-6 rounded-xl border border-emerald-500 w-full max-w-sm shadow-2xl space-y-4 ${panelBg}`}>
@@ -751,17 +856,16 @@ export default function CashierPage() {
         </div>
       )}
 
-      {/* --- MODAL CIERRE DE DÍA / ARQUEO ESTRICTO --- */}
       {showCloseModal && (() => {
         const totalEfectivo = todaySales
-          .filter(s => s.payment_method === 'efectivo')
+          .filter(s => s.payment_method === 'efectivo' || s.payment_method === 'mixto')
           .reduce((acc, s) => acc + Number(s.total_amount || 0), 0);
           
         const totalTarjeta = todaySales
-          .filter(s => s.payment_method === 'tarjeta')
+          .filter(s => s.payment_method === 'tarjeta' || s.payment_method === 'mixto')
           .reduce((acc, s) => acc + Number(s.total_amount || 0), 0);
           
-        const totalVentasGeneral = totalEfectivo + totalTarjeta;
+        const totalVentasGeneral = todaySales.reduce((acc, s) => acc + Number(s.total_amount || 0), 0);
         const expectedCash = Number(cashRegister?.opening_amount || 0) + totalEfectivo;
 
         return (
@@ -774,7 +878,7 @@ export default function CashierPage() {
                 <p><span className="opacity-75">Fondo Inicial:</span> <span className="font-bold text-emerald-500">Q {Number(cashRegister?.opening_amount || 0).toFixed(2)}</span></p>
                 
                 <div className="pt-2 border-t border-opacity-50 space-y-1">
-                  <p><span className="opacity-75">Ventas en Efectivo:</span> <span className="font-bold text-emerald-500">Q {totalEfectivo.toFixed(2)}</span></p>
+                  <p><span className="opacity-75">Ventas con Efectivo:</span> <span className="font-bold text-emerald-500">Q {totalEfectivo.toFixed(2)}</span></p>
                   <p><span className="opacity-75">Ventas con Tarjeta:</span> <span className="font-bold text-blue-500">Q {totalTarjeta.toFixed(2)}</span></p>
                   <p className="font-bold pt-1">Total de Ventas (Referencia): Q {totalVentasGeneral.toFixed(2)}</p>
                 </div>

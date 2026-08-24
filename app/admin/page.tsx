@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 export default function AdminDashboard() {
   const [businesses, setBusinesses] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
   
   // Estados para el formulario de nuevo negocio
   const [name, setName] = useState('')
@@ -195,7 +196,7 @@ export default function AdminDashboard() {
 
       const formattedPhone = phone ? `502${phone}` : null
 
-      const { data: newBizData, error } = await supabase.rpc('create_business_safe', {
+      const { error } = await supabase.rpc('create_business_safe', {
         p_name: name,
         p_owner_email: ownerEmail,
         p_password: password,
@@ -206,19 +207,13 @@ export default function AdminDashboard() {
         p_start_date: startDate || null,
         p_end_date: endDate || null,
         p_payment_status: paymentStatus,
-        p_phone: formattedPhone
+        p_phone: formattedPhone,
+        p_logo_url: logoUrl
       })
 
       if (error) throw error
 
-      if (logoUrl && newBizData) {
-        await supabase
-          .from('businesses')
-          .update({ logo_url: logoUrl })
-          .eq('id', newBizData)
-      }
-
-      alert("¡Negocio registrado con éxito!")
+      alert("¡Negocio registrado con éxito con su logotipo!")
       setName('')
       setOwnerEmail('')
       setPassword('')
@@ -317,6 +312,15 @@ export default function AdminDashboard() {
     router.push('/')
   }
 
+  const filteredBusinesses = businesses.filter(b => {
+    const term = searchTerm.toLowerCase().trim()
+    if (!term) return true
+    const nameMatch = (b.name || '').toLowerCase().includes(term)
+    const emailMatch = (b.owner_email || '').toLowerCase().includes(term)
+    const phoneMatch = (b.phone || '').toLowerCase().includes(term)
+    return nameMatch || emailMatch || phoneMatch
+  })
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0f172a] flex items-center justify-center text-white">
@@ -379,7 +383,6 @@ export default function AdminDashboard() {
               required
             />
             
-            {/* WHATSAPP CON +502 QUEMADO */}
             <div>
               <div className="flex bg-[#0f172a] border border-slate-600 rounded overflow-hidden focus-within:border-emerald-500">
                 <span className="bg-slate-800 text-slate-300 px-3 py-3 text-sm flex items-center border-r border-slate-600 font-semibold select-none">
@@ -485,30 +488,46 @@ export default function AdminDashboard() {
           </form>
         </div>
 
-        {/* TABLA DE NEGOCIOS */}
+        {/* TABLA DE NEGOCIOS Y BUSCADOR (CON SCROLL FIJO MÁXIMO 10 NEGOCIOS VISIBLES) */}
         <div className="bg-[#1e293b] rounded-lg shadow border border-slate-700 overflow-hidden">
-          <div className="overflow-x-auto w-full">
-            <table className="w-full text-left min-w-[950px]">
-              <thead className="bg-slate-700 text-slate-300 border-b border-slate-600 font-bold text-xs sm:text-sm">
+          
+          {/* BARRA DE BÚSQUEDA */}
+          <div className="p-4 border-b border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <h2 className="text-base font-bold text-emerald-400">Listado de Negocios Registrados ({filteredBusinesses.length})</h2>
+            <div className="w-full sm:w-72">
+              <input 
+                type="text"
+                placeholder="🔍 Buscar por nombre, correo o teléfono..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full bg-[#0f172a] border border-slate-600 px-3 py-2 rounded text-white text-xs sm:text-sm outline-none focus:border-emerald-500 placeholder-slate-500"
+              />
+            </div>
+          </div>
+
+          {/* CONTENEDOR CON SCROLL VERTICAL (MÁXIMO 10 FILAS VISIBLES APROX) */}
+          <div className="max-h-[580px] overflow-y-auto w-full">
+            <table className="w-full text-left min-w-[950px] relative">
+              <thead className="bg-slate-700 text-slate-300 border-b border-slate-600 font-bold text-xs sm:text-sm sticky top-0 z-10">
                 <tr>
-                  <th className="p-4">Logo</th>
-                  <th className="p-4">Negocio / WhatsApp</th>
-                  <th className="p-4">Dueño</th>
-                  <th className="p-4">Plan / Ciclo</th>
-                  <th className="p-4">Monto</th>
-                  <th className="p-4">Día / Próximo Cobro</th>
-                  <th className="p-4">Token Activo</th>
-                  <th className="p-4">Pago</th>
-                  <th className="p-4 text-center">Sucursales</th>
-                  <th className="p-4">Estado</th>
-                  <th className="p-4">Acciones</th>
+                  <th className="p-4 bg-slate-700">Logo</th>
+                  <th className="p-4 bg-slate-700">Negocio / WhatsApp</th>
+                  <th className="p-4 bg-slate-700">Dueño</th>
+                  <th className="p-4 bg-slate-700">Plan / Ciclo</th>
+                  <th className="p-4 bg-slate-700">Monto</th>
+                  <th className="p-4 bg-slate-700">Día / Próximo Cobro</th>
+                  <th className="p-4 bg-slate-700">Token Activo</th>
+                  <th className="p-4 bg-slate-700">Pago</th>
+                  <th className="p-4 bg-slate-700 text-center">Sucursales</th>
+                  <th className="p-4 bg-slate-700">Estado</th>
+                  <th className="p-4 bg-slate-700">Acciones</th>
                 </tr>
               </thead>
               <tbody className="text-slate-200 text-xs sm:text-sm">
-                {businesses.length === 0 ? (
-                  <tr><td colSpan={11} className="p-6 text-center text-slate-400">No hay negocios registrados.</td></tr>
+                {filteredBusinesses.length === 0 ? (
+                  <tr><td colSpan={11} className="p-6 text-center text-slate-400">No se encontraron negocios con ese criterio de búsqueda.</td></tr>
                 ) : (
-                  businesses.map((b) => (
+                  filteredBusinesses.map((b) => (
                     <tr key={b.id} className="border-b border-slate-700 hover:bg-slate-700/50">
                       <td className="p-4">
                         {b.logo_url ? (
@@ -690,7 +709,7 @@ export default function AdminDashboard() {
                     placeholder="Dejar en blanco para no cambiar" 
                   />
                 </div>
-                {/* CAMPO DE LOGOTIPO INSTITUCIONAL EN GESTIÓN */}
+                
                 <div>
                   <label className="block text-slate-400 mb-1 font-semibold text-xs">Logotipo Institucional (Opcional)</label>
                   <div className="flex items-center gap-3">
