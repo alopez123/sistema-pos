@@ -16,6 +16,9 @@ export default function ComprasPage() {
   const [branchId, setBranchId] = useState<string>('')
   const [branches, setBranches] = useState<any[]>([])
 
+  // Estado para el Menú Lateral Deslizante (Hamburguesa ☰)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+
   // Estado para el Tema (Modo Oscuro / Modo Claro Local)
   const [isDarkMode, setIsDarkMode] = useState(true)
 
@@ -393,44 +396,50 @@ export default function ComprasPage() {
   const inputBg = isDarkMode ? 'bg-[#0f172a] text-white border-slate-600' : 'bg-white text-slate-900 border-slate-300'
 
   return (
-    <div className={`min-h-screen p-4 sm:p-6 flex flex-col notranslate ${themeBg}`} translate="no">
+    <div className={`min-h-screen p-2 md:p-4 flex flex-col notranslate pb-20 lg:pb-4 ${themeBg}`} translate="no">
       
-      {/* HEADER */}
-      <header className={`p-4 rounded-lg shadow mb-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 border ${panelBg}`}>
-        <h1 className="text-xl font-bold text-emerald-500">📦 Módulo de Proveedores y Compras</h1>
+      {/* BARRA SUPERIOR ADAPTABLE CON BOTÓN HAMBURGUESA (☰) */}
+      <header className={`p-3 rounded-lg shadow mb-4 flex flex-wrap justify-between items-center gap-2 border w-full ${panelBg}`}>
+        <div className="flex items-center gap-2.5">
+          <button 
+            onClick={() => setIsDrawerOpen(true)}
+            className="p-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center shadow transition-colors"
+            title="Herramientas y Menú"
+          >
+            ☰
+          </button>
+          <h1 className="text-xs md:text-sm font-bold text-emerald-500">📦 Módulo de Proveedores y Compras</h1>
+        </div>
         
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-          {/* BOTÓN INTERRUPTOR DE TEMA (CLARO / OSCURO) */}
+        <div className="flex items-center gap-2">
+          {/* BOTÓN INTERRUPTOR DE TEMA (SOLO ICONO) */}
           <button 
             onClick={toggleTheme}
-            className={`px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors border ${isDarkMode ? 'bg-slate-700 hover:bg-slate-600 text-amber-300 border-slate-600' : 'bg-slate-200 hover:bg-slate-300 text-slate-800 border-slate-300'}`}
+            className={`p-2 rounded-lg text-sm font-semibold border transition-colors ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}
+            title={isDarkMode ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro'}
           >
-            {isDarkMode ? '☀️ Modo Claro' : '🌙 Modo Oscuro'}
-          </button>
-
-          <button onClick={() => router.push('/inventario')} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition-colors text-white">
-            ← Volver al Inventario
+            {isDarkMode ? '☀️' : '🌙'}
           </button>
         </div>
       </header>
 
       {/* PESTAÑAS */}
-      <div className="flex flex-wrap gap-2 mb-6">
+      <div className="flex flex-wrap gap-2 mb-4">
         <button 
           onClick={() => setActiveTab('suppliers')} 
-          className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${activeTab === 'suppliers' ? 'bg-emerald-600 text-white' : `${subPanelBg} border`}`}
+          className={`px-4 py-2 rounded-lg text-xs md:text-sm font-bold transition-colors ${activeTab === 'suppliers' ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} border`}`}
         >
           👥 Proveedores
         </button>
         <button 
           onClick={() => setActiveTab('newPurchase')} 
-          className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${activeTab === 'newPurchase' ? 'bg-emerald-600 text-white' : `${subPanelBg} border`}`}
+          className={`px-4 py-2 rounded-lg text-xs md:text-sm font-bold transition-colors ${activeTab === 'newPurchase' ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} border`}`}
         >
           ➕ Registrar Compra / Ingreso
         </button>
         <button 
           onClick={() => setActiveTab('history')} 
-          className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${activeTab === 'history' ? 'bg-emerald-600 text-white' : `${subPanelBg} border`}`}
+          className={`px-4 py-2 rounded-lg text-xs md:text-sm font-bold transition-colors ${activeTab === 'history' ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} border`}`}
         >
           📋 Historial de Compras
         </button>
@@ -461,12 +470,12 @@ export default function ComprasPage() {
               <label className="text-xs opacity-75 block mb-1">Dirección</label>
               <input type="text" value={supAddress} onChange={e => setSupAddress(e.target.value)} placeholder="Ubicación" className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`} />
             </div>
-            <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded font-bold text-sm mt-2 text-white">Guardar Proveedor</button>
+            <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded font-bold text-sm mt-2 text-white shadow">Guardar Proveedor</button>
           </form>
 
           <div className={`lg:col-span-2 p-5 rounded-lg border ${panelBg}`}>
             <h2 className="text-base font-bold text-emerald-500 mb-3">Directorio de Proveedores</h2>
-            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
               {suppliers.length === 0 ? (
                 <p className="opacity-75 text-sm text-center py-8">No hay proveedores registrados.</p>
               ) : (
@@ -491,20 +500,20 @@ export default function ComprasPage() {
             <h2 className="text-base font-bold text-emerald-500">Datos de la Factura / Compra</h2>
             <div>
               <label className="text-xs opacity-75 block mb-1">Sucursal Destino</label>
-              <select value={branchId} onChange={e => { setBranchId(e.target.value); loadProducts(e.target.value); }} className={`w-full border p-2.5 rounded text-sm ${inputBg}`}>
+              <select value={branchId} onChange={e => { setBranchId(e.target.value); loadProducts(e.target.value); }} className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`}>
                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs opacity-75 block mb-1">Proveedor *</label>
-              <select value={selectedSupplier} onChange={e => setSelectedSupplier(e.target.value)} className={`w-full border p-2.5 rounded text-sm ${inputBg}`}>
+              <select value={selectedSupplier} onChange={e => setSelectedSupplier(e.target.value)} className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`}>
                 <option value="">-- Selecciona Proveedor --</option>
                 {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs opacity-75 block mb-1">No. de Factura / Documento</label>
-              <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} placeholder="Ej. F-98765" className={`w-full border p-2.5 rounded text-sm ${inputBg}`} />
+              <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} placeholder="Ej. F-98765" className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`} />
             </div>
 
             <div className="pt-4 border-t border-opacity-50">
@@ -524,7 +533,7 @@ export default function ComprasPage() {
             <div className={`grid grid-cols-1 sm:grid-cols-4 gap-2 items-end p-3 rounded border ${subPanelBg}`}>
               <div className="sm:col-span-2">
                 <label className="text-xs opacity-75 block mb-1">Producto</label>
-                <select value={selectedProductToAdd} onChange={e => setSelectedProductToAdd(e.target.value)} className={`w-full border p-2 rounded text-sm ${inputBg}`}>
+                <select value={selectedProductToAdd} onChange={e => setSelectedProductToAdd(e.target.value)} className={`w-full border p-2 rounded text-sm outline-none ${inputBg}`}>
                   <option value="">-- Seleccionar Producto --</option>
                   <option value="NEW">✨ [+ Crear Nuevo Producto]</option>
                   {products.map(p => <option key={p.id} value={p.id}>{p.name} (Stock: {p.stock})</option>)}
@@ -535,11 +544,11 @@ export default function ComprasPage() {
                 <>
                   <div className="sm:col-span-2">
                     <label className="text-xs opacity-75 block mb-1">Nombre Nuevo Producto *</label>
-                    <input type="text" value={newProdName} onChange={e => setNewProdName(e.target.value)} placeholder="Nombre del artículo" className={`w-full border p-2 rounded text-sm ${inputBg}`} />
+                    <input type="text" value={newProdName} onChange={e => setNewProdName(e.target.value)} placeholder="Nombre del artículo" className={`w-full border p-2 rounded text-sm outline-none ${inputBg}`} />
                   </div>
                   <div>
                     <label className="text-xs opacity-75 block mb-1">Precio Venta (Q) *</label>
-                    <input type="number" step="0.01" value={newProdPrice} onChange={e => setNewProdPrice(e.target.value)} placeholder="0.00" className={`w-full border p-2 rounded text-sm ${inputBg}`} />
+                    <input type="number" step="0.01" value={newProdPrice} onChange={e => setNewProdPrice(e.target.value)} placeholder="0.00" className={`w-full border p-2 rounded text-sm outline-none ${inputBg}`} />
                   </div>
                   <div>
                     <div className="flex justify-between items-center mb-1">
@@ -552,7 +561,7 @@ export default function ComprasPage() {
                         + Crear Nueva
                       </button>
                     </div>
-                    <select value={newProdCategory} onChange={e => setNewProdCategory(e.target.value)} className={`w-full border p-2 rounded text-sm ${inputBg}`}>
+                    <select value={newProdCategory} onChange={e => setNewProdCategory(e.target.value)} className={`w-full border p-2 rounded text-sm outline-none ${inputBg}`}>
                       <option value="">-- Sin Categoría --</option>
                       {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
@@ -584,18 +593,18 @@ export default function ComprasPage() {
 
               <div>
                 <label className="text-xs opacity-75 block mb-1">Cantidad</label>
-                <input type="number" min="1" value={purchaseQty} onChange={e => setPurchaseQty(Number(e.target.value))} className={`w-full border p-2 rounded text-sm ${inputBg}`} />
+                <input type="number" min="1" value={purchaseQty} onChange={e => setPurchaseQty(Number(e.target.value))} className={`w-full border p-2 rounded text-sm outline-none ${inputBg}`} />
               </div>
               <div>
                 <label className="text-xs opacity-75 block mb-1">Costo Unitario (Q)</label>
-                <input type="number" step="0.01" value={purchaseCost} onChange={e => setPurchaseCost(e.target.value)} placeholder="0.00" className={`w-full border p-2 rounded text-sm ${inputBg}`} />
+                <input type="number" step="0.01" value={purchaseCost} onChange={e => setPurchaseCost(e.target.value)} placeholder="0.00" className={`w-full border p-2 rounded text-sm outline-none ${inputBg}`} />
               </div>
-              <button onClick={addProductToPurchaseCart} disabled={uploadingImage} className="sm:col-span-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 py-2 rounded text-sm font-bold mt-1 text-white">
+              <button onClick={addProductToPurchaseCart} disabled={uploadingImage} className="sm:col-span-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 py-2 rounded text-sm font-bold mt-1 text-white shadow">
                 {uploadingImage ? 'Subiendo imagen...' : '+ Agregar al Detalle'}
               </button>
             </div>
 
-            <div className="space-y-2 overflow-y-auto max-h-[35vh]">
+            <div className="space-y-2 overflow-y-auto max-h-[35vh] pr-1">
               {purchaseCart.length === 0 ? (
                 <p className="opacity-75 text-sm text-center py-6">No hay artículos agregados a la orden.</p>
               ) : (
@@ -617,7 +626,7 @@ export default function ComprasPage() {
       {activeTab === 'history' && (
         <div className={`p-5 rounded-lg border ${panelBg}`}>
           <h2 className="text-base font-bold text-emerald-500 mb-4">Historial de Compras Realizadas</h2>
-          <div className="space-y-2 max-h-[65vh] overflow-y-auto">
+          <div className="space-y-2 max-h-[65vh] overflow-y-auto pr-1">
             {purchasesHistory.length === 0 ? (
               <p className="opacity-75 text-sm text-center py-8">No hay compras registradas.</p>
             ) : (
@@ -635,7 +644,48 @@ export default function ComprasPage() {
         </div>
       )}
 
-      {/* --- MODAL PARA CREAR NUEVA CATEGORÍA --- */}
+      {/* MENÚ LATERAL DESLIZANTE (☰) */}
+      {isDrawerOpen && (
+        <div className="fixed inset-0 bg-black/70 flex z-[9999]" onClick={() => setIsDrawerOpen(false)}>
+          <div 
+            className={`w-[380px] md:w-[420px] h-full p-6 flex flex-col shadow-2xl border-r ${panelBg}`}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4 pb-3 border-b border-opacity-50">
+              <h2 className="text-lg font-bold text-emerald-500">🛠️ Navegación y Herramientas</h2>
+              <button onClick={() => setIsDrawerOpen(false)} className="text-xl font-bold opacity-75 hover:opacity-100 p-1">✕</button>
+            </div>
+
+            <div className="space-y-3 flex-1 overflow-y-auto pr-1 text-xs">
+              <div className="space-y-2">
+                <p className="font-bold text-emerald-500 text-sm">Módulos del Sistema</p>
+                <button 
+                  onClick={() => {
+                    setIsDrawerOpen(false);
+                    router.push('/inventario');
+                  }} 
+                  className="w-full bg-emerald-700 hover:bg-emerald-600 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between"
+                >
+                  <span>📋 Ir a Inventario</span>
+                  <span>➔</span>
+                </button>
+                <button 
+                  onClick={() => {
+                    setIsDrawerOpen(false);
+                    router.push('/pos');
+                  }} 
+                  className="w-full bg-slate-700 hover:bg-slate-600 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between"
+                >
+                  <span>🛒 Volver al POS</span>
+                  <span>➔</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PARA CREAR NUEVA CATEGORÍA */}
       {showNewCategoryModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" style={{ zIndex: 99999 }}>
           <div className={`p-6 rounded-xl border border-emerald-500 w-full max-w-sm shadow-2xl space-y-4 ${panelBg}`}>
@@ -662,7 +712,7 @@ export default function ComprasPage() {
                 <button 
                   type="submit" 
                   disabled={savingCategory}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded text-sm font-bold text-white transition-colors disabled:opacity-50"
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded text-sm font-bold text-white transition-colors disabled:opacity-50 shadow"
                 >
                   {savingCategory ? 'Guardando...' : 'Guardar'}
                 </button>

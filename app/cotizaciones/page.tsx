@@ -20,6 +20,9 @@ export default function NuevaCotizacionPage() {
   // Estado para el Tema (Modo Oscuro / Modo Claro Local)
   const [isDarkMode, setIsDarkMode] = useState(true)
 
+  // Estado para la vista en teléfonos (alternar entre formulario/carrito y catálogo)
+  const [mobileViewTab, setMobileViewTab] = useState<'form' | 'catalog'>('catalog')
+
   useEffect(() => {
     const savedTheme = localStorage.getItem('quotes_theme')
     if (savedTheme === 'light') {
@@ -175,9 +178,19 @@ export default function NuevaCotizacionPage() {
   }
 
   const addToCart = (product: any) => {
+    // Validar si el stock es 0 o menor
+    if (product.stock <= 0) {
+      alert("⚠️ Este producto no tiene existencias disponibles (Stock 0) y no puede ser cotizado.")
+      return
+    }
+
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id)
       if (existing) {
+        if (existing.quantity >= product.stock) {
+          alert("No puedes agregar más de las existencias disponibles.")
+          return prev
+        }
         return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item)
       }
       return [...prev, { ...product, quantity: 1 }]
@@ -188,6 +201,11 @@ export default function NuevaCotizacionPage() {
     if (qty <= 0) {
       setCart(prev => prev.filter(item => item.id !== id))
     } else {
+      const product = products.find(p => p.id === id)
+      if (product && qty > product.stock) {
+        alert("La cantidad supera el stock disponible.")
+        return
+      }
       setCart(prev => prev.map(item => item.id === id ? { ...item, quantity: qty } : item))
     }
   }
@@ -366,7 +384,7 @@ export default function NuevaCotizacionPage() {
       <header className={`p-4 rounded-lg shadow mb-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 border ${panelBg}`}>
         <div className="flex items-center gap-3">
           {businessLogo ? (
-            <img src={businessLogo} alt="Logo" className={`w-12 h-12 object-contain rounded-lg p-1 border shadow ${isDarkMode ? 'bg-[#0f172a] border-slate-600' : 'bg-white border-slate-300'}`} />
+            <img src={businessLogo} alt="Logo" className={`w-24 h-24 object-contain rounded-lg p-1 border shadow ${isDarkMode ? 'bg-[#0f172a] border-slate-600' : 'bg-white border-slate-300'}`} />
           ) : (
             <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-[10px] border ${isDarkMode ? 'bg-[#0f172a] border-slate-600 text-slate-500' : 'bg-slate-200 border-slate-300 text-slate-600'}`}>POS</div>
           )}
@@ -379,7 +397,7 @@ export default function NuevaCotizacionPage() {
             onClick={toggleTheme}
             className={`px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors border ${isDarkMode ? 'bg-slate-700 hover:bg-slate-600 text-amber-300 border-slate-600' : 'bg-slate-200 hover:bg-slate-300 text-slate-800 border-slate-300'}`}
           >
-            {isDarkMode ? '☀️ Modo Claro' : '🌙 Modo Oscuro'}
+            {isDarkMode ? '☀️' : '🌙'}
           </button>
 
           <button onClick={() => router.push('/pos')} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-semibold transition-colors text-center text-white">
@@ -388,10 +406,26 @@ export default function NuevaCotizacionPage() {
         </div>
       </header>
 
+      {/* SELECTOR DE VISTA EN TELÉFONO (CATÁLOGO VS CLIENTE Y CARRITO) */}
+      <div className="flex lg:hidden grid grid-cols-2 gap-2 mb-4">
+        <button 
+          onClick={() => setMobileViewTab('catalog')}
+          className={`py-2.5 rounded-lg font-bold text-xs shadow transition-colors ${mobileViewTab === 'catalog' ? 'bg-emerald-600 text-white' : `${panelBg} opacity-85`}`}
+        >
+          🛍️ Catálogo de Productos
+        </button>
+        <button 
+          onClick={() => setMobileViewTab('form')}
+          className={`py-2.5 rounded-lg font-bold text-xs shadow relative transition-colors ${mobileViewTab === 'form' ? 'bg-emerald-600 text-white' : `${panelBg} opacity-85`}`}
+        >
+          📋 Cliente y Detalle ({cart.reduce((a, c) => a + c.quantity, 0)})
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
         
         {/* COLUMNA 1: FORMULARIO Y RESUMEN */}
-        <div className={`p-4 sm:p-5 rounded-lg shadow border flex flex-col gap-4 justify-between ${panelBg}`}>
+        <div className={`p-4 sm:p-5 rounded-lg shadow border flex flex-col gap-4 justify-between ${mobileViewTab === 'form' ? 'flex' : 'hidden'} lg:flex ${panelBg}`}>
           
           <div className="space-y-3">
             <h2 className="text-md font-bold text-emerald-500 border-b pb-2 border-opacity-50">Datos del Cliente</h2>
@@ -458,8 +492,8 @@ export default function NuevaCotizacionPage() {
           </div>
         </div>
 
-        {/* COLUMNAS 2 y 3: Catálogo Web y Táctil con Buscador, Categorías y Feedback Táctil */}
-        <div className={`lg:col-span-2 p-4 sm:p-6 rounded-lg shadow border flex flex-col ${panelBg}`}>
+        {/* COLUMNAS 2 y 3: Catálogo Web y Táctil con Buscador, Categorías y Validación de Stock */}
+        <div className={`lg:col-span-2 p-4 sm:p-6 rounded-lg shadow border flex flex-col ${mobileViewTab === 'catalog' ? 'flex' : 'hidden'} lg:flex ${panelBg}`}>
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-base sm:text-lg font-bold text-emerald-500">Catálogo de Productos (Matriz)</h2>
           </div>
@@ -473,8 +507,20 @@ export default function NuevaCotizacionPage() {
                   <div className="p-3 text-xs opacity-75 text-center">No se encontraron productos</div>
                 ) : (
                   filteredProducts.map(p => (
-                    <button key={p.id} onClick={() => { addToCart(p); setSearchTerm(''); setShowSuggestions(false); }} className={`w-full text-left px-4 py-2.5 hover:opacity-75 flex justify-between items-center border-b transition-colors text-xs ${subPanelBg}`}>
-                      <div><span className="font-semibold">{p.name}</span><span className="opacity-75 ml-2 text-[10px]">(Stock: {p.stock})</span></div>
+                    <button 
+                      key={p.id} 
+                      onClick={() => { 
+                        if (p.stock <= 0) {
+                          alert("⚠️ Este producto no tiene existencias disponibles (Stock 0).");
+                          return;
+                        }
+                        addToCart(p); 
+                        setSearchTerm(''); 
+                        setShowSuggestions(false); 
+                      }} 
+                      className={`w-full text-left px-4 py-2.5 hover:opacity-75 flex justify-between items-center border-b transition-colors text-xs ${subPanelBg} ${p.stock <= 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    >
+                      <div><span className="font-semibold">{p.name}</span><span className={`opacity-75 ml-2 text-[10px] ${p.stock <= 0 ? 'text-red-400 font-bold' : ''}`}>(Stock: {p.stock})</span></div>
                       <span className="text-emerald-500 font-bold" translate="no">Q {p.price}</span>
                     </button>
                   ))
@@ -506,32 +552,41 @@ export default function NuevaCotizacionPage() {
             ))}
           </div>
 
-          {/* TARJETAS DE PRODUCTOS CON FEEDBACK TÁCTIL Y RESPONSIVE */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 overflow-y-auto max-h-[55vh] pr-1">
+          {/* TARJETAS DE PRODUCTOS CON VALIDACIÓN DE STOCK 0 */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 overflow-y-auto max-h-[60vh] pr-1">
             {filteredProducts.length === 0 ? (
               <p className="opacity-75 col-span-full text-center py-10">No hay productos que coincidan con la búsqueda.</p>
             ) : (
-              filteredProducts.map(p => (
-                <div 
-                  key={p.id} 
-                  onClick={() => addToCart(p)} 
-                  className={`border hover:border-emerald-500 active:scale-95 active:border-emerald-400 p-3 rounded-lg flex flex-col justify-between text-left transition-all duration-150 shadow group cursor-pointer h-full select-none ${subPanelBg}`}
-                >
-                  <div className="flex flex-col">
-                    {p.image_url ? (
-                      <img src={p.image_url} alt={p.name} className="w-full h-24 object-cover rounded mb-2 border border-opacity-50 pointer-events-none" />
-                    ) : (
-                      <div className={`w-full h-24 rounded mb-2 flex items-center justify-center text-xs opacity-50 border border-opacity-50 ${panelBg}`}>Sin imagen</div>
-                    )}
-                    <span className="text-[11px] opacity-75 block mb-0.5">Stock: {p.stock}</span>
-                    <h3 className="font-bold group-hover:text-emerald-500 transition-colors line-clamp-2 text-xs leading-snug">{p.name}</h3>
+              filteredProducts.map(p => {
+                const isOutOfStock = p.stock <= 0;
+                return (
+                  <div 
+                    key={p.id} 
+                    onClick={() => addToCart(p)} 
+                    className={`border p-3 rounded-lg flex flex-col justify-between text-left transition-all duration-150 shadow h-full select-none ${subPanelBg} ${
+                      isOutOfStock 
+                        ? 'opacity-50 cursor-not-allowed border-red-500/40' 
+                        : 'hover:border-emerald-500 active:scale-95 active:border-emerald-400 cursor-pointer group'
+                    }`}
+                  >
+                    <div className="flex flex-col">
+                      {p.image_url ? (
+                        <img src={p.image_url} alt={p.name} className="w-full h-24 object-cover rounded mb-2 border border-opacity-50 pointer-events-none" />
+                      ) : (
+                        <div className={`w-full h-24 rounded mb-2 flex items-center justify-center text-xs opacity-50 border border-opacity-50 ${panelBg}`}>Sin imagen</div>
+                      )}
+                      <span className={`text-[11px] block mb-0.5 ${isOutOfStock ? 'text-red-400 font-bold' : 'opacity-75'}`}>
+                        Stock: {p.stock} {isOutOfStock ? '(Agotado)' : ''}
+                      </span>
+                      <h3 className={`font-bold transition-colors line-clamp-2 text-xs leading-snug ${isOutOfStock ? 'opacity-75' : 'group-hover:text-emerald-500'}`}>{p.name}</h3>
+                    </div>
+                    <div className="mt-2 pt-1 border-t border-opacity-50 flex items-center justify-between">
+                      <span className="text-[10px] opacity-70 uppercase">Precio</span>
+                      <span className="text-emerald-500 font-extrabold text-sm sm:text-base" translate="no">Q {p.price}</span>
+                    </div>
                   </div>
-                  <div className="mt-2 pt-1 border-t border-opacity-50 flex items-center justify-between">
-                    <span className="text-[10px] opacity-70 uppercase">Precio</span>
-                    <span className="text-emerald-500 font-extrabold text-sm sm:text-base" translate="no">Q {p.price}</span>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

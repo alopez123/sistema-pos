@@ -14,17 +14,24 @@ export default function PosPage() {
   const [cart, setCart] = useState<any[]>([])
   const [isStaff, setIsStaff] = useState(false)
   const [userRole, setUserRole] = useState<string>('')
+  const [showToolsMenu, setShowToolsMenu] = useState(false)
   
-  // Estado para el Menú Lateral Deslizante (Hamburguesa ☰)
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
-
-  // Estado para ver el carrito flotante en móviles
-  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false)
+  // Estado para el menú desplegable flotante de Opciones Operativas (activado con el botón verde ≡)
+  const [showOpsDropdown, setShowOpsDropdown] = useState(false)
+  const opsDropdownRef = useRef<HTMLDivElement>(null)
 
   const router = useRouter()
 
+  // Estado para la vista móvil en teléfonos (alternar entre catálogo y ticket)
+  const [mobileViewTab, setMobileViewTab] = useState<'catalog' | 'cart'>('catalog')
+
+  // Estado para prevenir doble clic al guardar orden
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false)
+
+  // Estado para el Tema (Modo Oscuro / Modo Claro Local)
   const [isDarkMode, setIsDarkMode] = useState(true)
+
+  // Estado para habilitar o deshabilitar la impresión térmica de tickets (por defecto desactivado)
   const [enableTicketPrinting, setEnableTicketPrinting] = useState<boolean>(false)
 
   useEffect(() => {
@@ -50,21 +57,23 @@ export default function PosPage() {
     localStorage.setItem('pos_print_tickets', newPrintingState ? 'true' : 'false')
   }
 
+  // Estado para el Logotipo del Negocio
   const [businessLogo, setBusinessLogo] = useState<string | null>(null)
 
-  const [customerNit, setCustomerNit] = useState('CF'); 
-  const [customerName, setCustomerName] = useState('Consumidor Final');
-
+  // Estados para el buscador y autocompletado
   const [searchTerm, setSearchTerm] = useState('')
   const [otherStoresSearch, setOtherStoresSearch] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
 
+  // Estado para el panel flotante de Alerta de Stock Bajo
   const [showLowStockModal, setShowLowStockModal] = useState(false)
 
-  const [activeTab, setActiveTab] = useState<'addProduct' | 'otherStores' | 'transfers' | 'movements' | 'salesReport' | 'customers'>('addProduct')
+  // Estados para el menú operativo izquierdo / modal
+  const [activeTab, setActiveTab] = useState<'ticket' | 'addProduct' | 'otherStores' | 'transfers' | 'movements' | 'salesReport' | 'customers'>('ticket')
   const [allStoreProducts, setAllStoreProducts] = useState<any[]>([])
 
+  // Estados específicos para Traslados, Movimientos, Reportes y Clientes
   const [businessIdState, setBusinessIdState] = useState<string>('')
   const [transfersList, setTransfersList] = useState<any[]>([])
   const [transferProduct, setTransferProduct] = useState<any>(null)
@@ -73,12 +82,15 @@ export default function PosPage() {
   const [salesReport, setSalesReport] = useState<any[]>([])
   const [customersList, setCustomersList] = useState<any[]>([])
 
+  // Estado para ver el detalle de una venta seleccionada
   const [selectedSaleDetails, setSelectedSaleDetails] = useState<any[] | null>(null)
   const [loadingSaleDetails, setLoadingSaleDetails] = useState(false)
 
+  // Estados inteligentes para la pestaña Agregar / Reabastecer
   const [selectedExistingProduct, setSelectedExistingProduct] = useState<string>('')
   const [addMoreQuantity, setAddMoreQuantity] = useState<number>(1)
 
+  // Formulario rápido para nuevo producto (con imagen, categoría y compresión)
   const [newName, setNewName] = useState('')
   const [newPrice, setNewPrice] = useState('')
   const [newStock, setNewStock] = useState('')
@@ -87,6 +99,7 @@ export default function PosPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
 
+  // Estados para el Modal de Creación Rápida de Categorías
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [savingCategory, setSavingCategory] = useState(false)
@@ -176,6 +189,9 @@ export default function PosPage() {
     function handleClickOutside(event: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setShowSuggestions(false)
+      }
+      if (opsDropdownRef.current && !opsDropdownRef.current.contains(event.target as Node)) {
+        setShowOpsDropdown(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -295,8 +311,6 @@ export default function PosPage() {
     })
     if (!error && data) {
       setAllStoreProducts(data)
-    } else {
-      console.error("Error cargando otras tiendas:", error?.message)
     }
   }
 
@@ -308,8 +322,6 @@ export default function PosPage() {
 
     if (!error && data) {
       setTransfersList(data);
-    } else {
-      console.error("Error cargando traslados:", error?.message);
     }
   }
 
@@ -330,44 +342,18 @@ export default function PosPage() {
   }
 
   async function loadSalesReport(bId?: string, brId?: string) {
-    const currentBizId = bId || businessIdState || (() => {
-      try {
-        const staff = JSON.parse(localStorage.getItem('currentStaff') || '{}');
-        if (staff.business_id) return staff.business_id;
-        if (staff.busines_id) return staff.busines_id;
-        const biz = JSON.parse(localStorage.getItem('currentBusiness') || '{}');
-        return biz.id || biz.business_id || biz.busines_id;
-      } catch (e) { return null; }
-    })();
-
-    const currentBranchId = brId || selectedBranch || (() => {
-      try {
-        const staff = JSON.parse(localStorage.getItem('currentStaff') || '{}');
-        return staff.branch_id;
-      } catch (e) { return null; }
-    })();
-
+    const currentBizId = bId || businessIdState;
+    const currentBranchId = brId || selectedBranch;
     if (!currentBizId || !currentBranchId) return;
 
     const { data, error } = await supabase
       .from('sales')
-      .select(`
-        id,
-        total_amount,
-        payment_method,
-        created_at,
-        customer:customers(nit, name)
-      `)
+      .select(`id, total_amount, payment_method, created_at, customer:customers(nit, name)`)
       .eq('business_id', currentBizId)
       .eq('branch_id', currentBranchId)
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error("Error al cargar reporte de ventas:", error.message);
-      return;
-    }
-
-    if (data) {
+    if (!error && data) {
       const formattedSales = data.map((sale: any) => ({
         sale_id: sale.id,
         total_amount: sale.total_amount,
@@ -376,38 +362,25 @@ export default function PosPage() {
         customer_nit: sale.customer?.nit || 'CF',
         customer_name: sale.customer?.name || 'Consumidor Final'
       }));
-
       setSalesReport(formattedSales);
     }
   }
 
   async function loadCustomers(businessId: string) {
-    const { data, error } = await supabase.rpc('get_business_customers', {
-      p_business_id: businessId
-    })
+    const { data, error } = await supabase.rpc('get_business_customers', { p_business_id: businessId })
     if (!error && data) setCustomersList(data)
   }
 
   async function handleViewSaleDetails(saleId: string) {
     setLoadingSaleDetails(true)
-    const { data, error } = await supabase.rpc('get_sale_details', {
-      p_sale_id: saleId
-    })
+    const { data, error } = await supabase.rpc('get_sale_details', { p_sale_id: saleId })
     setLoadingSaleDetails(false)
-    
-    if (error) {
-      alert("Error al cargar los detalles: " + error.message)
-      return
-    }
-
-    if (data) {
-      setSelectedSaleDetails(data)
-    }
+    if (!error && data) setSelectedSaleDetails(data)
   }
 
-  const totalCart = cart.reduce((acc, item) => acc + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0)
-  const totalItemsCount = cart.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0)
+  const totalCart = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0)
 
+  // Función para imprimir ticket de Detalle de Orden
   function printThermalTicket({ orderNumber, branchName, customerNit, customerName, items, total }: any) {
     const printWindow = window.open('', '_blank', 'width=300,height=600');
     if (!printWindow) {
@@ -421,21 +394,10 @@ export default function PosPage() {
         <head>
           <title>Orden #${orderNumber}</title>
           <style>
-            body {
-              font-family: 'Courier New', Courier, monospace;
-              font-size: 12px;
-              width: 250px;
-              margin: 0 auto;
-              padding: 10px;
-              color: #000;
-            }
-            .text-center { text-align: center; }
-            .bold { font-weight: bold; }
-            .flex { display: flex; justify-content: space-between; }
-            .divider { border-bottom: 1px dashed #000; margin: 8px 0; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { font-size: 11px; text-align: left; padding: 2px 0; }
-            .right { text-align: right; }
+            body { font-family: 'Courier New', Courier, monospace; font-size: 12px; width: 250px; margin: 0 auto; padding: 10px; color: #000; }
+            .text-center { text-align: center; } .bold { font-weight: bold; } .flex { display: flex; justify-content: space-between; }
+            .divider { border-bottom: 1px dashed #000; margin: 8px 0; } table { width: 100%; border-collapse: collapse; }
+            th, td { font-size: 11px; text-align: left; padding: 2px 0; } .right { text-align: right; }
           </style>
         </head>
         <body>
@@ -448,34 +410,18 @@ export default function PosPage() {
           <div><span class="bold">NIT:</span> ${customerNit}</div>
           <div class="divider"></div>
           <table>
-            <thead>
-              <tr>
-                <th>Cant / Descripción</th>
-                <th class="right">Subtotal</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Cant / Descripción</th><th class="right">Subtotal</th></tr></thead>
             <tbody>
               ${items.map((i: any) => `
-                <tr>
-                  <td colspan="2" class="bold">${i.quantity} x ${i.name}</td>
-                </tr>
-                <tr>
-                  <td>P/U: Q ${Number(i.price).toFixed(2)}</td>
-                  <td class="right">Q ${(Number(i.price) * Number(i.quantity)).toFixed(2)}</td>
-                </tr>
+                <tr><td colspan="2" class="bold">${i.quantity} x ${i.name}</td></tr>
+                <tr><td>P/U: Q ${i.price.toFixed(2)}</td><td class="right">Q ${(i.price * i.quantity).toFixed(2)}</td></tr>
               `).join('')}
             </tbody>
           </table>
           <div class="divider"></div>
-          <div class="flex bold" style="font-size: 14px;">
-            <span>TOTAL:</span>
-            <span>Q ${Number(total).toFixed(2)}</span>
-          </div>
+          <div class="flex bold" style="font-size: 14px;"><span>TOTAL:</span><span>Q ${total.toFixed(2)}</span></div>
           <div class="divider"></div>
-          <div class="text-center" style="font-size: 10px; margin-top: 10px;">
-            ¡Pase a caja con este ticket para realizar su pago!<br>
-            Gracias por su preferencia
-          </div>
+          <div class="text-center" style="font-size: 10px; margin-top: 10px;">¡Pase a caja con este ticket para realizar su pago!<br>Gracias por su preferencia</div>
         </body>
       </html>
     `;
@@ -483,32 +429,18 @@ export default function PosPage() {
     printWindow.document.write(htmlContent);
     printWindow.document.close();
     printWindow.focus();
-    
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 300);
+    setTimeout(() => { printWindow.print(); printWindow.close(); }, 300);
   }
 
   async function handleSavePendingOrder() {
     if (isSubmittingOrder) return
-
-    if (!customerNit.trim() || !customerName.trim()) {
-      alert("Por favor ingresa el NIT y el Nombre para la orden.")
-      return
-    }
-
-    if (cart.length === 0) {
-      alert("El carrito está vacío.")
-      return
-    }
+    if (cart.length === 0) return alert("El carrito está vacío.")
 
     setIsSubmittingOrder(true)
-
     const cartJson = cart.map(item => ({
       product_id: item.id,
-      quantity: Number(item.quantity) || 1,
-      price: Number(item.price) || 0,
+      quantity: item.quantity,
+      price: item.price,
       name: item.name
     }));
 
@@ -525,26 +457,20 @@ export default function PosPage() {
     if (error) {
       alert("Error al guardar la orden: " + error.message);
     } else if (data && data.length > 0) {
-      const nuevaOrden = data[0];
-      const numeroTurno = nuevaOrden.order_number;
-
+      const numeroTurno = data[0].order_number;
       if (enableTicketPrinting) {
         printThermalTicket({
           orderNumber: numeroTurno,
           branchName: branches.find(b => b.id === selectedBranch)?.name || 'Sucursal',
-          customerNit: customerNit,
-          customerName: customerName,
+          customerNit: 'CF',
+          customerName: 'Consumidor Final',
           items: cart,
           total: totalCart
         });
       } else {
         alert(`✅ ¡Orden guardada con éxito!\n\n🎟️ TURNO / ORDEN #${numeroTurno}\n\nEl cliente ya puede pasar a caja con este número.`);
       }
-      
       setCart([]);
-      setCustomerNit('CF');
-      setCustomerName('Consumidor Final');
-      setIsMobileCartOpen(false);
       refreshAllData(selectedBranch, businessIdState);
     }
   }
@@ -557,26 +483,26 @@ export default function PosPage() {
   }
 
   const addToCart = (product: any) => {
+    // Validar si el stock es 0 o menor (excepto artículos personalizados/variables)
     const isCustomByName = product.name && (
       product.name.toLowerCase().includes('vinil') || 
       product.name.toLowerCase().includes('personaliz') ||
       product.name.toLowerCase().includes('manta')
     );
+
+    if (!isCustomByName && product.stock <= 0) {
+      alert("⚠️ Este producto no tiene existencias disponibles (Stock 0) y no puede ser agregado.")
+      return
+    }
     
     if (isCustomByName) {
       const customDesc = prompt("Ingresa las medidas, peso o características (Ej. Manta 2x1.5m):");
       if (!customDesc) return;
-
       const customPriceStr = prompt("Ingresa el precio de venta cotizado:");
       const customPrice = parseFloat(customPriceStr || '0');
-      
-      if (isNaN(customPrice) || customPrice <= 0) {
-        alert("Por favor ingresa un precio de venta válido.");
-        return;
-      }
+      if (isNaN(customPrice) || customPrice <= 0) return alert("Precio inválido.");
 
       const staffData = JSON.parse(localStorage.getItem('currentStaff') || '{}');
-
       setCart(prevCart => [
         ...prevCart,
         {
@@ -594,13 +520,7 @@ export default function PosPage() {
       return;
     }
 
-    if (product.stock <= 0) {
-      alert("Producto sin existencias.")
-      return
-    }
-
     const staffData = JSON.parse(localStorage.getItem('currentStaff') || '{}')
-
     setCart(prevCart => {
       const existing = prevCart.find(item => item.id === product.id)
       if (existing) {
@@ -608,147 +528,72 @@ export default function PosPage() {
           alert("No puedes agregar más de las existencias disponibles.")
           return prevCart
         }
-        return prevCart.map(item => 
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-        )
+        return prevCart.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item)
       } else {
-        return [
-          ...prevCart, 
-          { 
-            ...product, 
-            quantity: 1, 
-            originalPrice: product.price, 
-            isSpecial: false, 
-            staffId: staffData.id || null 
-          }
-        ]
+        return [...prevCart, { ...product, quantity: 1, originalPrice: product.price, isSpecial: false, staffId: staffData.id || null }]
       }
     })
   }
 
   const handlePriceChange = (productId: string, newPriceText: string) => {
+    const newPrice = parseFloat(newPriceText) || 0;
     const staffData = JSON.parse(localStorage.getItem('currentStaff') || '{}');
-
     setCart(prev => prev.map(item => {
       if (item.id === productId) {
         const original = item.originalPrice !== undefined ? item.originalPrice : item.price;
-        const parsedPrice = newPriceText === '' ? '' : parseFloat(newPriceText);
-        const isSpecial = parsedPrice !== '' && parsedPrice !== original;
-        return {
-          ...item,
-          price: parsedPrice,
-          originalPrice: original,
-          isSpecial: isSpecial,
-          staffId: staffData.id || null
-        };
+        return { ...item, price: newPrice, originalPrice: original, isSpecial: newPrice !== original, staffId: staffData.id || null };
       }
       return item;
     }));
   };
 
   const handleQuantityChange = (productId: string, newQtyText: string) => {
-    setCart(prev => prev.map(item => {
-      if (item.id === productId) {
-        // Permitimos que quede vacío momentáneamente para que el usuario pueda borrar y escribir libremente
-        const finalQty = newQtyText === '' ? '' : parseInt(newQtyText, 10);
-        return { ...item, quantity: finalQty };
-      }
-      return item;
-    }));
+    const newQty = parseInt(newQtyText, 10);
+    if (isNaN(newQty)) return;
+    setCart(prev => prev.map(item => item.id === productId ? { ...item, quantity: newQty <= 0 ? 1 : newQty } : item));
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart(prev => prev.filter(item => item.id !== productId))
-  }
+  const removeFromCart = (productId: string) => setCart(prev => prev.filter(item => item.id !== productId))
 
   const handleAddOrRestockProduct = async (e: React.FormEvent) => {
     e.preventDefault()
-
     if (selectedExistingProduct === 'NEW') {
-      if (!newName.trim() || !newPrice || !selectedBranch) {
-        return alert("Completa el nombre y el precio.")
-      }
-
+      if (!newName.trim() || !newPrice || !selectedBranch) return alert("Completa el nombre y el precio.")
       setUploadingImage(true)
       let imageUrl = null
-
       try {
         if (imageFile) {
           const compressedBlob = await compressImage(imageFile)
-          const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.jpg`
-          const filePath = `products/${fileName}`
-
-          const { error: uploadError } = await supabase.storage
-            .from('products')
-            .upload(filePath, compressedBlob, {
-              contentType: 'image/jpeg',
-              upsert: false
-            })
-
-          if (uploadError) {
-            console.error("Error al subir imagen:", uploadError.message)
-            alert("Advertencia: No se pudo subir la imagen, pero se intentará guardar el producto.")
-          } else {
-            const { data: publicUrlData } = supabase.storage
-              .from('products')
-              .getPublicUrl(filePath)
-            imageUrl = publicUrlData.publicUrl
+          const filePath = `products/${Date.now()}.jpg`
+          const { error: uploadError } = await supabase.storage.from('products').upload(filePath, compressedBlob, { contentType: 'image/jpeg' })
+          if (!uploadError) {
+            const { data } = supabase.storage.from('products').getPublicUrl(filePath)
+            imageUrl = data.publicUrl
           }
         }
-
         const { error } = await supabase.rpc('add_product_safe', {
-          p_name: newName.trim(),
-          p_price: parseFloat(newPrice) || 0,
-          p_stock: parseInt(newStock) || 0,
-          p_branch_id: selectedBranch,
-          p_image_url: imageUrl,
-          p_category_id: newCategoryId || null
+          p_name: newName.trim(), p_price: parseFloat(newPrice) || 0, p_stock: parseInt(newStock) || 0,
+          p_branch_id: selectedBranch, p_image_url: imageUrl, p_category_id: newCategoryId || null
         })
-
-        if (error) {
-          alert("Error al agregar producto: " + error.message)
-        } else {
-          alert("¡Producto agregado al catálogo con éxito!")
-          setNewName('')
-          setNewPrice('')
-          setNewStock('')
-          setNewCategoryId('')
-          setImageFile(null)
-          setImagePreview(null)
-          setSelectedExistingProduct('')
+        if (error) alert("Error: " + error.message)
+        else {
+          alert("¡Producto agregado!")
+          setNewName(''); setNewPrice(''); setNewStock(''); setNewCategoryId(''); setImageFile(null); setImagePreview(null); setSelectedExistingProduct('');
           refreshAllData(selectedBranch, businessIdState);
-          setIsDrawerOpen(false)
+          setActiveTab('ticket')
         }
-      } catch (err) {
-        console.error("Error en el proceso:", err)
-        alert("Ocurrió un error inesperado al procesar el producto.")
-      } finally {
-        setUploadingImage(false)
-      }
-
+      } finally { setUploadingImage(false) }
     } else {
-      if (!selectedExistingProduct) {
-        return alert("Selecciona un producto del catálogo o elige 'Crear nuevo'.")
-      }
-
-      if (addMoreQuantity <= 0) {
-        return alert("Ingresa una cantidad válida a sumar.")
-      }
-
+      if (!selectedExistingProduct) return alert("Selecciona un producto.")
       const { error } = await supabase.rpc('add_stock_to_product', {
-        p_branch_id: selectedBranch,
-        p_product_id: selectedExistingProduct,
-        p_quantity: Number(addMoreQuantity)
+        p_branch_id: selectedBranch, p_product_id: selectedExistingProduct, p_quantity: Number(addMoreQuantity)
       })
-
-      if (error) {
-        alert("Error al reabastecer stock: " + error.message)
-      } else {
-        alert("¡Stock actualizado y movimiento de ingreso registrado con éxito!")
-        setSelectedExistingProduct('')
-        setAddMoreQuantity(1)
+      if (error) alert("Error: " + error.message)
+      else {
+        alert("¡Stock actualizado!")
+        setSelectedExistingProduct(''); setAddMoreQuantity(1);
         refreshAllData(selectedBranch, businessIdState);
-        setIsDrawerOpen(false)
+        setActiveTab('ticket')
       }
     }
   }
@@ -756,56 +601,22 @@ export default function PosPage() {
   const handleRequestTransfer = async (e: React.FormEvent) => {
     e.preventDefault()
     const parsedQty = Number(transferQuantity)
-    
-    if (!transferProduct || parsedQty <= 0) {
-      alert("Selecciona un producto y una cantidad válida.")
-      return
-    }
-
-    if (parsedQty > transferProduct.stock) {
-      alert("La cantidad solicitada supera el stock disponible en la tienda origen.")
-      return
-    }
-
-    const targetProductId = transferProduct.id || transferProduct.product_id;
-    const sourceBranchId = transferProduct.branch_id;
-
-    if (!targetProductId || !sourceBranchId) {
-      alert("Error: No se pudo identificar el producto o la sucursal de origen.")
-      return
-    }
-
+    if (!transferProduct || parsedQty <= 0 || parsedQty > transferProduct.stock) return alert("Cantidad inválida o supera el stock.")
     const { error } = await supabase.from('inventory_transfers').insert({
-      business_id: businessIdState,
-      product_id: targetProductId,
-      source_branch_id: sourceBranchId,
-      destination_branch_id: selectedBranch,
-      quantity: parsedQty,
-      status: 'pendiente'
+      business_id: businessIdState, product_id: transferProduct.id || transferProduct.product_id,
+      source_branch_id: transferProduct.branch_id, destination_branch_id: selectedBranch, quantity: parsedQty, status: 'pendiente'
     })
-
-    if (error) {
-      alert("Error al crear la solicitud de traslado: " + error.message)
-    } else {
-      alert("¡Solicitud de traslado enviada con éxito!")
-      setTransferProduct(null)
-      setTransferQuantity(1)
-      loadTransfers(businessIdState, selectedBranch)
+    if (error) alert("Error: " + error.message)
+    else {
+      alert("¡Solicitud enviada!")
+      setTransferProduct(null); setTransferQuantity(1); loadTransfers(businessIdState, selectedBranch)
     }
   }
 
   const handleCompleteTransfer = async (transferId: string) => {
-    const { error } = await supabase.rpc('complete_transfer', {
-      transfer_id: transferId,
-      current_biz_id: businessIdState
-    })
-
-    if (error) {
-      alert("Error al procesar el traslado: " + error.message)
-    } else {
-      alert("¡Traslado completado con éxito! Inventarios actualizados.")
-      refreshAllData(selectedBranch, businessIdState);
-    }
+    const { error } = await supabase.rpc('complete_transfer', { transfer_id: transferId, current_biz_id: businessIdState })
+    if (error) alert("Error: " + error.message)
+    else { alert("¡Traslado completado!"); refreshAllData(selectedBranch, businessIdState); }
   }
 
   const compressImage = (file: File): Promise<Blob> => {
@@ -817,75 +628,22 @@ export default function PosPage() {
         img.src = event.target?.result as string
         img.onload = () => {
           const canvas = document.createElement('canvas')
-          const MAX_WIDTH = 800
-          const MAX_HEIGHT = 800
-          let width = img.width
-          let height = img.height
-
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width
-              width = MAX_WIDTH
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height
-              height = MAX_HEIGHT
-            }
-          }
-
-          canvas.width = width
-          canvas.height = height
+          canvas.width = 800; canvas.height = 800
           const ctx = canvas.getContext('2d')
-          ctx?.drawImage(img, 0, 0, width, height)
-
-          canvas.toBlob((blob) => {
-            if (blob) {
-              resolve(blob)
-            } else {
-              reject(new Error('Falló la compresión de la imagen'))
-            }
-          }, 'image/jpeg', 0.7)
+          ctx?.drawImage(img, 0, 0, 800, 800)
+          canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Falló compresión')), 'image/jpeg', 0.7)
         }
-        img.onerror = (error) => reject(error)
       }
-      reader.onerror = (error) => reject(error)
     })
   }
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setImageFile(file)
-      setImagePreview(URL.createObjectURL(file))
-    }
-  }
-
   const handleExit = () => {
-    if (isStaff) {
-      localStorage.removeItem('currentStaff')
-      router.push('/')
-    } else {
-      router.push('/dashboard')
-    }
+    if (isStaff) { localStorage.removeItem('currentStaff'); router.push('/'); }
+    else { router.push('/dashboard'); }
   }
 
-  const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory = selectedCategory ? p.category_id === selectedCategory : true
-    return matchesSearch && matchesCategory
-  })
-
-  const filteredOtherStores = allStoreProducts.filter(p => {
-    if (!p) return false;
-    const productName = p.name || '';
-    const isNotCurrentBranch = p.branch_id !== selectedBranch;
-    const matchesSearch = productName.toLowerCase().includes(otherStoresSearch.toLowerCase());
-    const matchesCategory = selectedOtherStoreCategory ? p.category_id === selectedOtherStoreCategory : true;
-    
-    return isNotCurrentBranch && matchesSearch && matchesCategory;
-  })
-
+  const filteredProducts = products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) && (selectedCategory ? p.category_id === selectedCategory : true))
+  const filteredOtherStores = allStoreProducts.filter(p => p && p.branch_id !== selectedBranch && p.name.toLowerCase().includes(otherStoresSearch.toLowerCase()) && (selectedOtherStoreCategory ? p.category_id === selectedOtherStoreCategory : true))
   const lowStockItems = products.filter(p => p.stock <= 5 && !p.is_custom)
 
   const themeBg = isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-slate-100 text-slate-900'
@@ -894,213 +652,398 @@ export default function PosPage() {
   const inputBg = isDarkMode ? 'bg-[#0f172a] text-white border-slate-600' : 'bg-white text-slate-900 border-slate-300'
 
   return (
-    <div className={`min-h-screen p-2 md:p-4 flex flex-col w-full notranslate pb-20 lg:pb-4 ${themeBg}`} translate="no">
+    <div className={`min-h-screen p-4 md:p-6 flex flex-col w-full px-6 notranslate ${themeBg}`} translate="no">
       
-      {/* BARRA SUPERIOR ADAPTABLE */}
-      <header className={`p-3 rounded-lg shadow mb-3 flex flex-wrap justify-between items-center gap-2 border w-full ${panelBg}`}>
-        <div className="flex items-center gap-2.5">
-          <button 
-            onClick={() => setIsDrawerOpen(true)}
-            className="p-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center shadow transition-colors"
-            title="Menú"
-          >
-            ☰
-          </button>
-
-          {businessLogo ? (
-            <img src={businessLogo} alt="Logo" className="w-12 h-12 md:w-14 md:h-14 object-contain rounded-xl border p-0.5 shadow-sm" />
-          ) : (
-            <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow-sm">POS</div>
-          )}
-
-          <div>
-            <h1 className="text-xs md:text-sm font-bold leading-tight">Punto de Venta</h1>
-            <select 
-              value={selectedBranch} 
-              onChange={e => handleBranchChange(e.target.value)}
-              disabled={isStaff}
-              className={`border px-2 py-0.5 rounded-md outline-none font-semibold text-xs mt-1 ${inputBg}`}
-            >
-              {branches.map(b => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+      {/* HEADER SUPERIOR CON EL BOTÓN VERDE ≡ DE OPCIONES OPERATIVAS */}
+      <header className={`p-4 rounded-lg shadow mb-6 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 border w-full ${panelBg}`}>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           
-        <div className="flex items-center gap-1.5 flex-wrap">
-           {(userRole === 'encargado' || !isStaff) && (
-             <>
-               <button onClick={() => router.push('/cajero')} className="bg-sky-600 hover:bg-sky-500 px-2 py-1.5 rounded font-semibold text-xs text-white shadow">💵 Caja</button>
-               <button onClick={() => router.push('/inventario')} className="bg-emerald-700 hover:bg-emerald-600 px-2 py-1.5 rounded font-semibold text-xs text-white shadow">📋 Inventario</button>
-             </>
-           )}
+          {/* BOTÓN VERDE CON ÍCONO HAMBURGUESA ≡ PARA OPCIONES OPERATIVAS */}
+          <div className="relative" ref={opsDropdownRef}>
+            <button
+              onClick={() => setShowOpsDropdown(!showOpsDropdown)}
+              className="w-14 h-14 bg-emerald-600 hover:bg-emerald-500 rounded-xl flex items-center justify-center text-white text-2xl font-bold shadow transition-colors cursor-pointer select-none"
+              title="Opciones Operativas"
+            >
+              ≡
+            </button>
 
-           <button onClick={toggleTicketPrinting} className={`px-2 py-1.5 rounded text-xs font-semibold border ${enableTicketPrinting ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-700 text-slate-300 border-slate-600'}`}>
-             🖨️ {enableTicketPrinting ? 'ON' : 'OFF'}
-           </button>
-
-           <button onClick={toggleTheme} className={`px-2 py-1.5 rounded text-xs font-semibold border ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}>
-             {isDarkMode ? '☀️' : '🌙'}
-           </button>
-
-           <button onClick={() => setShowLowStockModal(true)} className={`relative px-2 py-1.5 rounded text-xs font-semibold ${lowStockItems.length > 0 ? 'bg-amber-600 text-white animate-pulse' : 'bg-slate-700 text-slate-300'}`}>
-             ⚠️ {lowStockItems.length > 0 && `(${lowStockItems.length})`}
-           </button>
-
-           <button onClick={handleExit} className="bg-red-700 hover:bg-red-600 px-2.5 py-1.5 rounded text-xs font-semibold text-white">
-             {isStaff ? 'Salir' : 'Volver'}
-           </button>
-        </div>
-      </header>
-
-      {/* DISEÑO PRINCIPAL */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 w-full">
-        
-        {/* COLUMNA IZQUIERDA: CATÁLOGO */}
-        <div className={`p-3 md:p-4 rounded-lg shadow border flex flex-col lg:col-span-8 order-2 lg:order-1 ${panelBg}`}>
-          <div className="mb-3 relative" ref={searchRef}>
-            <input 
-              type="text"
-              value={searchTerm}
-              onChange={e => {
-                setSearchTerm(e.target.value)
-                setShowSuggestions(true)
-              }}
-              onFocus={() => setShowSuggestions(true)}
-              placeholder="🔍 Search for item..."
-              className={`w-full px-4 py-2.5 rounded-lg text-sm outline-none focus:border-emerald-500 transition-colors border ${inputBg}`}
-            />
-
-            {showSuggestions && searchTerm.trim() !== '' && (
-              <div className={`absolute left-0 right-0 mt-1 rounded-lg shadow-xl z-50 max-h-52 overflow-y-auto border ${subPanelBg}`}>
-                {filteredProducts.length === 0 ? (
-                  <div className="p-3 text-sm opacity-75 text-center">No se encontraron productos</div>
-                ) : (
-                  filteredProducts.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => {
-                        addToCart(p)
-                        setSearchTerm('')
-                        setShowSuggestions(false)
-                      }}
-                      className="w-full text-left px-4 py-3 hover:opacity-75 flex justify-between items-center border-b border-opacity-50 transition-colors text-sm"
-                    >
-                      <div>
-                        <span className="font-semibold text-base">{p.name}</span>
-                        <span className="ml-2 text-xs font-semibold opacity-75">(Stock: {p.stock})</span>
-                      </div>
-                      <span className="text-emerald-500 font-bold text-base" translate="no">Q {p.price}</span>
-                    </button>
-                  ))
-                )}
+            {/* MENÚ DESPLEGABLE FLOTANTE DE OPCIONES OPERATIVAS */}
+            {showOpsDropdown && (
+              <div className={`absolute left-0 mt-2 w-56 rounded-xl shadow-2xl border z-50 p-2 space-y-1 ${panelBg}`}>
+                <p className="text-[11px] font-bold text-emerald-500 px-3 py-1 uppercase tracking-wider border-b border-opacity-30">Opciones Operativas</p>
+                
+                <button onClick={() => { setShowOpsDropdown(false); setActiveTab('addProduct'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                  ➕ Agregar Inventario
+                </button>
+                <button onClick={() => { setShowOpsDropdown(false); setActiveTab('otherStores'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                  🏬 Inventario en Red
+                </button>
+                <button onClick={() => { setShowOpsDropdown(false); setActiveTab('transfers'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                  🔄 Módulo de Traslados
+                </button>
+                <button onClick={() => { setShowOpsDropdown(false); setActiveTab('movements'); loadMovements(selectedBranch); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                  📊 Movimientos / Cuadre
+                </button>
+                <button onClick={() => { setShowOpsDropdown(false); setActiveTab('salesReport'); loadSalesReport(businessIdState, selectedBranch); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                  💰 Reporte de Ventas
+                </button>
+                <button onClick={() => { setShowOpsDropdown(false); setActiveTab('customers'); loadCustomers(businessIdState); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                  👥 Directorio Clientes
+                </button>
               </div>
             )}
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-thin">
-            <button
-              onClick={() => setSelectedCategory(null)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
-                selectedCategory === null ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} border`
-              }`}
+          {businessLogo ? (
+            <img src={businessLogo} alt="Logo" className={`w-24 h-24 object-contain rounded-lg p-1 border shadow ${isDarkMode ? 'bg-[#0f172a] border-slate-600' : 'bg-white border-slate-300'}`} />
+          ) : (
+            <div className={`w-14 h-14 rounded-lg flex items-center justify-center text-[10px] border ${isDarkMode ? 'bg-[#0f172a] border-slate-600 text-slate-500' : 'bg-slate-200 border-slate-300 text-slate-600'}`}>POS</div>
+          )}
+
+          <div>
+            <h1 className="text-xl font-bold">Punto de Venta</h1>
+            <select 
+              value={selectedBranch} 
+              onChange={e => handleBranchChange(e.target.value)}
+              disabled={isStaff}
+              className={`border px-3 py-1.5 rounded outline-none focus:border-emerald-500 font-semibold text-xs disabled:opacity-75 disabled:cursor-not-allowed mt-1 ${inputBg}`}
             >
-              ✨ Todos
+              {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </div>
+        </div>
+          
+        <div className="flex items-center gap-2 justify-end flex-wrap relative">
+           {(userRole === 'encargado' || !isStaff) && (
+             <>
+               <button onClick={() => router.push('/cajero')} className="bg-sky-600 hover:bg-sky-500 px-3 py-2 rounded font-semibold text-xs transition-colors shadow flex items-center gap-1.5 text-white">💵 Caja</button>
+               <button onClick={() => router.push('/inventario')} className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-xs transition-colors shadow flex items-center gap-1.5 text-white">📋 Inventario</button>
+             </>
+           )}
+
+           <button onClick={() => router.push('/cotizaciones')} className="bg-purple-600 hover:bg-purple-500 px-3 py-2 rounded font-semibold text-xs transition-colors shadow flex items-center gap-1.5 text-white">📄 Cotizaciones</button>
+
+           <button onClick={toggleTicketPrinting} className={`px-3 py-2 rounded font-semibold text-xs transition-colors border flex items-center gap-1.5 ${enableTicketPrinting ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-700 text-slate-300 border-slate-600'}`}>
+             🖨️ Ticket: {enableTicketPrinting ? 'ON' : 'OFF'}
+           </button>
+
+           <button onClick={toggleTheme} className={`px-3 py-2 rounded font-semibold text-xs transition-colors border ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}>
+             {isDarkMode ? '☀️ Claro' : '🌙 Oscuro'}
+           </button>
+
+           <button onClick={() => setShowLowStockModal(true)} className={`relative px-3 py-2 rounded font-semibold text-xs transition-colors flex items-center gap-1.5 ${lowStockItems.length > 0 ? 'bg-amber-600 text-white animate-pulse' : 'bg-slate-700 text-slate-300'}`}>
+             ⚠️ Stock {lowStockItems.length > 0 && <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-md">{lowStockItems.length}</span>}
+           </button>
+
+           <div className="relative">
+             <button onClick={() => setShowToolsMenu(!showToolsMenu)} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded font-semibold text-xs transition-colors flex items-center gap-1 border border-slate-600">🛠️ Herramientas ▾</button>
+             {showToolsMenu && (
+               <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-xl border z-50 py-1.5 ${panelBg}`}>
+                 <button onClick={() => { setShowToolsMenu(false); router.push('/compras'); }} className="w-full text-left px-4 py-2 hover:bg-emerald-600 hover:text-white text-xs font-semibold">📦 Compras</button>
+                 <button onClick={() => { setShowToolsMenu(false); router.push('/clientes/reportes'); }} className="w-full text-left px-4 py-2 hover:bg-emerald-600 hover:text-white text-xs font-semibold">👥 Clientes y Reportes</button>
+                 <button onClick={() => { setShowToolsMenu(false); router.push('/ventas-historia'); }} className="w-full text-left px-4 py-2 hover:bg-emerald-600 hover:text-white text-xs font-semibold">📅 Historial / Días</button>
+                 <button onClick={() => { setShowToolsMenu(false); router.push('/precios-especiales'); }} className="w-full text-left px-4 py-2 hover:bg-emerald-600 hover:text-white text-xs font-semibold">🛡️ Auditoría de Precios</button>
+               </div>
+             )}
+           </div>
+
+           <button onClick={handleExit} className="bg-red-700 hover:bg-red-600 px-3 py-2 rounded font-semibold text-xs transition-colors text-white">Salir</button>
+        </div>
+      </header>
+
+      {/* SELECTOR DE VISTA EN TELÉFONO */}
+      <div className="flex lg:hidden grid grid-cols-2 gap-2 mb-4">
+        <button onClick={() => setMobileViewTab('catalog')} className={`py-2.5 rounded-lg font-bold text-xs shadow ${mobileViewTab === 'catalog' ? 'bg-emerald-600 text-white' : `${panelBg} opacity-85`}`}>🛍️ Catálogo</button>
+        <button onClick={() => setMobileViewTab('cart')} className={`py-2.5 rounded-lg font-bold text-xs shadow relative ${mobileViewTab === 'cart' ? 'bg-emerald-600 text-white' : `${panelBg} opacity-85`}`}>🛒 Ticket ({cart.reduce((a, c) => a + c.quantity, 0)})</button>
+      </div>
+
+      {/* MODAL DE OPCIONES OPERATIVAS */}
+      {activeTab !== 'ticket' && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 99999 }}>
+          <div className={`p-6 rounded-2xl border border-emerald-500 w-full max-w-xl shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto ${panelBg}`}>
+            <div className="flex justify-between items-center border-b pb-3 border-opacity-50">
+              <h3 className="text-base font-bold text-emerald-500 uppercase tracking-wide">
+                {activeTab === 'addProduct' && '➕ Agregar / Reabastecer Inventario'}
+                {activeTab === 'otherStores' && '🏬 Inventario en Red (Otras Sucursales)'}
+                {activeTab === 'transfers' && '🔄 Módulo de Traslados'}
+                {activeTab === 'movements' && '📊 Movimientos y Cuadre Diario'}
+                {activeTab === 'salesReport' && '💰 Reporte de Ventas de Hoy'}
+                {activeTab === 'customers' && '👥 Directorio de Clientes'}
+              </h3>
+              <button onClick={() => setActiveTab('ticket')} className="font-bold text-lg opacity-75 hover:opacity-100">✕</button>
+            </div>
+
+            {activeTab === 'addProduct' && (
+              <form onSubmit={handleAddOrRestockProduct} className="space-y-3 text-sm">
+                <div>
+                  <label className="block mb-1 opacity-90">Seleccionar Producto</label>
+                  <select value={selectedExistingProduct} onChange={e => setSelectedExistingProduct(e.target.value)} className={`w-full border p-2.5 rounded text-sm ${inputBg}`}>
+                    <option value="">-- Selecciona una opción --</option>
+                    <option value="NEW">✨ [+ Crear Nuevo Producto]</option>
+                    {products.map(p => <option key={p.id} value={p.id}>📦 {p.name} (Stock actual: {p.stock})</option>)}
+                  </select>
+                </div>
+
+                {selectedExistingProduct && selectedExistingProduct !== 'NEW' && (
+                  <div>
+                    <label className="block mb-1 opacity-90">Cantidad a Agregar (Ingreso)</label>
+                    <input type="number" min="1" value={addMoreQuantity} onChange={e => setAddMoreQuantity(Number(e.target.value))} className={`w-full border p-2.5 rounded text-sm ${inputBg}`} required />
+                  </div>
+                )}
+
+                {selectedExistingProduct === 'NEW' && (
+                  <div className="space-y-3 border-t pt-3 mt-2 border-opacity-50">
+                    <div>
+                      <label className="block mb-1 opacity-90">Nombre del Nuevo Producto</label>
+                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ej. Plato Extra" className={`w-full border p-2.5 rounded text-sm ${inputBg}`} required />
+                    </div>
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block opacity-90">Categoría</label>
+                        <button type="button" onClick={() => setShowNewCategoryModal(true)} className="text-emerald-500 font-bold text-xs">+ Crear Nueva</button>
+                      </div>
+                      <select value={newCategoryId} onChange={e => setNewCategoryId(e.target.value)} className={`w-full border p-2.5 rounded text-sm ${inputBg}`}>
+                        <option value="">-- Sin Categoría --</option>
+                        {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block mb-1 opacity-90">Precio (Q)</label>
+                      <input type="number" step="0.01" value={newPrice} onChange={e => setNewPrice(e.target.value)} placeholder="0.00" className={`w-full border p-2.5 rounded text-sm ${inputBg}`} required />
+                    </div>
+                    <div>
+                      <label className="block mb-1 opacity-90">Stock Inicial</label>
+                      <input type="number" value={newStock} onChange={e => setNewStock(e.target.value)} placeholder="0" className={`w-full border p-2.5 rounded text-sm ${inputBg}`} />
+                    </div>
+                    <div>
+                      <label className="block mb-1 opacity-90">Imagen del Producto</label>
+                      <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if(f){setImageFile(f); setImagePreview(URL.createObjectURL(f));} }} className={`w-full border p-2 rounded text-xs ${inputBg}`} />
+                      {imagePreview && <img src={imagePreview} className="mt-2 w-full h-24 rounded object-cover border" alt="preview" />}
+                    </div>
+                  </div>
+                )}
+
+                {selectedExistingProduct && (
+                  <div className="flex gap-2 pt-2">
+                    <button type="submit" disabled={uploadingImage} className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded font-bold text-white text-sm">
+                      {uploadingImage ? 'Guardando...' : 'Guardar y Registrar'}
+                    </button>
+                    <button type="button" onClick={() => setSelectedExistingProduct('')} className="bg-slate-600 px-3 py-2.5 rounded text-white text-sm">Cancelar</button>
+                  </div>
+                )}
+              </form>
+            )}
+
+            {activeTab === 'otherStores' && (
+              <div className="space-y-3 text-sm">
+                <input type="text" value={otherStoresSearch} onChange={e => setOtherStoresSearch(e.target.value)} placeholder="🔍 Buscar en otras sucursales..." className={`w-full border p-2.5 rounded text-sm ${inputBg}`} />
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {filteredOtherStores.map((p, idx) => (
+                    <div key={idx} className={`p-3 rounded border flex justify-between items-center ${subPanelBg}`}>
+                      <div>
+                        <p className="font-semibold text-sm">{p.name}</p>
+                        <p className="text-xs text-amber-500 font-medium">Sucursal: {p.branch_name}</p>
+                        <p className="text-xs opacity-75">Stock: <span className="text-emerald-500 font-bold">{p.stock}</span></p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="font-bold text-emerald-500 text-sm">Q {p.price}</span>
+                        <button onClick={() => { setTransferProduct(p); setActiveTab('transfers'); }} className="bg-blue-600 text-xs px-2.5 py-1 rounded text-white font-semibold">Solicitar</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'transfers' && (
+              <div className="space-y-3 text-sm">
+                {transferProduct && (
+                  <form onSubmit={handleRequestTransfer} className={`p-3 rounded border border-emerald-500/50 space-y-2 ${subPanelBg}`}>
+                    <p className="font-bold text-sm">Solicitar: {transferProduct.name}</p>
+                    <input type="number" min="1" value={transferQuantity} onChange={e => setTransferQuantity(Number(e.target.value))} className={`w-full border p-2 rounded text-sm ${inputBg}`} required />
+                    <button type="submit" className="w-full bg-emerald-600 text-white py-2 rounded font-bold text-sm">Enviar Solicitud</button>
+                  </form>
+                )}
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {transfersList.map(t => (
+                    <div key={t.transfer_id} className={`p-3 rounded border text-xs space-y-1 ${subPanelBg}`}>
+                      <div className="flex justify-between font-bold"><span className="text-emerald-500">{t.product_name}</span><span>{t.status}</span></div>
+                      <p>De: {t.source_branch_name} → Para: {t.destination_branch_name} ({t.quantity} unids)</p>
+                      {t.status === 'pendiente' && t.source_branch_id === selectedBranch && (
+                        <button onClick={() => handleCompleteTransfer(t.transfer_id)} className="w-full bg-blue-600 text-white py-1 rounded font-semibold mt-1">Aceptar y Enviar</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'movements' && (
+              <div className="space-y-2 max-h-60 overflow-y-auto text-xs">
+                {branchMovements.map(m => (
+                  <div key={m.id} className={`p-2.5 rounded border flex justify-between ${subPanelBg}`}>
+                    <span>{m.product?.name} ({m.movement_type})</span>
+                    <span className={m.quantity < 0 ? 'text-red-400 font-bold' : 'text-emerald-400 font-bold'}>{m.quantity}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {activeTab === 'salesReport' && (
+              <div className="space-y-3 text-xs">
+                <div className={`p-3 rounded border font-bold text-emerald-500 text-base ${subPanelBg}`}>
+                  Total Ventas Hoy: Q {salesReport.reduce((a, s) => a + Number(s.total_amount || 0), 0)}
+                </div>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {salesReport.map(s => (
+                    <div key={s.sale_id} onClick={() => handleViewSaleDetails(s.sale_id)} className={`p-2.5 rounded border cursor-pointer flex justify-between ${subPanelBg}`}>
+                      <span>NIT: {s.customer_nit} ({s.customer_name})</span>
+                      <span className="font-bold text-emerald-400">Q {s.total_amount}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'customers' && (
+              <div className="space-y-2 max-h-60 overflow-y-auto text-xs">
+                {customersList.map(c => (
+                  <div key={c.customer_id} className={`p-2.5 rounded border flex justify-between ${subPanelBg}`}>
+                    <span>{c.name} (NIT: {c.nit})</span>
+                    <span className="text-emerald-400 font-bold">{c.total_purchases} compras</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button onClick={() => setActiveTab('ticket')} className="w-full bg-slate-600 hover:bg-slate-500 text-white py-2.5 rounded-xl font-bold text-sm">
+              Cerrar Panel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* DISEÑO PRINCIPAL DE DOS COLUMNAS AMPLIADAS (CATÁLOGO Y TICKET) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 w-full">
+        
+        {/* PANEL CENTRAL: CATÁLOGO DE PRODUCTOS (Ocupa 2 columnas en desktop) */}
+        <div className={`lg:col-span-2 p-5 rounded-lg shadow border flex flex-col ${mobileViewTab === 'catalog' ? 'flex' : 'hidden'} lg:flex ${panelBg}`}>
+          <div className="mb-4 relative" ref={searchRef}>
+            <input 
+              type="text"
+              value={searchTerm}
+              onChange={e => { setSearchTerm(e.target.value); setShowSuggestions(true); }}
+              onFocus={() => setShowSuggestions(true)}
+              placeholder="🔍 Buscar producto por nombre..."
+              className={`w-full border px-4 py-2.5 rounded-lg text-sm outline-none focus:border-emerald-500 border ${inputBg}`}
+            />
+
+            {showSuggestions && searchTerm.trim() !== '' && (
+              <div className={`absolute left-0 right-0 mt-1 rounded-lg shadow-xl z-50 max-h-52 overflow-y-auto border ${subPanelBg}`}>
+                {filteredProducts.map(p => (
+                  <button 
+                    key={p.id} 
+                    onClick={() => { 
+                      if (p.stock <= 0) {
+                        alert("⚠️ Este producto no tiene existencias disponibles (Stock 0).");
+                        return;
+                      }
+                      addToCart(p); 
+                      setSearchTerm(''); 
+                      setShowSuggestions(false); 
+                    }} 
+                    className={`w-full text-left px-4 py-3 hover:opacity-75 flex justify-between items-center border-b text-sm ${p.stock <= 0 ? 'opacity-45 cursor-not-allowed' : ''}`}
+                  >
+                    <div>
+                      <span className="font-semibold">{p.name}</span>
+                      <span className={`ml-2 text-xs font-semibold ${p.stock <= 0 ? 'text-red-400 font-bold' : 'opacity-75'}`}>(Stock: {p.stock})</span>
+                    </div>
+                    <span className="text-emerald-500 font-bold">Q {p.price}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-thin">
+            <button onClick={() => setSelectedCategory(null)} className={`px-3.5 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${selectedCategory === null ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} border`}`}>✨ Todos</button>
             {categories.map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
-                  selectedCategory === cat.id ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} border`
-                }`}
-              >
+              <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`px-3.5 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${selectedCategory === cat.id ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} border`}`}>
                 {cat.name}
               </button>
             ))}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 overflow-y-auto max-h-[65vh] lg:max-h-[60vh] pr-1 flex-1">
+          {/* TARJETAS DE PRODUCTOS CON VALIDACIÓN Y ESTILO VISUAL DE STOCK 0 */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 overflow-y-auto max-h-[60vh] pr-1 flex-1">
             {filteredProducts.length === 0 ? (
-              <p className="col-span-full text-center py-16 text-sm opacity-75">No hay productos que coincidan con la búsqueda.</p>
+              <p className="col-span-full text-center py-10 text-base opacity-75">No hay productos que coincidan con la búsqueda.</p>
             ) : (
-              filteredProducts.map(p => (
-                <div
-                  key={p.id}
-                  onClick={() => addToCart(p)}
-                  className={`border p-3 rounded-lg flex flex-col justify-between text-left transition-all duration-150 shadow group cursor-pointer h-full select-none ${subPanelBg} hover:border-emerald-500`}
-                >
-                  <div className="flex flex-col">
-                    {p.image_url ? (
-                      <img src={p.image_url} alt={p.name} className="w-full h-24 object-cover rounded mb-2 border border-opacity-50 pointer-events-none" />
-                    ) : (
-                      <div className="w-full h-24 rounded mb-2 flex items-center justify-center text-xs opacity-50 border border-opacity-50">Sin imagen</div>
-                    )}
-                    <span className="text-[11px] block mb-0.5 font-semibold opacity-80">
-                      Stock: <span className="text-emerald-500 font-bold">{p.is_custom ? 'N/A' : p.stock}</span>
-                    </span>
-                    <h3 className="font-bold group-hover:text-emerald-500 transition-colors line-clamp-2 text-xs leading-snug">{p.name}</h3>
+              filteredProducts.map(p => {
+                const isOutOfStock = p.stock <= 0;
+                return (
+                  <div 
+                    key={p.id} 
+                    onClick={() => addToCart(p)} 
+                    className={`border p-3.5 rounded-lg flex flex-col justify-between text-left shadow h-full select-none ${subPanelBg} ${
+                      isOutOfStock 
+                        ? 'opacity-45 cursor-not-allowed border-red-500/40' 
+                        : 'hover:border-emerald-500 active:scale-95 active:border-emerald-400 cursor-pointer group'
+                    }`}
+                  >
+                    <div className="flex flex-col">
+                      {p.image_url ? (
+                        <img src={p.image_url} alt={p.name} className="w-full h-28 object-cover rounded mb-2.5 border" />
+                      ) : (
+                        <div className="w-full h-28 rounded mb-2.5 flex items-center justify-center text-xs opacity-50 border">Sin imagen</div>
+                      )}
+                      <span className={`text-xs sm:text-sm block mb-1 ${isOutOfStock ? 'text-red-400 font-bold' : 'font-semibold opacity-80'}`}>
+                        Stock: <strong className={isOutOfStock ? 'text-red-400' : 'text-emerald-500'}>{p.is_custom ? 'N/A' : p.stock}</strong> {isOutOfStock ? '(Agotado)' : ''}
+                      </span>
+                      <h3 className={`font-bold line-clamp-2 text-sm sm:text-base leading-snug ${isOutOfStock ? 'opacity-75' : 'group-hover:text-emerald-500'}`}>{p.name}</h3>
+                    </div>
+                    
+                    <div className="mt-3 pt-2 border-t border-opacity-50 flex items-center justify-between">
+                      <span className="text-xs uppercase opacity-70">{p.is_custom ? 'Variable' : 'Precio'}</span>
+                      <span className="text-emerald-500 font-extrabold text-base sm:text-lg" translate="no">{p.is_custom ? 'A cotizar' : `Q ${p.price}`}</span>
+                    </div>
                   </div>
-                  
-                  <div className="mt-2 pt-1.5 border-t border-opacity-50 flex items-center justify-between">
-                    <span className="text-[10px] uppercase font-medium opacity-70">Precio</span>
-                    <span className="text-emerald-500 font-extrabold text-sm" translate="no">
-                      {p.is_custom ? 'A cotizar' : `Q ${p.price}`}
-                    </span>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
 
-        {/* COLUMNA DERECHA: TICKET DE VENTA (PC) */}
-        <div className={`hidden lg:flex p-4 rounded-lg shadow border flex-col justify-between lg:col-span-4 order-1 lg:order-2 ${panelBg}`}>
+        {/* PANEL DERECHO: TICKET / DETALLE DE ORDEN */}
+        <div className={`p-5 rounded-lg shadow border flex flex-col justify-between ${mobileViewTab === 'cart' ? 'flex' : 'hidden'} lg:flex ${panelBg}`}>
           <div>
-            <div className="flex justify-between items-center mb-3">
-              <h2 className="text-base font-bold text-emerald-500">Ticket de Venta</h2>
-              <span className="text-xs opacity-75 font-medium">Walk-In</span>
-            </div>
-
-            <div className="space-y-2.5 overflow-y-auto max-h-[52vh] pr-1">
+            <h2 className="text-lg font-bold text-emerald-500 mb-4">Ticket de Venta</h2>
+            <div className="space-y-3 overflow-y-auto max-h-[50vh] pr-1">
               {cart.length === 0 ? (
-                <p className="text-center py-16 text-sm opacity-75">El carrito está vacío.</p>
+                <p className="text-center py-10 text-base opacity-75">El carrito está vacío.</p>
               ) : (
                 cart.map(item => (
-                  <div key={item.id} className={`flex flex-col gap-2 p-3 rounded-lg border text-xs ${subPanelBg}`}>
+                  <div key={item.id} className={`flex flex-col gap-2.5 p-3.5 rounded-lg border text-sm ${subPanelBg}`}>
                     <div className="flex justify-between items-center">
-                      <span className="font-bold text-sm">{item.name}</span>
-                      <button onClick={() => removeFromCart(item.id)} className="text-red-400 font-bold px-1.5 py-0.5 text-sm">✕</button>
+                      <span className="font-bold text-base">{item.name}</span>
+                      <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-300 font-bold px-2 py-0.5 rounded text-sm">✕</button>
                     </div>
                     
                     <div className="flex justify-between items-center gap-2">
-                      <div className="flex items-center gap-1">
-                        <span className="opacity-80">Q:</span>
-                        <input 
-                          type="number" 
-                          step="0.01"
-                          value={item.price} 
-                          onChange={(e) => handlePriceChange(item.id, e.target.value)}
-                          className={`w-20 border rounded px-1.5 py-1 text-emerald-500 font-bold outline-none focus:border-emerald-500 ${inputBg}`} 
-                        />
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-medium opacity-80">Precio Q:</span>
+                        <input type="number" step="0.01" value={item.price} onChange={(e) => handlePriceChange(item.id, e.target.value)} className={`w-20 border rounded px-2 py-1 text-emerald-500 font-bold text-sm outline-none ${inputBg}`} />
                       </div>
-
                       <div className="flex items-center gap-1">
-                        <span className="opacity-80">Cant:</span>
-                        <input 
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) => handleQuantityChange(item.id, e.target.value)}
-                          className={`w-14 border rounded px-1 py-1 font-bold outline-none focus:border-emerald-500 text-center ${inputBg}`}
-                        />
+                        <span className="text-xs font-medium opacity-80">Cant:</span>
+                        <input type="number" min="1" value={item.quantity} onChange={(e) => handleQuantityChange(item.id, e.target.value)} className={`w-16 border rounded px-2 py-1 font-bold text-sm text-center ${inputBg}`} />
                       </div>
                     </div>
 
-                    <div className="flex justify-between items-center pt-1 border-t border-opacity-50 font-semibold">
-                      <span>Subtotal:</span>
-                      <span className="text-emerald-500 text-sm" translate="no">Q {(Number(item.price) || 0) * (Number(item.quantity) || 0)}</span>
+                    <div className="flex justify-between items-center pt-1.5 border-t border-opacity-50">
+                      <span className="text-xs opacity-80">Subtotal:</span>
+                      <span className="font-extrabold text-emerald-500 text-base" translate="no">Q {item.price * item.quantity}</span>
                     </div>
                   </div>
                 ))
@@ -1108,376 +1051,66 @@ export default function PosPage() {
             </div>
           </div>
 
-          <div className="border-t border-opacity-50 pt-3 mt-3 space-y-3">
-            <div className="flex justify-between items-center text-sm opacity-90">
-              <span>Subtotal:</span>
-              <span className="font-bold" translate="no">Q {totalCart}</span>
+          <div className="border-t border-opacity-50 pt-4 mt-4 space-y-2">
+            <div className="flex justify-between items-center mb-2 text-xl font-bold">
+              <span>Total:</span>
+              <span className="text-emerald-500 text-2xl" translate="no">Q {totalCart}</span>
             </div>
 
-            <button 
-              onClick={handleSavePendingOrder}
-              disabled={cart.length === 0 || isSubmittingOrder}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3 rounded-lg font-bold shadow transition-colors text-xs flex items-center justify-center gap-1"
-            >
-              {isSubmittingOrder ? 'Generando...' : `Generar Orden - Pasar a Caja (Q ${totalCart})`}
+            <button onClick={handleSavePendingOrder} disabled={cart.length === 0 || isSubmittingOrder} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-2.5 rounded-lg font-bold shadow text-sm flex items-center justify-center gap-2">
+              {isSubmittingOrder ? 'Guardando Orden...' : '📝 Guardar Orden (Pasar a Caja)'}
             </button>
           </div>
         </div>
 
       </div>
 
-      {/* BARRA FLOTANTE MÓVIL */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 p-3 bg-slate-900 border-t border-slate-700 flex justify-between items-center shadow-2xl z-40">
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={() => setIsMobileCartOpen(true)}
-            className="bg-emerald-600 text-white px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow"
-          >
-            🛒 Ver Carrito ({totalItemsCount})
-          </button>
-          <span className="text-xs text-slate-300 font-semibold" translate="no">Q {totalCart}</span>
-        </div>
-        <div>
-          <button 
-            onClick={() => setIsMobileCartOpen(true)}
-            disabled={cart.length === 0}
-            className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-bold text-xs shadow"
-          >
-            Generar Orden
-          </button>
-        </div>
-      </div>
-
-      {/* MODAL CARRITO MÓVIL */}
-      {isMobileCartOpen && (
-        <div className="lg:hidden fixed inset-0 bg-black/80 flex items-end z-50 animate-fadeIn" onClick={() => setIsMobileCartOpen(false)}>
-          <div 
-            className={`w-full max-h-[85vh] rounded-t-2xl p-4 md:p-5 flex flex-col justify-between shadow-2xl border-t ${panelBg}`}
-            onClick={e => e.stopPropagation()}
-          >
-            <div>
-              <div className="flex justify-between items-center mb-3 pb-2 border-b border-opacity-50">
-                <h2 className="text-base font-bold text-emerald-500">🛒 Ticket de Venta</h2>
-                <button onClick={() => setIsMobileCartOpen(false)} className="text-lg font-bold opacity-75">✕</button>
-              </div>
-
-              <div className="space-y-2.5 overflow-y-auto max-h-[48vh] pr-1">
-                {cart.length === 0 ? (
-                  <p className="text-center py-10 text-sm opacity-75">El carrito está vacío.</p>
-                ) : (
-                  cart.map(item => (
-                    <div key={item.id} className={`flex flex-col gap-2 p-3 rounded-lg border text-xs ${subPanelBg}`}>
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-sm">{item.name}</span>
-                        <button onClick={() => removeFromCart(item.id)} className="text-red-400 font-bold px-1.5 py-0.5 text-sm">✕</button>
-                      </div>
-                      
-                      <div className="flex justify-between items-center gap-2">
-                        <div className="flex items-center gap-1">
-                          <span className="opacity-80">Q:</span>
-                          <input 
-                            type="number" 
-                            step="0.01"
-                            value={item.price} 
-                            onChange={(e) => handlePriceChange(item.id, e.target.value)}
-                            className={`w-20 border rounded px-1.5 py-1 text-emerald-500 font-bold outline-none ${inputBg}`} 
-                          />
-                        </div>
-
-                        <div className="flex items-center gap-1">
-                          <span className="opacity-80">Cant:</span>
-                          <input 
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) => handleQuantityChange(item.id, e.target.value)}
-                            className={`w-14 border rounded px-1 py-1 font-bold outline-none text-center ${inputBg}`}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex justify-between items-center pt-1 border-t border-opacity-50 font-semibold">
-                        <span>Subtotal:</span>
-                        <span className="text-emerald-500 text-sm" translate="no">Q {(Number(item.price) || 0) * (Number(item.quantity) || 0)}</span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div className="border-t border-opacity-50 pt-3 mt-3 space-y-3">
-              <div className="flex justify-between items-center text-base font-bold">
-                <span>Subtotal:</span>
-                <span className="text-emerald-500 text-lg" translate="no">Q {totalCart}</span>
-              </div>
-
-              <button 
-                onClick={handleSavePendingOrder}
-                disabled={cart.length === 0 || isSubmittingOrder}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3 rounded-lg font-bold shadow text-xs flex items-center justify-center gap-1"
-              >
-                {isSubmittingOrder ? 'Generando...' : `Generar Orden - Pasar a Caja (Q ${totalCart})`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MENÚ LATERAL DESLIZANTE */}
-      {isDrawerOpen && (
-        <div className="fixed inset-0 bg-black/70 flex z-[9999]" onClick={() => setIsDrawerOpen(false)}>
-          <div 
-            className={`w-[380px] md:w-[450px] h-full p-6 flex flex-col shadow-2xl border-r ${panelBg}`}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-4 pb-3 border-b border-opacity-50">
-              <h2 className="text-lg font-bold text-emerald-500">🛠️ Opciones Operativas</h2>
-              <button onClick={() => setIsDrawerOpen(false)} className="text-xl font-bold opacity-75 hover:opacity-100 p-1">✕</button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 mb-4 text-xs font-semibold">
-              <button onClick={() => setActiveTab('addProduct')} className={`text-left p-3 rounded-lg transition-colors ${activeTab === 'addProduct' ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} hover:opacity-100 border`}`}>
-                ➕ Agregar / Reabastecer
-              </button>
-              <button onClick={() => setActiveTab('otherStores')} className={`text-left p-3 rounded-lg transition-colors ${activeTab === 'otherStores' ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} hover:opacity-100 border`}`}>
-                🏬 Otras Tiendas (Red)
-              </button>
-              <button onClick={() => setActiveTab('transfers')} className={`text-left p-3 rounded-lg transition-colors ${activeTab === 'transfers' ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} hover:opacity-100 border`}`}>
-                🔄 Módulo de Traslados
-              </button>
-              <button onClick={() => setActiveTab('movements')} className={`text-left p-3 rounded-lg transition-colors ${activeTab === 'movements' ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} hover:opacity-100 border`}`}>
-                📊 Movimientos Inventario
-              </button>
-              <button onClick={() => { setActiveTab('salesReport'); loadSalesReport(businessIdState, selectedBranch); }} className={`text-left p-3 rounded-lg transition-colors ${activeTab === 'salesReport' ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} hover:opacity-100 border`}`}>
-                💰 Reporte Ventas (Hoy)
-              </button>
-              <button onClick={() => { setActiveTab('customers'); loadCustomers(businessIdState); }} className={`text-left p-3 rounded-lg transition-colors ${activeTab === 'customers' ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} hover:opacity-100 border`}`}>
-                👥 Directorio Clientes
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto pr-1 text-xs space-y-3">
-              {activeTab === 'addProduct' && (
-                <form onSubmit={handleAddOrRestockProduct} className="space-y-3">
-                  <p className="font-bold text-emerald-500 text-sm">Ingresar o Crear Inventario</p>
-                  <select value={selectedExistingProduct} onChange={e => setSelectedExistingProduct(e.target.value)} className={`w-full border p-2.5 rounded-lg text-xs ${inputBg}`}>
-                    <option value="">-- Selecciona producto --</option>
-                    <option value="NEW">✨ [+ Crear Nuevo Producto]</option>
-                    {products.map(p => (<option key={p.id} value={p.id}>📦 {p.name}</option>))}
-                  </select>
-
-                  {selectedExistingProduct && selectedExistingProduct !== 'NEW' && (
-                    <div className="space-y-1">
-                      <label className="opacity-80">Cantidad a sumar al stock:</label>
-                      <input type="number" min="1" value={addMoreQuantity} onChange={e => setAddMoreQuantity(Number(e.target.value))} className={`w-full border p-2.5 rounded-lg text-xs ${inputBg}`} required />
-                    </div>
-                  )}
-
-                  {selectedExistingProduct === 'NEW' && (
-                    <div className="space-y-2.5">
-                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nombre del producto" className={`w-full border p-2.5 rounded-lg text-xs ${inputBg}`} required />
-                      <div className="flex justify-between items-center">
-                        <label className="opacity-80">Categoría</label>
-                        <button type="button" onClick={() => setShowNewCategoryModal(true)} className="text-emerald-500 font-bold">+ Crear categoría</button>
-                      </div>
-                      <select value={newCategoryId} onChange={e => setNewCategoryId(e.target.value)} className={`w-full border p-2.5 rounded-lg text-xs ${inputBg}`}>
-                        <option value="">-- Ninguna --</option>
-                        {categories.map(c => (<option key={c.id} value={c.id}>{c.name}</option>))}
-                      </select>
-                      <input type="number" step="0.01" value={newPrice} onChange={e => setNewPrice(e.target.value)} placeholder="Precio de venta Q" className={`w-full border p-2.5 rounded-lg text-xs ${inputBg}`} required />
-                      <input type="number" value={newStock} onChange={e => setNewStock(e.target.value)} placeholder="Stock inicial" className={`w-full border p-2.5 rounded-lg text-xs ${inputBg}`} />
-                      <input type="file" accept="image/*" onChange={handleImageChange} className={`w-full border p-1.5 rounded-lg text-xs ${inputBg}`} />
-                    </div>
-                  )}
-
-                  {selectedExistingProduct && (
-                    <button type="submit" disabled={uploadingImage} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-lg font-bold mt-2 shadow">Guardar Cambios</button>
-                  )}
-                </form>
-              )}
-
-              {activeTab === 'otherStores' && (
-                <div className="space-y-3">
-                  <p className="font-bold text-emerald-500 text-sm">Inventario en Red (Otras Tiendas)</p>
-                  <input 
-                    type="text" 
-                    value={otherStoresSearch} 
-                    onChange={e => setOtherStoresSearch(e.target.value)} 
-                    placeholder="🔍 Buscar en red..." 
-                    className={`w-full border p-2.5 rounded-lg text-xs ${inputBg}`} 
-                  />
-
-                  <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin">
-                    <button
-                      onClick={() => setSelectedOtherStoreCategory(null)}
-                      className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition-colors ${
-                        selectedOtherStoreCategory === null ? 'bg-emerald-600 text-white' : `${subPanelBg} border`
-                      }`}
-                    >
-                      ✨ Todos
-                    </button>
-                    {categories.map(cat => (
-                      <button
-                        key={cat.id}
-                        onClick={() => setSelectedOtherStoreCategory(cat.id)}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition-colors ${
-                          selectedOtherStoreCategory === cat.id ? 'bg-emerald-600 text-white' : `${subPanelBg} border`
-                        }`}
-                      >
-                        {cat.name}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="space-y-2 max-h-[55vh] overflow-y-auto pr-1">
-                    {filteredOtherStores.length === 0 ? (
-                      <p className="opacity-75 text-center py-6 text-xs">No hay registros coincidentes.</p>
-                    ) : (
-                      filteredOtherStores.map((p, idx) => (
-                        <div key={idx} className={`p-3 rounded-lg border flex justify-between items-center ${subPanelBg}`}>
-                          <div>
-                            <p className="font-bold text-sm">{p.name}</p>
-                            <p className="text-xs text-amber-500 font-medium">Sucursal: {p.branch_name}</p>
-                            <p className="text-xs opacity-75">Stock disponible: <span className="text-emerald-500 font-bold">{p.stock}</span></p>
-                          </div>
-                          <div className="flex flex-col items-end gap-1.5">
-                            <span className="font-extrabold text-emerald-500 text-sm" translate="no">Q {p.price}</span>
-                            <button 
-                              onClick={() => {
-                                setTransferProduct(p)
-                                setTransferQuantity(1)
-                                setActiveTab('transfers')
-                              }}
-                              className="bg-blue-600 hover:bg-blue-500 text-xs px-3 py-1.5 rounded-md text-white font-semibold shadow"
-                            >
-                              Pedir
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'transfers' && (
-                <div className="space-y-3">
-                  <p className="font-bold text-emerald-500 text-sm">Gestión de Traslados</p>
-                  {transferProduct && (
-                    <form onSubmit={handleRequestTransfer} className={`p-3 rounded-lg border space-y-2 ${subPanelBg}`}>
-                      <p className="font-bold">Solicitar: {transferProduct.name}</p>
-                      <input type="number" min="1" value={transferQuantity} onChange={e => setTransferQuantity(Number(e.target.value))} className={`w-full border p-2 rounded text-xs ${inputBg}`} required />
-                      <button type="submit" className="w-full bg-emerald-600 text-white py-2 rounded font-bold text-xs shadow">Enviar Solicitud</button>
-                    </form>
-                  )}
-                  <div className="space-y-2 max-h-[55vh] overflow-y-auto">
-                    {transfersList.map((t) => (
-                      <div key={t.transfer_id} className={`p-3 rounded-lg border flex justify-between items-center ${subPanelBg}`}>
-                        <div>
-                          <p className="font-semibold">{t.product_name}</p>
-                          <p className="text-[11px] opacity-75">Estado: <span className="text-amber-400 font-bold">{t.status}</span></p>
-                        </div>
-                        {t.status === 'pendiente' && t.source_branch_id === selectedBranch && (
-                          <button onClick={() => handleCompleteTransfer(t.transfer_id)} className="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-semibold shadow">Aceptar</button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'movements' && (
-                <div className="space-y-2 max-h-[65vh] overflow-y-auto">
-                  <p className="font-bold text-emerald-500 text-sm mb-2">Movimientos del Día</p>
-                  {branchMovements.map((m) => (
-                    <div key={m.id} className={`p-3 rounded-lg border flex justify-between items-center ${subPanelBg}`}>
-                      <span>{m.product?.name}</span>
-                      <span className={m.quantity < 0 ? 'text-red-400 font-bold' : 'text-emerald-400 font-bold'}>{m.quantity}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {activeTab === 'salesReport' && (
-                <div className="space-y-3">
-                  <p className="font-bold text-emerald-500 text-sm">Total de Ventas Hoy: Q {salesReport.reduce((acc, s) => acc + Number(s.total_amount || 0), 0)}</p>
-                  <div className="space-y-2 max-h-[55vh] overflow-y-auto">
-                    {salesReport.map((s) => (
-                      <div key={s.sale_id} onClick={() => handleViewSaleDetails(s.sale_id)} className={`p-3 rounded-lg border cursor-pointer hover:border-emerald-500 transition-colors ${subPanelBg}`}>
-                        <div className="flex justify-between font-semibold">
-                          <span>NIT: {s.customer_nit}</span>
-                          <span className="text-emerald-500" translate="no">Q {s.total_amount}</span>
-                        </div>
-                        <p className="text-[10px] opacity-75">{s.customer_name}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'customers' && (
-                <div className="space-y-2 max-h-[65vh] overflow-y-auto">
-                  <p className="font-bold text-emerald-500 text-sm mb-2">Directorio de Clientes</p>
-                  {customersList.map((c) => (
-                    <div key={c.customer_id} className={`p-3 rounded-lg border ${subPanelBg}`}>
-                      <p className="font-semibold text-sm">{c.name}</p>
-                      <p className="opacity-75 text-xs">NIT: {c.nit}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* MODAL DE STOCK BAJO */}
       {showLowStockModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 99999 }}>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
           <div className={`p-6 rounded-xl border border-amber-500 w-full max-w-md shadow-2xl space-y-4 ${panelBg}`}>
-            <h3 className="text-base font-bold text-amber-500">⚠️ Productos con Stock Bajo</h3>
-            <div className="space-y-2 max-h-72 overflow-y-auto">
+            <h3 className="text-base font-bold text-amber-500">⚠️ Productos con Stock Bajo (≤ 5)</h3>
+            <div className="space-y-2 max-h-72 overflow-y-auto text-sm">
               {lowStockItems.map(p => (
-                <div key={p.id} className={`p-2 rounded border flex justify-between ${subPanelBg}`}>
+                <div key={p.id} className={`p-3 rounded border flex justify-between ${subPanelBg}`}>
                   <span>{p.name}</span>
-                  <span className="text-red-500 font-bold">Stock: {p.stock}</span>
+                  <span className="text-red-400 font-bold">Stock: {p.stock}</span>
                 </div>
               ))}
             </div>
-            <button onClick={() => setShowLowStockModal(false)} className="w-full bg-slate-600 py-2 rounded text-white font-bold">Cerrar</button>
+            <button onClick={() => setShowLowStockModal(false)} className="w-full bg-slate-600 text-white py-2.5 rounded-lg font-semibold text-sm">Cerrar</button>
           </div>
         </div>
       )}
 
       {/* MODAL DETALLE DE VENTA */}
       {selectedSaleDetails !== null && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
           <div className={`p-6 rounded-xl border border-emerald-500 w-[420px] shadow-2xl ${panelBg}`}>
             <h3 className="text-base font-bold text-emerald-500 mb-4">📦 Detalle de la Venta</h3>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
+            <div className="space-y-2 max-h-64 overflow-y-auto text-sm">
               {selectedSaleDetails.map((item, idx) => (
-                <div key={idx} className={`p-2 rounded border flex justify-between ${subPanelBg}`}>
-                  <span>{item.product_name} (x{item.quantity})</span>
-                  <span className="text-emerald-500 font-bold">Q {(Number(item.quantity) || 0) * (Number(item.price) || 0)}</span>
+                <div key={idx} className={`p-3 rounded border flex justify-between ${subPanelBg}`}>
+                  <span>{item.product_name} ({item.quantity} x Q {item.price})</span>
+                  <span className="font-bold text-emerald-400">Q {item.quantity * item.price}</span>
                 </div>
               ))}
             </div>
-            <button onClick={() => setSelectedSaleDetails(null)} className="mt-4 w-full bg-slate-600 text-white py-2 rounded font-bold">Cerrar</button>
+            <button onClick={() => setSelectedSaleDetails(null)} className="mt-6 w-full bg-slate-600 text-white py-3 rounded-lg font-semibold text-sm">Cerrar</button>
           </div>
         </div>
       )}
 
       {/* MODAL NUEVA CATEGORÍA */}
       {showNewCategoryModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" style={{ zIndex: 99999 }}>
-          <div className={`p-6 rounded-xl border border-emerald-500 w-full max-w-sm shadow-2xl space-y-4 ${panelBg}`}>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className={`p-6 rounded-xl border border-emerald-500 w-full max-w-sm space-y-4 ${panelBg}`}>
             <h3 className="text-base font-bold text-emerald-500">✨ Nueva Categoría</h3>
             <form onSubmit={handleCreateCategory} className="space-y-3 text-sm">
-              <input type="text" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder="Nombre..." className={`w-full border p-2 rounded ${inputBg}`} required autoFocus />
-              <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={savingCategory} className="flex-1 bg-emerald-600 py-2 rounded text-sm font-bold text-white">Guardar</button>
-                <button type="button" onClick={() => setShowNewCategoryModal(false)} className="bg-slate-600 px-4 py-2 rounded text-sm text-white">Cancelar</button>
+              <input type="text" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder="Nombre..." className={`w-full border p-2.5 rounded text-sm ${inputBg}`} required autoFocus />
+              <div className="flex gap-2">
+                <button type="submit" disabled={savingCategory} className="flex-1 bg-emerald-600 text-white py-2.5 rounded font-bold">Guardar</button>
+                <button type="button" onClick={() => setShowNewCategoryModal(false)} className="bg-slate-600 text-white px-4 py-2.5 rounded">Cancelar</button>
               </div>
             </form>
           </div>

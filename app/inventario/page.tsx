@@ -18,6 +18,9 @@ export default function InventarioPage() {
   const [products, setProducts] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
 
+  // Estado para el Menú Lateral Deslizante (Hamburguesa ☰)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+
   // Estado para el Tema (Modo Oscuro / Modo Claro Local)
   const [isDarkMode, setIsDarkMode] = useState(true)
 
@@ -179,71 +182,56 @@ export default function InventarioPage() {
   const inputBg = isDarkMode ? 'bg-[#0f172a] text-white border-slate-600' : 'bg-white text-slate-900 border-slate-300'
 
   return (
-    <div className={`min-h-screen p-4 sm:p-6 flex flex-col notranslate ${themeBg}`} translate="no">
+    <div className={`min-h-screen p-2 md:p-4 flex flex-col notranslate pb-20 lg:pb-4 ${themeBg}`} translate="no">
       
-      {/* HEADER */}
-      <header className={`p-4 rounded-lg shadow mb-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 border ${panelBg}`}>
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold text-emerald-500">📊 Administración de Inventario</h1>
-          <select 
-            value={selectedBranch} 
-            onChange={e => handleBranchChange(e.target.value)}
-            className={`border px-3 py-2 rounded text-sm font-semibold outline-none focus:border-emerald-500 ${inputBg}`}
+      {/* BARRA SUPERIOR ADAPTABLE CON BOTÓN HAMBURGUESA (☰) */}
+      <header className={`p-3 rounded-lg shadow mb-3 flex flex-wrap justify-between items-center gap-2 border w-full ${panelBg}`}>
+        <div className="flex items-center gap-2.5">
+          <button 
+            onClick={() => setIsDrawerOpen(true)}
+            className="p-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center shadow transition-colors"
+            title="Herramientas y Menú"
           >
-            {branches.map(b => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
+            ☰
+          </button>
+
+          <div>
+            <h1 className="text-xs md:text-sm font-bold leading-tight text-emerald-500">Administración de Inventario</h1>
+            <select 
+              value={selectedBranch} 
+              onChange={e => handleBranchChange(e.target.value)}
+              className={`border px-2 py-0.5 rounded-md font-semibold text-xs mt-1 outline-none focus:border-emerald-500 ${inputBg}`}
+            >
+              {branches.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
         
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-          {/* BOTÓN INTERRUPTOR DE TEMA (CLARO / OSCURO) */}
+        <div className="flex items-center gap-2">
+          {/* BOTÓN INTERRUPTOR DE TEMA (SOLO ICONO COMO EN EL POS Y CAJA) */}
           <button 
             onClick={toggleTheme}
-            className={`px-3 py-2 rounded font-semibold text-xs sm:text-sm transition-colors border ${isDarkMode ? 'bg-slate-700 hover:bg-slate-600 text-amber-300 border-slate-600' : 'bg-slate-200 hover:bg-slate-300 text-slate-800 border-slate-300'}`}
+            className={`p-2 rounded-lg text-sm font-semibold border transition-colors ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}
+            title={isDarkMode ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro'}
           >
-            {isDarkMode ? '☀️ Modo Claro' : '🌙 Modo Oscuro'}
+            {isDarkMode ? '☀️' : '🌙'}
           </button>
-
-          <button onClick={() => router.push('/compras')} className="bg-amber-700 hover:bg-amber-600 px-3 py-2 rounded text-sm font-semibold transition-colors flex items-center gap-1 text-white">
-            📦 Módulo de Compras
-          </button>
-
-          <button 
-            onClick={() => {
-              setShowMovementsModal(true);
-              loadMovements(selectedBranch);
-            }} 
-            className="bg-blue-700 hover:bg-blue-600 px-3 py-2 rounded text-sm font-semibold transition-colors flex items-center gap-1 text-white"
-          >
-            📊 Ver Movimientos
-          </button>
-
-          {!isBodega && (
-            <button onClick={() => router.push('/pos')} className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded text-sm font-semibold transition-colors text-white">
-              ← Volver al POS
-            </button>
-          )}
-
-          {isBodega && (
-            <button onClick={handleLogout} className="bg-red-700 hover:bg-red-600 px-3 py-2 rounded text-sm font-semibold transition-colors text-white">
-              🚪 Salir
-            </button>
-          )}
         </div>
       </header>
 
       {/* FILTROS Y BÚSQUEDA */}
-      <div className={`p-4 rounded-lg border mb-6 flex flex-col md:flex-row gap-4 justify-between items-center ${panelBg}`}>
+      <div className={`p-3 md:p-4 rounded-lg border mb-3 flex flex-col md:flex-row gap-3 justify-between items-center ${panelBg}`}>
         <input 
           type="text"
           value={searchTerm}
           onChange={e => setSearchTerm(e.target.value)}
           placeholder="🔍 Buscar producto en inventario..."
-          className={`w-full md:w-96 border p-2.5 rounded-lg text-sm outline-none focus:border-emerald-500 ${inputBg}`}
+          className={`w-full md:w-96 border p-2 rounded-lg text-xs md:text-sm outline-none focus:border-emerald-500 ${inputBg}`}
         />
 
-        <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-1">
+        <div className="flex gap-1.5 overflow-x-auto w-full md:w-auto pb-1 scrollbar-thin">
           <button
             onClick={() => setSelectedCategory(null)}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
@@ -272,14 +260,14 @@ export default function InventarioPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className={`text-xs uppercase tracking-wider border-b ${subPanelBg}`}>
-                <th className="p-3.5">Imagen</th>
-                <th className="p-3.5">Producto</th>
-                <th className="p-3.5">Precio Venta</th>
-                <th className="p-3.5">Stock Actual</th>
-                <th className="p-3.5 text-center">Acciones</th>
+                <th className="p-3">Imagen</th>
+                <th className="p-3">Producto</th>
+                <th className="p-3">Precio Venta</th>
+                <th className="p-3">Stock Actual</th>
+                <th className="p-3 text-center">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-opacity-50 text-sm">
+            <tbody className="divide-y divide-opacity-50 text-xs md:text-sm">
               {filteredProducts.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="text-center py-12 opacity-75">
@@ -289,28 +277,28 @@ export default function InventarioPage() {
               ) : (
                 filteredProducts.map(p => (
                   <tr key={p.id} className="hover:bg-opacity-50 transition-colors">
-                    <td className="p-3.5">
+                    <td className="p-3">
                       {p.image_url ? (
-                        <img src={p.image_url} alt={p.name} className="w-12 h-12 object-cover rounded border border-opacity-50" />
+                        <img src={p.image_url} alt={p.name} className="w-10 h-10 object-cover rounded border border-opacity-50" />
                       ) : (
-                        <div className={`w-12 h-12 rounded flex items-center justify-center text-[10px] opacity-50 border ${subPanelBg}`}>Sin img</div>
+                        <div className={`w-10 h-10 rounded flex items-center justify-center text-[10px] opacity-50 border ${subPanelBg}`}>Sin img</div>
                       )}
                     </td>
-                    <td className="p-3.5 font-bold">{p.name}</td>
-                    <td className="p-3.5 text-emerald-500 font-extrabold" translate="no">Q {p.price}</td>
-                    <td className="p-3.5">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                    <td className="p-3 font-bold">{p.name}</td>
+                    <td className="p-3 text-emerald-500 font-extrabold" translate="no">Q {p.price}</td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
                         p.stock <= 5 ? 'bg-red-500/20 text-red-500 border border-red-500/30' : 'bg-emerald-500/20 text-emerald-600'
                       }`}>
-                        {p.stock} unidades {p.stock <= 5 && '⚠️ (Crítico)'}
+                        {p.stock} un. {p.stock <= 5 && '⚠️'}
                       </span>
                     </td>
-                    <td className="p-3.5 text-center">
+                    <td className="p-3 text-center">
                       <button 
                         onClick={() => { setAdjustingProduct(p); setAdjustQuantity('1'); setAdjustReason('Se rompió / merma'); }}
-                        className="bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded text-xs font-bold text-white transition-colors"
+                        className="bg-blue-600 hover:bg-blue-500 px-2.5 py-1.5 rounded text-xs font-bold text-white transition-colors shadow"
                       >
-                        ⚡ Ajustar Stock
+                        ⚡ Ajustar
                       </button>
                     </td>
                   </tr>
@@ -320,6 +308,64 @@ export default function InventarioPage() {
           </table>
         </div>
       </div>
+
+      {/* MENÚ LATERAL DESLIZANTE (☰) CON HERRAMIENTAS AGRUPADAS */}
+      {isDrawerOpen && (
+        <div className="fixed inset-0 bg-black/70 flex z-[9999]" onClick={() => setIsDrawerOpen(false)}>
+          <div 
+            className={`w-[380px] md:w-[420px] h-full p-6 flex flex-col shadow-2xl border-r ${panelBg}`}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4 pb-3 border-b border-opacity-50">
+              <h2 className="text-lg font-bold text-emerald-500">🛠️ Herramientas de Inventario</h2>
+              <button onClick={() => setIsDrawerOpen(false)} className="text-xl font-bold opacity-75 hover:opacity-100 p-1">✕</button>
+            </div>
+
+            <div className="space-y-4 flex-1 overflow-y-auto pr-1 text-xs">
+              <div className="space-y-2">
+                <p className="font-bold text-emerald-500 text-sm">Operaciones y Módulos</p>
+                <button 
+                  onClick={() => {
+                    setIsDrawerOpen(false);
+                    router.push('/compras');
+                  }} 
+                  className="w-full bg-amber-700 hover:bg-amber-600 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between"
+                >
+                  <span>📦 Módulo de Compras</span>
+                  <span>➔</span>
+                </button>
+
+                <button 
+                  onClick={() => {
+                    setIsDrawerOpen(false);
+                    setShowMovementsModal(true);
+                    loadMovements(selectedBranch);
+                  }} 
+                  className="w-full bg-blue-700 hover:bg-blue-600 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between"
+                >
+                  <span>📊 Ver Historial de Movimientos</span>
+                  <span>➔</span>
+                </button>
+              </div>
+
+              <div className="pt-3 border-t border-opacity-50 space-y-2">
+                <p className="font-bold text-emerald-500 text-sm">Navegación</p>
+                {!isBodega && (
+                  <button onClick={() => router.push('/pos')} className="w-full bg-slate-700 hover:bg-slate-600 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left">
+                    🛒 Volver al POS
+                  </button>
+                )}
+
+                {isBodega && (
+                  <button onClick={handleLogout} className="w-full bg-red-700 hover:bg-red-600 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left">
+                    🚪 Cerrar Sesión
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL DE HISTORIAL DE MOVIMIENTOS CON PESTAÑAS */}
       {showMovementsModal && (
@@ -352,7 +398,7 @@ export default function InventarioPage() {
               ))}
             </div>
 
-            <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1 text-sm">
+            <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1 text-xs">
               {loadingMovements ? (
                 <p className="text-center py-8 opacity-75">Cargando movimientos...</p>
               ) : filteredMovements.length === 0 ? (
@@ -360,7 +406,7 @@ export default function InventarioPage() {
               ) : (
                 filteredMovements.map((m) => (
                   <div key={m.id} className={`p-3 rounded border space-y-1 ${subPanelBg}`}>
-                    <div className="flex justify-between font-semibold text-sm">
+                    <div className="flex justify-between font-semibold text-xs">
                       <span>{m.product?.name || 'Producto'}</span>
                       <span className={`px-2 py-0.5 rounded text-xs font-bold ${
                         m.quantity < 0 ? 'bg-red-500/20 text-red-500' : 'bg-emerald-500/20 text-emerald-500'
@@ -368,7 +414,7 @@ export default function InventarioPage() {
                         {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
                       </span>
                     </div>
-                    <div className="flex justify-between text-xs opacity-75">
+                    <div className="flex justify-between text-[11px] opacity-75">
                       <span className="uppercase tracking-wider font-semibold text-amber-500">{m.movement_type}</span>
                       <span>{new Date(m.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
                     </div>
@@ -379,7 +425,7 @@ export default function InventarioPage() {
 
             <button 
               onClick={() => setShowMovementsModal(false)} 
-              className="w-full bg-slate-600 hover:bg-slate-500 text-white py-2.5 rounded-lg font-semibold text-sm mt-2"
+              className="w-full bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-lg font-semibold text-xs mt-2"
             >
               Cerrar Ventana
             </button>
@@ -396,19 +442,19 @@ export default function InventarioPage() {
               <button onClick={() => setAdjustingProduct(null)} className="font-bold text-base opacity-75 hover:opacity-100">✕</button>
             </div>
 
-            <div className="space-y-3 text-sm">
-              <p className="font-semibold">{adjustingProduct.name}</p>
-              <p className="text-xs opacity-75">Stock Actual: <span className="text-emerald-500 font-bold">{adjustingProduct.stock}</span></p>
+            <div className="space-y-3 text-xs">
+              <p className="font-semibold text-sm">{adjustingProduct.name}</p>
+              <p className="opacity-75">Stock Actual: <span className="text-emerald-500 font-bold">{adjustingProduct.stock}</span></p>
 
-              <form onSubmit={handleQuickAdjust} className="space-y-3 pt-2">
+              <form onSubmit={handleQuickAdjust} className="space-y-3 pt-1">
                 <div>
-                  <label className="block text-xs mb-1 opacity-80">Cantidad a sumar (o restar con negativo ej. -2)</label>
+                  <label className="block text-xs mb-1 opacity-80">Cantidad a sumar o restar (ej. -2)</label>
                   <input 
                     type="text" 
                     value={adjustQuantity} 
                     onChange={e => setAdjustQuantity(e.target.value)} 
                     placeholder="Ej. 5 o -2"
-                    className={`w-full border p-2.5 rounded text-sm outline-none focus:border-emerald-500 font-bold text-emerald-500 ${inputBg}`} 
+                    className={`w-full border p-2.5 rounded text-xs outline-none focus:border-emerald-500 font-bold text-emerald-500 ${inputBg}`} 
                     required
                     autoFocus
                   />
@@ -419,7 +465,7 @@ export default function InventarioPage() {
                   <select 
                     value={adjustReason}
                     onChange={e => setAdjustReason(e.target.value)}
-                    className={`w-full border p-2.5 rounded text-sm outline-none focus:border-emerald-500 mb-2 ${inputBg}`}
+                    className={`w-full border p-2 rounded text-xs outline-none focus:border-emerald-500 mb-2 ${inputBg}`}
                   >
                     <option value="Se rompió / merma">Se rompió / merma</option>
                     <option value="Se lo robaron / faltante">Se lo robaron / faltante</option>
@@ -441,14 +487,14 @@ export default function InventarioPage() {
                 <div className="flex gap-2 pt-2">
                   <button 
                     type="submit" 
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded text-sm font-bold text-white transition-colors"
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded text-xs font-bold text-white transition-colors shadow"
                   >
                     Guardar Ajuste
                   </button>
                   <button 
                     type="button" 
                     onClick={() => setAdjustingProduct(null)} 
-                    className="bg-slate-600 hover:bg-slate-500 text-white px-4 py-2.5 rounded text-sm"
+                    className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2.5 rounded text-xs"
                   >
                     Cancelar
                   </button>

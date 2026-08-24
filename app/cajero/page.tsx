@@ -98,7 +98,7 @@ export default function CashierPage() {
         return
       }
 
-      const { data: bizDataList, error } = await supabase.rpc('get_business_status_by_id', { p_business_id: resolvedBizId }) //[cite: 2]
+      const { data: bizDataList, error } = await supabase.rpc('get_business_status_by_id', { p_business_id: resolvedBizId })
 
       if (!error && bizDataList && bizDataList.length > 0) {
         const bizData = bizDataList[0]
@@ -147,7 +147,7 @@ export default function CashierPage() {
   }, [selectedBranch, cashRegister, selectedOrder, businessId])
 
   async function fetchBusinessInfo(bId: string) {
-    const { data, error } = await supabase.rpc('get_business_info_safe', { p_business_id: bId }) //[cite: 2]
+    const { data, error } = await supabase.rpc('get_business_info_safe', { p_business_id: bId })
     if (!error && data && data.length > 0) {
       if (data[0].business_name) setBusinessName(data[0].business_name)
       if (data[0].logo_url) setBusinessLogo(data[0].logo_url)
@@ -156,7 +156,7 @@ export default function CashierPage() {
 
   async function loadPendingOrders(branchId: string) {
     if (!branchId) return
-    const { data, error } = await supabase.rpc('get_pending_orders_safe', { p_branch_id: branchId }) //[cite: 2]
+    const { data, error } = await supabase.rpc('get_pending_orders_safe', { p_branch_id: branchId })
     if (!error && data) setPendingOrders(data)
   }
 
@@ -180,7 +180,7 @@ export default function CashierPage() {
 
   async function loadTodaySales(bId: string, branchId: string, openedAt: string) {
     if (!openedAt) return
-    const { data, error } = await supabase.rpc('get_today_sales_safe', { //[cite: 2]
+    const { data, error } = await supabase.rpc('get_today_sales_safe', {
       p_business_id: bId || businessId,
       p_branch_id: branchId,
       p_since_timestamp: openedAt
@@ -220,7 +220,7 @@ export default function CashierPage() {
     e.preventDefault()
     if (!cashRegister) return
 
-    const { error } = await supabase.rpc('close_cash_register', { //[cite: 2]
+    const { error } = await supabase.rpc('close_cash_register', {
       p_register_id: cashRegister.id,
       p_closing_amount: physicalCash,
       p_total_sales: totalSalesRecord,
@@ -266,7 +266,7 @@ export default function CashierPage() {
     setCashGiven('')
     setCardAmountMixed('')
 
-    const { data, error } = await supabase.rpc('get_order_details_safe', { p_order_id: order.id }) //[cite: 2]
+    const { data, error } = await supabase.rpc('get_order_details_safe', { p_order_id: order.id })
     setLoading(false)
     if (!error && data) setOrderItems(data)
     else setOrderItems([])
@@ -281,7 +281,7 @@ export default function CashierPage() {
       return
     }
 
-    const { data, error } = await supabase.rpc('get_customer_by_nit', { //[cite: 2]
+    const { data, error } = await supabase.rpc('get_customer_by_nit', {
       p_business_id: businessId,
       p_customer_nit: nit.trim()
     })
@@ -337,7 +337,7 @@ export default function CashierPage() {
       }
     }
 
-    const { error } = await supabase.rpc('pay_and_close_order', { //[cite: 2]
+    const { error } = await supabase.rpc('pay_and_close_order', {
       p_order_id: selectedOrder.id,
       p_payment_method: paymentMethod,
       p_customer_nit: customerNit,
@@ -365,7 +365,7 @@ export default function CashierPage() {
   async function handleCancelOrder(orderId: string) {
     if (!confirm("¿Estás seguro de cancelar esta orden?")) return
 
-    const { error } = await supabase.rpc('cancel_order', { p_order_id: orderId }) //[cite: 2]
+    const { error } = await supabase.rpc('cancel_order', { p_order_id: orderId })
 
     if (error) {
       alert("Error al cancelar: " + error.message)
@@ -379,7 +379,7 @@ export default function CashierPage() {
   }
 
   async function handleViewSaleDetails(saleId: string) {
-    const { data, error } = await supabase.rpc('get_sale_details', { p_sale_id: saleId }) //[cite: 2]
+    const { data, error } = await supabase.rpc('get_sale_details', { p_sale_id: saleId })
     if (!error && data) setSelectedSaleDetails(data)
   }
 
@@ -421,7 +421,7 @@ export default function CashierPage() {
   return (
     <div className={`min-h-screen p-2 md:p-4 flex flex-col w-full notranslate pb-20 lg:pb-4 ${themeBg}`} translate="no">
       
-      {/* BARRA SUPERIOR LIMPIA CON BOTÓN HAMBURGUESA (☰) */}
+      {/* BARRA SUPERIOR CON TOTAL DE VENTAS Y BOTÓN MODO OSCURO/CLARO (ESTILO POS) */}
       <header className={`p-3 rounded-lg shadow mb-3 flex flex-wrap justify-between items-center gap-2 border w-full ${panelBg}`}>
         <div className="flex items-center gap-2.5">
           <button 
@@ -447,6 +447,17 @@ export default function CashierPage() {
               <span className="opacity-75">({staffName})</span>
             </div>
           </div>
+        </div>
+
+        {/* TOTAL DE VENTAS DEL TURNO EN LA VISTA PRINCIPAL */}
+        <div className={`px-4 py-1.5 rounded-lg border flex items-center gap-3 ${subPanelBg}`}>
+          <div>
+            <span className="text-[10px] uppercase font-semibold opacity-70 block leading-tight">Ventas del Turno</span>
+            <span className="text-sm md:text-base font-extrabold text-emerald-500" translate="no">Q {totalTodaySales.toFixed(2)}</span>
+          </div>
+          <span className="text-xs bg-emerald-500/20 text-emerald-400 font-bold px-2 py-0.5 rounded-full">
+            {todaySales.length} {todaySales.length === 1 ? 'ticket' : 'tickets'}
+          </span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -477,6 +488,15 @@ export default function CashierPage() {
               </button>
             </div>
           )}
+
+          {/* ÚNICO BOTÓN DE TEMA (SOLO ICONO COMO EN EL POS) */}
+          <button 
+            onClick={toggleTheme} 
+            className={`p-2 rounded-lg text-sm font-semibold border transition-colors ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}
+            title={isDarkMode ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro'}
+          >
+            {isDarkMode ? '☀️' : '🌙'}
+          </button>
         </div>
       </header>
 
@@ -736,21 +756,18 @@ export default function CashierPage() {
               </div>
 
               <div className="pt-3 border-t border-opacity-50 space-y-2">
-                <p className="font-bold text-emerald-500 text-sm">Apariencia y Sesión</p>
-                <button onClick={toggleTheme} className={`w-full py-2.5 px-3 rounded-lg font-semibold border text-left ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}>
-                  {isDarkMode ? '☀️ Cambiar a Modo Claro' : '🌙 Cambiar a Modo Oscuro'}
-                </button>
+                <p className="font-bold text-emerald-500 text-sm">Sesión</p>
                 <button onClick={handleLogout} className="w-full bg-red-600 hover:bg-red-500 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left">
                   🚪 Cerrar Sesión
                 </button>
               </div>
 
               <div className="pt-3 border-t border-opacity-50 space-y-2">
-                <p className="font-bold text-emerald-500 text-sm">📊 Resumen de Turno Actual</p>
+                <p className="font-bold text-emerald-500 text-sm">📊 Detalle de Ventas del Turno</p>
                 <div className={`p-3 rounded-lg border border-emerald-500/40 flex justify-between items-center shadow ${subPanelBg}`}>
                   <div>
-                    <p className="text-[10px] opacity-75 uppercase font-medium">Ventas Totales</p>
-                    <p className="text-base font-extrabold text-emerald-500" translate="no">Q {totalTodaySales}</p>
+                    <p className="text-[10px] opacity-75 uppercase font-medium">Total Acumulado</p>
+                    <p className="text-base font-extrabold text-emerald-500" translate="no">Q {totalTodaySales.toFixed(2)}</p>
                   </div>
                   <span className="text-[10px] bg-emerald-500/25 text-emerald-400 font-bold px-2 py-0.5 rounded">
                     {todaySales.length} {todaySales.length === 1 ? 'ticket' : 'tickets'}
