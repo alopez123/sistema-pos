@@ -14,9 +14,8 @@ export default function PosPage() {
   const [cart, setCart] = useState<any[]>([])
   const [isStaff, setIsStaff] = useState(false)
   const [userRole, setUserRole] = useState<string>('')
-  const [showToolsMenu, setShowToolsMenu] = useState(false)
   
-  // Estado para el menú desplegable flotante de Opciones Operativas (activado con el botón verde ≡)
+  // Estado para el menú desplegable flotante de Opciones Operativas y Administrativas (activado con el botón verde ≡)
   const [showOpsDropdown, setShowOpsDropdown] = useState(false)
   const opsDropdownRef = useRef<HTMLDivElement>(null)
 
@@ -84,7 +83,6 @@ export default function PosPage() {
 
   // Estado para ver el detalle de una venta seleccionada
   const [selectedSaleDetails, setSelectedSaleDetails] = useState<any[] | null>(null)
-  const [loadingSaleDetails, setLoadingSaleDetails] = useState(false)
 
   // Estados inteligentes para la pestaña Agregar / Reabastecer
   const [selectedExistingProduct, setSelectedExistingProduct] = useState<string>('')
@@ -372,9 +370,7 @@ export default function PosPage() {
   }
 
   async function handleViewSaleDetails(saleId: string) {
-    setLoadingSaleDetails(true)
     const { data, error } = await supabase.rpc('get_sale_details', { p_sale_id: saleId })
-    setLoadingSaleDetails(false)
     if (!error && data) setSelectedSaleDetails(data)
   }
 
@@ -483,7 +479,6 @@ export default function PosPage() {
   }
 
   const addToCart = (product: any) => {
-    // Validar si el stock es 0 o menor (excepto artículos personalizados/variables)
     const isCustomByName = product.name && (
       product.name.toLowerCase().includes('vinil') || 
       product.name.toLowerCase().includes('personaliz') ||
@@ -652,116 +647,133 @@ export default function PosPage() {
   const inputBg = isDarkMode ? 'bg-[#0f172a] text-white border-slate-600' : 'bg-white text-slate-900 border-slate-300'
 
   return (
-    <div className={`min-h-screen p-4 md:p-6 flex flex-col w-full px-6 notranslate ${themeBg}`} translate="no">
+    <div className={`min-h-screen p-3 sm:p-6 flex flex-col w-full max-w-full overflow-x-hidden notranslate ${themeBg}`} translate="no">
       
-      {/* HEADER SUPERIOR CON EL BOTÓN VERDE ≡ DE OPCIONES OPERATIVAS */}
-      <header className={`p-4 rounded-lg shadow mb-6 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 border w-full ${panelBg}`}>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          
-          {/* BOTÓN VERDE CON ÍCONO HAMBURGUESA ≡ PARA OPCIONES OPERATIVAS */}
-          <div className="relative" ref={opsDropdownRef}>
-            <button
-              onClick={() => setShowOpsDropdown(!showOpsDropdown)}
-              className="w-14 h-14 bg-emerald-600 hover:bg-emerald-500 rounded-xl flex items-center justify-center text-white text-2xl font-bold shadow transition-colors cursor-pointer select-none"
-              title="Opciones Operativas"
-            >
-              ≡
-            </button>
+      {/* HEADER SUPERIOR CON EL BOTÓN VERDE ≡ DE MENÚ AGRUPADO */}
+      <header className={`p-3 sm:p-4 rounded-xl shadow mb-4 flex flex-col gap-3 border w-full ${panelBg}`}>
+        <div className="flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+          <div className="flex items-center gap-3">
+            
+            {/* BOTÓN VERDE CON ÍCONO HAMBURGUESA ≡ */}
+            <div className="relative" ref={opsDropdownRef}>
+              <button
+                onClick={() => setShowOpsDropdown(!showOpsDropdown)}
+                className="w-12 h-12 sm:w-14 sm:h-14 bg-emerald-600 hover:bg-emerald-500 rounded-xl flex items-center justify-center text-white text-2xl font-bold shadow transition-colors cursor-pointer select-none"
+                title="Menú General"
+              >
+                ≡
+              </button>
 
-            {/* MENÚ DESPLEGABLE FLOTANTE DE OPCIONES OPERATIVAS */}
-            {showOpsDropdown && (
-              <div className={`absolute left-0 mt-2 w-56 rounded-xl shadow-2xl border z-50 p-2 space-y-1 ${panelBg}`}>
-                <p className="text-[11px] font-bold text-emerald-500 px-3 py-1 uppercase tracking-wider border-b border-opacity-30">Opciones Operativas</p>
-                
-                <button onClick={() => { setShowOpsDropdown(false); setActiveTab('addProduct'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
-                  ➕ Agregar Inventario
-                </button>
-                <button onClick={() => { setShowOpsDropdown(false); setActiveTab('otherStores'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
-                  🏬 Inventario en Red
-                </button>
-                <button onClick={() => { setShowOpsDropdown(false); setActiveTab('transfers'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
-                  🔄 Módulo de Traslados
-                </button>
-                <button onClick={() => { setShowOpsDropdown(false); setActiveTab('movements'); loadMovements(selectedBranch); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
-                  📊 Movimientos / Cuadre
-                </button>
-                <button onClick={() => { setShowOpsDropdown(false); setActiveTab('salesReport'); loadSalesReport(businessIdState, selectedBranch); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
-                  💰 Reporte de Ventas
-                </button>
-                <button onClick={() => { setShowOpsDropdown(false); setActiveTab('customers'); loadCustomers(businessIdState); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
-                  👥 Directorio Clientes
-                </button>
-              </div>
+              {/* MENÚ DESPLEGABLE FLOTANTE AGRUPADO */}
+              {showOpsDropdown && (
+                <div className={`absolute left-0 mt-2 w-64 rounded-xl shadow-2xl border z-50 p-3 space-y-3 ${panelBg}`}>
+                  
+                  {/* SECCIÓN 1: OPCIONES OPERATIVAS */}
+                  <div>
+                    <p className="text-[11px] font-bold text-emerald-500 px-2 py-1 uppercase tracking-wider border-b border-opacity-30 mb-1">
+                      ⚙️ Opciones Operativas
+                    </p>
+                    <button onClick={() => { setShowOpsDropdown(false); setActiveTab('addProduct'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      ➕ Agregar Inventario
+                    </button>
+                    <button onClick={() => { setShowOpsDropdown(false); setActiveTab('otherStores'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      🏬 Inventario en Red
+                    </button>
+                    <button onClick={() => { setShowOpsDropdown(false); setActiveTab('transfers'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      🔄 Módulo de Traslados
+                    </button>
+                    <button onClick={() => { setShowOpsDropdown(false); setActiveTab('movements'); loadMovements(selectedBranch); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      📊 Movimientos / Cuadre
+                    </button>
+                    <button onClick={() => { setShowOpsDropdown(false); setActiveTab('salesReport'); loadSalesReport(businessIdState, selectedBranch); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      💰 Reporte de Ventas
+                    </button>
+                    <button onClick={() => { setShowOpsDropdown(false); setActiveTab('customers'); loadCustomers(businessIdState); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      👥 Directorio Clientes
+                    </button>
+                  </div>
+
+                  {/* SECCIÓN 2: OPCIONES ADMINISTRATIVAS */}
+                  <div className="border-t border-opacity-30 pt-2">
+                    <p className="text-[11px] font-bold text-purple-400 px-2 py-1 uppercase tracking-wider border-b border-opacity-30 mb-1">
+                      🛡️ Opciones Administrativas
+                    </p>
+                    <button onClick={() => { setShowOpsDropdown(false); router.push('/inventario'); }} className="w-full text-left px-3 py-2 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      📋 Módulo de Inventario
+                    </button>
+                    <button onClick={() => { setShowOpsDropdown(false); router.push('/cotizaciones'); }} className="w-full text-left px-3 py-2 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      📄 Cotizaciones / Proformas
+                    </button>
+                    <button onClick={() => { setShowOpsDropdown(false); router.push('/compras'); }} className="w-full text-left px-3 py-2 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      📦 Compras y Reabastecimiento
+                    </button>
+                    <button onClick={() => { setShowOpsDropdown(false); router.push('/clientes/reportes'); }} className="w-full text-left px-3 py-2 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      👥 Clientes y Reportes
+                    </button>
+                    <button onClick={() => { setShowOpsDropdown(false); router.push('/ventas-historia'); }} className="w-full text-left px-3 py-2 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      📅 Historial / Días
+                    </button>
+                    <button onClick={() => { setShowOpsDropdown(false); router.push('/precios-especiales'); }} className="w-full text-left px-3 py-2 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      🛡️ Auditoría de Precios
+                    </button>
+                  </div>
+
+                </div>
+              )}
+            </div>
+
+            {businessLogo ? (
+              <img src={businessLogo} alt="Logo" className={`w-12 h-12 sm:w-14 sm:h-14 object-contain rounded-xl p-1 border shadow ${isDarkMode ? 'bg-[#0f172a] border-slate-600' : 'bg-white border-slate-300'}`} />
+            ) : (
+              <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center text-[10px] border ${isDarkMode ? 'bg-[#0f172a] border-slate-600 text-slate-500' : 'bg-slate-200 border-slate-300 text-slate-600'}`}>POS</div>
             )}
+
+            <div>
+              <h1 className="text-base sm:text-xl font-bold leading-tight">Punto de Venta</h1>
+              <select 
+                value={selectedBranch} 
+                onChange={e => handleBranchChange(e.target.value)}
+                disabled={isStaff}
+                className={`border px-2.5 py-1 rounded outline-none focus:border-emerald-500 font-semibold text-xs disabled:opacity-75 disabled:cursor-not-allowed mt-1 max-w-[180px] ${inputBg}`}
+              >
+                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
           </div>
 
-          {businessLogo ? (
-            <img src={businessLogo} alt="Logo" className={`w-24 h-24 object-contain rounded-lg p-1 border shadow ${isDarkMode ? 'bg-[#0f172a] border-slate-600' : 'bg-white border-slate-300'}`} />
-          ) : (
-            <div className={`w-14 h-14 rounded-lg flex items-center justify-center text-[10px] border ${isDarkMode ? 'bg-[#0f172a] border-slate-600 text-slate-500' : 'bg-slate-200 border-slate-300 text-slate-600'}`}>POS</div>
-          )}
-
-          <div>
-            <h1 className="text-xl font-bold">Punto de Venta</h1>
-            <select 
-              value={selectedBranch} 
-              onChange={e => handleBranchChange(e.target.value)}
-              disabled={isStaff}
-              className={`border px-3 py-1.5 rounded outline-none focus:border-emerald-500 font-semibold text-xs disabled:opacity-75 disabled:cursor-not-allowed mt-1 ${inputBg}`}
-            >
-              {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-          </div>
-        </div>
-          
-        <div className="flex items-center gap-2 justify-end flex-wrap relative">
-           {(userRole === 'encargado' || !isStaff) && (
-             <>
-               <button onClick={() => router.push('/cajero')} className="bg-sky-600 hover:bg-sky-500 px-3 py-2 rounded font-semibold text-xs transition-colors shadow flex items-center gap-1.5 text-white">💵 Caja</button>
-               <button onClick={() => router.push('/inventario')} className="bg-emerald-700 hover:bg-emerald-600 px-3 py-2 rounded font-semibold text-xs transition-colors shadow flex items-center gap-1.5 text-white">📋 Inventario</button>
-             </>
-           )}
-
-           <button onClick={() => router.push('/cotizaciones')} className="bg-purple-600 hover:bg-purple-500 px-3 py-2 rounded font-semibold text-xs transition-colors shadow flex items-center gap-1.5 text-white">📄 Cotizaciones</button>
-
-           <button onClick={toggleTicketPrinting} className={`px-3 py-2 rounded font-semibold text-xs transition-colors border flex items-center gap-1.5 ${enableTicketPrinting ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-700 text-slate-300 border-slate-600'}`}>
-             🖨️ Ticket: {enableTicketPrinting ? 'ON' : 'OFF'}
-           </button>
-
-           <button onClick={toggleTheme} className={`px-3 py-2 rounded font-semibold text-xs transition-colors border ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}>
-             {isDarkMode ? '☀️ Claro' : '🌙 Oscuro'}
-           </button>
-
-           <button onClick={() => setShowLowStockModal(true)} className={`relative px-3 py-2 rounded font-semibold text-xs transition-colors flex items-center gap-1.5 ${lowStockItems.length > 0 ? 'bg-amber-600 text-white animate-pulse' : 'bg-slate-700 text-slate-300'}`}>
-             ⚠️ Stock {lowStockItems.length > 0 && <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-md">{lowStockItems.length}</span>}
-           </button>
-
-           <div className="relative">
-             <button onClick={() => setShowToolsMenu(!showToolsMenu)} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded font-semibold text-xs transition-colors flex items-center gap-1 border border-slate-600">🛠️ Herramientas ▾</button>
-             {showToolsMenu && (
-               <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-xl border z-50 py-1.5 ${panelBg}`}>
-                 <button onClick={() => { setShowToolsMenu(false); router.push('/compras'); }} className="w-full text-left px-4 py-2 hover:bg-emerald-600 hover:text-white text-xs font-semibold">📦 Compras</button>
-                 <button onClick={() => { setShowToolsMenu(false); router.push('/clientes/reportes'); }} className="w-full text-left px-4 py-2 hover:bg-emerald-600 hover:text-white text-xs font-semibold">👥 Clientes y Reportes</button>
-                 <button onClick={() => { setShowToolsMenu(false); router.push('/ventas-historia'); }} className="w-full text-left px-4 py-2 hover:bg-emerald-600 hover:text-white text-xs font-semibold">📅 Historial / Días</button>
-                 <button onClick={() => { setShowToolsMenu(false); router.push('/precios-especiales'); }} className="w-full text-left px-4 py-2 hover:bg-emerald-600 hover:text-white text-xs font-semibold">🛡️ Auditoría de Precios</button>
-               </div>
+          {/* BARRA DE ACCESOS RÁPIDOS MÍNIMOS */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-thin w-full sm:w-auto justify-start sm:justify-end">
+             {(userRole === 'encargado' || !isStaff) && (
+               <button onClick={() => router.push('/cajero')} className="bg-sky-600 hover:bg-sky-500 px-3 py-2 rounded-lg font-semibold text-xs transition-colors shadow flex items-center gap-1 text-white whitespace-nowrap">💵 Caja</button>
              )}
-           </div>
 
-           <button onClick={handleExit} className="bg-red-700 hover:bg-red-600 px-3 py-2 rounded font-semibold text-xs transition-colors text-white">Salir</button>
+             <button onClick={toggleTicketPrinting} className={`px-2.5 py-2 rounded-lg font-semibold text-xs transition-colors border flex items-center gap-1 whitespace-nowrap ${enableTicketPrinting ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-700 text-slate-300 border-slate-600'}`}>
+               🖨️ {enableTicketPrinting ? 'ON' : 'OFF'}
+             </button>
+
+             <button onClick={toggleTheme} className={`px-2.5 py-2 rounded-lg font-semibold text-xs transition-colors border whitespace-nowrap ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}>
+               {isDarkMode ? '☀️' : '🌙'}
+             </button>
+
+             <button onClick={() => setShowLowStockModal(true)} className={`relative px-2.5 py-2 rounded-lg font-semibold text-xs transition-colors flex items-center gap-1 whitespace-nowrap ${lowStockItems.length > 0 ? 'bg-amber-600 text-white animate-pulse' : 'bg-slate-700 text-slate-300'}`}>
+               ⚠️ {lowStockItems.length > 0 && <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-md">{lowStockItems.length}</span>}
+             </button>
+
+             <button onClick={handleExit} className="bg-red-700 hover:bg-red-600 px-3 py-2 rounded-lg font-semibold text-xs transition-colors text-white whitespace-nowrap">Salir</button>
+          </div>
         </div>
       </header>
 
       {/* SELECTOR DE VISTA EN TELÉFONO */}
       <div className="flex lg:hidden grid grid-cols-2 gap-2 mb-4">
-        <button onClick={() => setMobileViewTab('catalog')} className={`py-2.5 rounded-lg font-bold text-xs shadow ${mobileViewTab === 'catalog' ? 'bg-emerald-600 text-white' : `${panelBg} opacity-85`}`}>🛍️ Catálogo</button>
-        <button onClick={() => setMobileViewTab('cart')} className={`py-2.5 rounded-lg font-bold text-xs shadow relative ${mobileViewTab === 'cart' ? 'bg-emerald-600 text-white' : `${panelBg} opacity-85`}`}>🛒 Ticket ({cart.reduce((a, c) => a + c.quantity, 0)})</button>
+        <button onClick={() => setMobileViewTab('catalog')} className={`py-2.5 rounded-xl font-bold text-xs shadow ${mobileViewTab === 'catalog' ? 'bg-emerald-600 text-white' : `${panelBg} opacity-85`}`}>🛍️ Catálogo</button>
+        <button onClick={() => setMobileViewTab('cart')} className={`py-2.5 rounded-xl font-bold text-xs shadow relative ${mobileViewTab === 'cart' ? 'bg-emerald-600 text-white' : `${panelBg} opacity-85`}`}>🛒 Ticket ({cart.reduce((a, c) => a + c.quantity, 0)})</button>
       </div>
 
       {/* MODAL DE OPCIONES OPERATIVAS */}
       {activeTab !== 'ticket' && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 99999 }}>
-          <div className={`p-6 rounded-2xl border border-emerald-500 w-full max-w-xl shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto ${panelBg}`}>
+          <div className={`p-5 sm:p-6 rounded-2xl border border-emerald-500 w-full max-w-xl shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto ${panelBg}`}>
             <div className="flex justify-between items-center border-b pb-3 border-opacity-50">
               <h3 className="text-base font-bold text-emerald-500 uppercase tracking-wide">
                 {activeTab === 'addProduct' && '➕ Agregar / Reabastecer Inventario'}
@@ -778,7 +790,7 @@ export default function PosPage() {
               <form onSubmit={handleAddOrRestockProduct} className="space-y-3 text-sm">
                 <div>
                   <label className="block mb-1 opacity-90">Seleccionar Producto</label>
-                  <select value={selectedExistingProduct} onChange={e => setSelectedExistingProduct(e.target.value)} className={`w-full border p-2.5 rounded text-sm ${inputBg}`}>
+                  <select value={selectedExistingProduct} onChange={e => setSelectedExistingProduct(e.target.value)} className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`}>
                     <option value="">-- Selecciona una opción --</option>
                     <option value="NEW">✨ [+ Crear Nuevo Producto]</option>
                     {products.map(p => <option key={p.id} value={p.id}>📦 {p.name} (Stock actual: {p.stock})</option>)}
@@ -788,7 +800,7 @@ export default function PosPage() {
                 {selectedExistingProduct && selectedExistingProduct !== 'NEW' && (
                   <div>
                     <label className="block mb-1 opacity-90">Cantidad a Agregar (Ingreso)</label>
-                    <input type="number" min="1" value={addMoreQuantity} onChange={e => setAddMoreQuantity(Number(e.target.value))} className={`w-full border p-2.5 rounded text-sm ${inputBg}`} required />
+                    <input type="number" min="1" value={addMoreQuantity} onChange={e => setAddMoreQuantity(Number(e.target.value))} className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`} required />
                   </div>
                 )}
 
@@ -796,29 +808,29 @@ export default function PosPage() {
                   <div className="space-y-3 border-t pt-3 mt-2 border-opacity-50">
                     <div>
                       <label className="block mb-1 opacity-90">Nombre del Nuevo Producto</label>
-                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ej. Plato Extra" className={`w-full border p-2.5 rounded text-sm ${inputBg}`} required />
+                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ej. Plato Extra" className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`} required />
                     </div>
                     <div>
                       <div className="flex justify-between items-center mb-1">
                         <label className="block opacity-90">Categoría</label>
                         <button type="button" onClick={() => setShowNewCategoryModal(true)} className="text-emerald-500 font-bold text-xs">+ Crear Nueva</button>
                       </div>
-                      <select value={newCategoryId} onChange={e => setNewCategoryId(e.target.value)} className={`w-full border p-2.5 rounded text-sm ${inputBg}`}>
+                      <select value={newCategoryId} onChange={e => setNewCategoryId(e.target.value)} className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`}>
                         <option value="">-- Sin Categoría --</option>
                         {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="block mb-1 opacity-90">Precio (Q)</label>
-                      <input type="number" step="0.01" value={newPrice} onChange={e => setNewPrice(e.target.value)} placeholder="0.00" className={`w-full border p-2.5 rounded text-sm ${inputBg}`} required />
+                      <input type="number" step="0.01" value={newPrice} onChange={e => setNewPrice(e.target.value)} placeholder="0.00" className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`} required />
                     </div>
                     <div>
                       <label className="block mb-1 opacity-90">Stock Inicial</label>
-                      <input type="number" value={newStock} onChange={e => setNewStock(e.target.value)} placeholder="0" className={`w-full border p-2.5 rounded text-sm ${inputBg}`} />
+                      <input type="number" value={newStock} onChange={e => setNewStock(e.target.value)} placeholder="0" className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`} />
                     </div>
                     <div>
                       <label className="block mb-1 opacity-90">Imagen del Producto</label>
-                      <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if(f){setImageFile(f); setImagePreview(URL.createObjectURL(f));} }} className={`w-full border p-2 rounded text-xs ${inputBg}`} />
+                      <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if(f){setImageFile(f); setImagePreview(URL.createObjectURL(f));} }} className={`w-full border p-2 rounded-xl text-xs ${inputBg}`} />
                       {imagePreview && <img src={imagePreview} className="mt-2 w-full h-24 rounded object-cover border" alt="preview" />}
                     </div>
                   </div>
@@ -826,10 +838,10 @@ export default function PosPage() {
 
                 {selectedExistingProduct && (
                   <div className="flex gap-2 pt-2">
-                    <button type="submit" disabled={uploadingImage} className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded font-bold text-white text-sm">
+                    <button type="submit" disabled={uploadingImage} className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-xl font-bold text-white text-sm">
                       {uploadingImage ? 'Guardando...' : 'Guardar y Registrar'}
                     </button>
-                    <button type="button" onClick={() => setSelectedExistingProduct('')} className="bg-slate-600 px-3 py-2.5 rounded text-white text-sm">Cancelar</button>
+                    <button type="button" onClick={() => setSelectedExistingProduct('')} className="bg-slate-600 px-3 py-2.5 rounded-xl text-white text-sm">Cancelar</button>
                   </div>
                 )}
               </form>
@@ -837,10 +849,10 @@ export default function PosPage() {
 
             {activeTab === 'otherStores' && (
               <div className="space-y-3 text-sm">
-                <input type="text" value={otherStoresSearch} onChange={e => setOtherStoresSearch(e.target.value)} placeholder="🔍 Buscar en otras sucursales..." className={`w-full border p-2.5 rounded text-sm ${inputBg}`} />
+                <input type="text" value={otherStoresSearch} onChange={e => setOtherStoresSearch(e.target.value)} placeholder="🔍 Buscar en otras sucursales..." className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`} />
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                   {filteredOtherStores.map((p, idx) => (
-                    <div key={idx} className={`p-3 rounded border flex justify-between items-center ${subPanelBg}`}>
+                    <div key={idx} className={`p-3 rounded-xl border flex justify-between items-center ${subPanelBg}`}>
                       <div>
                         <p className="font-semibold text-sm">{p.name}</p>
                         <p className="text-xs text-amber-500 font-medium">Sucursal: {p.branch_name}</p>
@@ -848,7 +860,7 @@ export default function PosPage() {
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <span className="font-bold text-emerald-500 text-sm">Q {p.price}</span>
-                        <button onClick={() => { setTransferProduct(p); setActiveTab('transfers'); }} className="bg-blue-600 text-xs px-2.5 py-1 rounded text-white font-semibold">Solicitar</button>
+                        <button onClick={() => { setTransferProduct(p); setActiveTab('transfers'); }} className="bg-blue-600 text-xs px-2.5 py-1 rounded-lg text-white font-semibold">Solicitar</button>
                       </div>
                     </div>
                   ))}
@@ -859,19 +871,19 @@ export default function PosPage() {
             {activeTab === 'transfers' && (
               <div className="space-y-3 text-sm">
                 {transferProduct && (
-                  <form onSubmit={handleRequestTransfer} className={`p-3 rounded border border-emerald-500/50 space-y-2 ${subPanelBg}`}>
+                  <form onSubmit={handleRequestTransfer} className={`p-3 rounded-xl border border-emerald-500/50 space-y-2 ${subPanelBg}`}>
                     <p className="font-bold text-sm">Solicitar: {transferProduct.name}</p>
-                    <input type="number" min="1" value={transferQuantity} onChange={e => setTransferQuantity(Number(e.target.value))} className={`w-full border p-2 rounded text-sm ${inputBg}`} required />
-                    <button type="submit" className="w-full bg-emerald-600 text-white py-2 rounded font-bold text-sm">Enviar Solicitud</button>
+                    <input type="number" min="1" value={transferQuantity} onChange={e => setTransferQuantity(Number(e.target.value))} className={`w-full border p-2 rounded-xl text-sm ${inputBg}`} required />
+                    <button type="submit" className="w-full bg-emerald-600 text-white py-2 rounded-xl font-bold text-sm">Enviar Solicitud</button>
                   </form>
                 )}
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {transfersList.map(t => (
-                    <div key={t.transfer_id} className={`p-3 rounded border text-xs space-y-1 ${subPanelBg}`}>
+                    <div key={t.transfer_id} className={`p-3 rounded-xl border text-xs space-y-1 ${subPanelBg}`}>
                       <div className="flex justify-between font-bold"><span className="text-emerald-500">{t.product_name}</span><span>{t.status}</span></div>
                       <p>De: {t.source_branch_name} → Para: {t.destination_branch_name} ({t.quantity} unids)</p>
                       {t.status === 'pendiente' && t.source_branch_id === selectedBranch && (
-                        <button onClick={() => handleCompleteTransfer(t.transfer_id)} className="w-full bg-blue-600 text-white py-1 rounded font-semibold mt-1">Aceptar y Enviar</button>
+                        <button onClick={() => handleCompleteTransfer(t.transfer_id)} className="w-full bg-blue-600 text-white py-1 rounded-lg font-semibold mt-1">Aceptar y Enviar</button>
                       )}
                     </div>
                   ))}
@@ -882,7 +894,7 @@ export default function PosPage() {
             {activeTab === 'movements' && (
               <div className="space-y-2 max-h-60 overflow-y-auto text-xs">
                 {branchMovements.map(m => (
-                  <div key={m.id} className={`p-2.5 rounded border flex justify-between ${subPanelBg}`}>
+                  <div key={m.id} className={`p-2.5 rounded-xl border flex justify-between ${subPanelBg}`}>
                     <span>{m.product?.name} ({m.movement_type})</span>
                     <span className={m.quantity < 0 ? 'text-red-400 font-bold' : 'text-emerald-400 font-bold'}>{m.quantity}</span>
                   </div>
@@ -892,12 +904,12 @@ export default function PosPage() {
 
             {activeTab === 'salesReport' && (
               <div className="space-y-3 text-xs">
-                <div className={`p-3 rounded border font-bold text-emerald-500 text-base ${subPanelBg}`}>
+                <div className={`p-3 rounded-xl border font-bold text-emerald-500 text-base ${subPanelBg}`}>
                   Total Ventas Hoy: Q {salesReport.reduce((a, s) => a + Number(s.total_amount || 0), 0)}
                 </div>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {salesReport.map(s => (
-                    <div key={s.sale_id} onClick={() => handleViewSaleDetails(s.sale_id)} className={`p-2.5 rounded border cursor-pointer flex justify-between ${subPanelBg}`}>
+                    <div key={s.sale_id} onClick={() => handleViewSaleDetails(s.sale_id)} className={`p-2.5 rounded-xl border cursor-pointer flex justify-between ${subPanelBg}`}>
                       <span>NIT: {s.customer_nit} ({s.customer_name})</span>
                       <span className="font-bold text-emerald-400">Q {s.total_amount}</span>
                     </div>
@@ -909,7 +921,7 @@ export default function PosPage() {
             {activeTab === 'customers' && (
               <div className="space-y-2 max-h-60 overflow-y-auto text-xs">
                 {customersList.map(c => (
-                  <div key={c.customer_id} className={`p-2.5 rounded border flex justify-between ${subPanelBg}`}>
+                  <div key={c.customer_id} className={`p-2.5 rounded-xl border flex justify-between ${subPanelBg}`}>
                     <span>{c.name} (NIT: {c.nit})</span>
                     <span className="text-emerald-400 font-bold">{c.total_purchases} compras</span>
                   </div>
@@ -925,22 +937,22 @@ export default function PosPage() {
       )}
 
       {/* DISEÑO PRINCIPAL DE DOS COLUMNAS AMPLIADAS (CATÁLOGO Y TICKET) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 w-full">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 flex-1 w-full">
         
-        {/* PANEL CENTRAL: CATÁLOGO DE PRODUCTOS (Ocupa 2 columnas en desktop) */}
-        <div className={`lg:col-span-2 p-5 rounded-lg shadow border flex flex-col ${mobileViewTab === 'catalog' ? 'flex' : 'hidden'} lg:flex ${panelBg}`}>
-          <div className="mb-4 relative" ref={searchRef}>
+        {/* PANEL CENTRAL: CATÁLOGO DE PRODUCTOS */}
+        <div className={`lg:col-span-2 p-4 sm:p-5 rounded-xl shadow border flex flex-col ${mobileViewTab === 'catalog' ? 'flex' : 'hidden'} lg:flex ${panelBg}`}>
+          <div className="mb-3 relative" ref={searchRef}>
             <input 
               type="text"
               value={searchTerm}
               onChange={e => { setSearchTerm(e.target.value); setShowSuggestions(true); }}
               onFocus={() => setShowSuggestions(true)}
               placeholder="🔍 Buscar producto por nombre..."
-              className={`w-full border px-4 py-2.5 rounded-lg text-sm outline-none focus:border-emerald-500 border ${inputBg}`}
+              className={`w-full border px-4 py-2.5 rounded-xl text-sm outline-none focus:border-emerald-500 border ${inputBg}`}
             />
 
             {showSuggestions && searchTerm.trim() !== '' && (
-              <div className={`absolute left-0 right-0 mt-1 rounded-lg shadow-xl z-50 max-h-52 overflow-y-auto border ${subPanelBg}`}>
+              <div className={`absolute left-0 right-0 mt-1 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto border ${subPanelBg}`}>
                 {filteredProducts.map(p => (
                   <button 
                     key={p.id} 
@@ -966,19 +978,19 @@ export default function PosPage() {
             )}
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-thin">
-            <button onClick={() => setSelectedCategory(null)} className={`px-3.5 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${selectedCategory === null ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} border`}`}>✨ Todos</button>
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-thin">
+            <button onClick={() => setSelectedCategory(null)} className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap ${selectedCategory === null ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} border`}`}>✨ Todos</button>
             {categories.map(cat => (
-              <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`px-3.5 py-2 rounded-lg text-sm font-bold whitespace-nowrap ${selectedCategory === cat.id ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} border`}`}>
+              <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap ${selectedCategory === cat.id ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} border`}`}>
                 {cat.name}
               </button>
             ))}
           </div>
 
           {/* TARJETAS DE PRODUCTOS CON VALIDACIÓN Y ESTILO VISUAL DE STOCK 0 */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 overflow-y-auto max-h-[60vh] pr-1 flex-1">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 overflow-y-auto max-h-[60vh] sm:max-h-[65vh] pr-1 flex-1">
             {filteredProducts.length === 0 ? (
-              <p className="col-span-full text-center py-10 text-base opacity-75">No hay productos que coincidan con la búsqueda.</p>
+              <p className="col-span-full text-center py-10 text-sm sm:text-base opacity-75">No hay productos que coincidan con la búsqueda.</p>
             ) : (
               filteredProducts.map(p => {
                 const isOutOfStock = p.stock <= 0;
@@ -986,7 +998,7 @@ export default function PosPage() {
                   <div 
                     key={p.id} 
                     onClick={() => addToCart(p)} 
-                    className={`border p-3.5 rounded-lg flex flex-col justify-between text-left shadow h-full select-none ${subPanelBg} ${
+                    className={`border p-3 rounded-xl flex flex-col justify-between text-left shadow h-full select-none ${subPanelBg} ${
                       isOutOfStock 
                         ? 'opacity-45 cursor-not-allowed border-red-500/40' 
                         : 'hover:border-emerald-500 active:scale-95 active:border-emerald-400 cursor-pointer group'
@@ -994,19 +1006,19 @@ export default function PosPage() {
                   >
                     <div className="flex flex-col">
                       {p.image_url ? (
-                        <img src={p.image_url} alt={p.name} className="w-full h-28 object-cover rounded mb-2.5 border" />
+                        <img src={p.image_url} alt={p.name} className="w-full h-24 sm:h-28 object-cover rounded-lg mb-2 border" />
                       ) : (
-                        <div className="w-full h-28 rounded mb-2.5 flex items-center justify-center text-xs opacity-50 border">Sin imagen</div>
+                        <div className="w-full h-24 sm:h-28 rounded-lg mb-2 flex items-center justify-center text-xs opacity-50 border">Sin imagen</div>
                       )}
-                      <span className={`text-xs sm:text-sm block mb-1 ${isOutOfStock ? 'text-red-400 font-bold' : 'font-semibold opacity-80'}`}>
+                      <span className={`text-[11px] sm:text-xs block mb-1 ${isOutOfStock ? 'text-red-400 font-bold' : 'font-semibold opacity-80'}`}>
                         Stock: <strong className={isOutOfStock ? 'text-red-400' : 'text-emerald-500'}>{p.is_custom ? 'N/A' : p.stock}</strong> {isOutOfStock ? '(Agotado)' : ''}
                       </span>
-                      <h3 className={`font-bold line-clamp-2 text-sm sm:text-base leading-snug ${isOutOfStock ? 'opacity-75' : 'group-hover:text-emerald-500'}`}>{p.name}</h3>
+                      <h3 className={`font-bold line-clamp-2 text-xs sm:text-sm leading-snug ${isOutOfStock ? 'opacity-75' : 'group-hover:text-emerald-500'}`}>{p.name}</h3>
                     </div>
                     
-                    <div className="mt-3 pt-2 border-t border-opacity-50 flex items-center justify-between">
-                      <span className="text-xs uppercase opacity-70">{p.is_custom ? 'Variable' : 'Precio'}</span>
-                      <span className="text-emerald-500 font-extrabold text-base sm:text-lg" translate="no">{p.is_custom ? 'A cotizar' : `Q ${p.price}`}</span>
+                    <div className="mt-2 pt-2 border-t border-opacity-50 flex items-center justify-between">
+                      <span className="text-[10px] sm:text-xs uppercase opacity-70">{p.is_custom ? 'Variable' : 'Precio'}</span>
+                      <span className="text-emerald-500 font-extrabold text-sm sm:text-base" translate="no">{p.is_custom ? 'A cotizar' : `Q ${p.price}`}</span>
                     </div>
                   </div>
                 );
@@ -1016,34 +1028,34 @@ export default function PosPage() {
         </div>
 
         {/* PANEL DERECHO: TICKET / DETALLE DE ORDEN */}
-        <div className={`p-5 rounded-lg shadow border flex flex-col justify-between ${mobileViewTab === 'cart' ? 'flex' : 'hidden'} lg:flex ${panelBg}`}>
+        <div className={`p-4 sm:p-5 rounded-xl shadow border flex flex-col justify-between ${mobileViewTab === 'cart' ? 'flex' : 'hidden'} lg:flex ${panelBg}`}>
           <div>
-            <h2 className="text-lg font-bold text-emerald-500 mb-4">Ticket de Venta</h2>
-            <div className="space-y-3 overflow-y-auto max-h-[50vh] pr-1">
+            <h2 className="text-base sm:text-lg font-bold text-emerald-500 mb-3">Ticket de Venta</h2>
+            <div className="space-y-2.5 overflow-y-auto max-h-[48vh] sm:max-h-[52vh] pr-1">
               {cart.length === 0 ? (
-                <p className="text-center py-10 text-base opacity-75">El carrito está vacío.</p>
+                <p className="text-center py-10 text-sm sm:text-base opacity-75">El carrito está vacío.</p>
               ) : (
                 cart.map(item => (
-                  <div key={item.id} className={`flex flex-col gap-2.5 p-3.5 rounded-lg border text-sm ${subPanelBg}`}>
+                  <div key={item.id} className={`flex flex-col gap-2 p-3 rounded-xl border text-xs sm:text-sm ${subPanelBg}`}>
                     <div className="flex justify-between items-center">
-                      <span className="font-bold text-base">{item.name}</span>
-                      <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-300 font-bold px-2 py-0.5 rounded text-sm">✕</button>
+                      <span className="font-bold">{item.name}</span>
+                      <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-300 font-bold px-2 py-0.5 rounded text-xs">✕</button>
                     </div>
                     
                     <div className="flex justify-between items-center gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-medium opacity-80">Precio Q:</span>
-                        <input type="number" step="0.01" value={item.price} onChange={(e) => handlePriceChange(item.id, e.target.value)} className={`w-20 border rounded px-2 py-1 text-emerald-500 font-bold text-sm outline-none ${inputBg}`} />
+                      <div className="flex items-center gap-1">
+                        <span className="text-[11px] opacity-80">Precio Q:</span>
+                        <input type="number" step="0.01" value={item.price} onChange={(e) => handlePriceChange(item.id, e.target.value)} className={`w-16 sm:w-20 border rounded-lg px-2 py-1 text-emerald-500 font-bold text-xs sm:text-sm outline-none ${inputBg}`} />
                       </div>
                       <div className="flex items-center gap-1">
-                        <span className="text-xs font-medium opacity-80">Cant:</span>
-                        <input type="number" min="1" value={item.quantity} onChange={(e) => handleQuantityChange(item.id, e.target.value)} className={`w-16 border rounded px-2 py-1 font-bold text-sm text-center ${inputBg}`} />
+                        <span className="text-[11px] opacity-80">Cant:</span>
+                        <input type="number" min="1" value={item.quantity} onChange={(e) => handleQuantityChange(item.id, e.target.value)} className={`w-14 sm:w-16 border rounded-lg px-2 py-1 font-bold text-xs sm:text-sm text-center ${inputBg}`} />
                       </div>
                     </div>
 
                     <div className="flex justify-between items-center pt-1.5 border-t border-opacity-50">
-                      <span className="text-xs opacity-80">Subtotal:</span>
-                      <span className="font-extrabold text-emerald-500 text-base" translate="no">Q {item.price * item.quantity}</span>
+                      <span className="text-[11px] opacity-80">Subtotal:</span>
+                      <span className="font-extrabold text-emerald-500 text-sm sm:text-base" translate="no">Q {item.price * item.quantity}</span>
                     </div>
                   </div>
                 ))
@@ -1051,13 +1063,13 @@ export default function PosPage() {
             </div>
           </div>
 
-          <div className="border-t border-opacity-50 pt-4 mt-4 space-y-2">
-            <div className="flex justify-between items-center mb-2 text-xl font-bold">
+          <div className="border-t border-opacity-50 pt-3 mt-3 space-y-2">
+            <div className="flex justify-between items-center mb-1 text-lg sm:text-xl font-bold">
               <span>Total:</span>
-              <span className="text-emerald-500 text-2xl" translate="no">Q {totalCart}</span>
+              <span className="text-emerald-500 text-xl sm:text-2xl" translate="no">Q {totalCart}</span>
             </div>
 
-            <button onClick={handleSavePendingOrder} disabled={cart.length === 0 || isSubmittingOrder} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-2.5 rounded-lg font-bold shadow text-sm flex items-center justify-center gap-2">
+            <button onClick={handleSavePendingOrder} disabled={cart.length === 0 || isSubmittingOrder} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-3 rounded-xl font-bold shadow text-sm flex items-center justify-center gap-2">
               {isSubmittingOrder ? 'Guardando Orden...' : '📝 Guardar Orden (Pasar a Caja)'}
             </button>
           </div>
@@ -1068,17 +1080,17 @@ export default function PosPage() {
       {/* MODAL DE STOCK BAJO */}
       {showLowStockModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-          <div className={`p-6 rounded-xl border border-amber-500 w-full max-w-md shadow-2xl space-y-4 ${panelBg}`}>
+          <div className={`p-5 sm:p-6 rounded-2xl border border-amber-500 w-full max-w-md shadow-2xl space-y-4 ${panelBg}`}>
             <h3 className="text-base font-bold text-amber-500">⚠️ Productos con Stock Bajo (≤ 5)</h3>
             <div className="space-y-2 max-h-72 overflow-y-auto text-sm">
               {lowStockItems.map(p => (
-                <div key={p.id} className={`p-3 rounded border flex justify-between ${subPanelBg}`}>
+                <div key={p.id} className={`p-3 rounded-xl border flex justify-between ${subPanelBg}`}>
                   <span>{p.name}</span>
                   <span className="text-red-400 font-bold">Stock: {p.stock}</span>
                 </div>
               ))}
             </div>
-            <button onClick={() => setShowLowStockModal(false)} className="w-full bg-slate-600 text-white py-2.5 rounded-lg font-semibold text-sm">Cerrar</button>
+            <button onClick={() => setShowLowStockModal(false)} className="w-full bg-slate-600 text-white py-2.5 rounded-xl font-semibold text-sm">Cerrar</button>
           </div>
         </div>
       )}
@@ -1086,17 +1098,17 @@ export default function PosPage() {
       {/* MODAL DETALLE DE VENTA */}
       {selectedSaleDetails !== null && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-          <div className={`p-6 rounded-xl border border-emerald-500 w-[420px] shadow-2xl ${panelBg}`}>
+          <div className={`p-5 sm:p-6 rounded-2xl border border-emerald-500 w-full max-w-md shadow-2xl ${panelBg}`}>
             <h3 className="text-base font-bold text-emerald-500 mb-4">📦 Detalle de la Venta</h3>
             <div className="space-y-2 max-h-64 overflow-y-auto text-sm">
               {selectedSaleDetails.map((item, idx) => (
-                <div key={idx} className={`p-3 rounded border flex justify-between ${subPanelBg}`}>
+                <div key={idx} className={`p-3 rounded-xl border flex justify-between ${subPanelBg}`}>
                   <span>{item.product_name} ({item.quantity} x Q {item.price})</span>
                   <span className="font-bold text-emerald-400">Q {item.quantity * item.price}</span>
                 </div>
               ))}
             </div>
-            <button onClick={() => setSelectedSaleDetails(null)} className="mt-6 w-full bg-slate-600 text-white py-3 rounded-lg font-semibold text-sm">Cerrar</button>
+            <button onClick={() => setSelectedSaleDetails(null)} className="mt-6 w-full bg-slate-600 text-white py-3 rounded-xl font-semibold text-sm">Cerrar</button>
           </div>
         </div>
       )}
@@ -1104,13 +1116,13 @@ export default function PosPage() {
       {/* MODAL NUEVA CATEGORÍA */}
       {showNewCategoryModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className={`p-6 rounded-xl border border-emerald-500 w-full max-w-sm space-y-4 ${panelBg}`}>
+          <div className={`p-5 sm:p-6 rounded-2xl border border-emerald-500 w-full max-w-sm space-y-4 ${panelBg}`}>
             <h3 className="text-base font-bold text-emerald-500">✨ Nueva Categoría</h3>
             <form onSubmit={handleCreateCategory} className="space-y-3 text-sm">
-              <input type="text" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder="Nombre..." className={`w-full border p-2.5 rounded text-sm ${inputBg}`} required autoFocus />
+              <input type="text" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder="Nombre..." className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`} required autoFocus />
               <div className="flex gap-2">
-                <button type="submit" disabled={savingCategory} className="flex-1 bg-emerald-600 text-white py-2.5 rounded font-bold">Guardar</button>
-                <button type="button" onClick={() => setShowNewCategoryModal(false)} className="bg-slate-600 text-white px-4 py-2.5 rounded">Cancelar</button>
+                <button type="submit" disabled={savingCategory} className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl font-bold">Guardar</button>
+                <button type="button" onClick={() => setShowNewCategoryModal(false)} className="bg-slate-600 text-white px-4 py-2.5 rounded-xl">Cancelar</button>
               </div>
             </form>
           </div>
