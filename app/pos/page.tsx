@@ -405,8 +405,8 @@ export default function PosPage() {
     }
   }
 
-  const totalCart = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0)
-  const totalItemsCount = cart.reduce((acc, item) => acc + item.quantity, 0)
+  const totalCart = cart.reduce((acc, item) => acc + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0)
+  const totalItemsCount = cart.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0)
 
   function printThermalTicket({ orderNumber, branchName, customerNit, customerName, items, total }: any) {
     const printWindow = window.open('', '_blank', 'width=300,height=600');
@@ -460,8 +460,8 @@ export default function PosPage() {
                   <td colspan="2" class="bold">${i.quantity} x ${i.name}</td>
                 </tr>
                 <tr>
-                  <td>P/U: Q ${i.price.toFixed(2)}</td>
-                  <td class="right">Q ${(i.price * i.quantity).toFixed(2)}</td>
+                  <td>P/U: Q ${Number(i.price).toFixed(2)}</td>
+                  <td class="right">Q ${(Number(i.price) * Number(i.quantity)).toFixed(2)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -469,7 +469,7 @@ export default function PosPage() {
           <div class="divider"></div>
           <div class="flex bold" style="font-size: 14px;">
             <span>TOTAL:</span>
-            <span>Q ${total.toFixed(2)}</span>
+            <span>Q ${Number(total).toFixed(2)}</span>
           </div>
           <div class="divider"></div>
           <div class="text-center" style="font-size: 10px; margin-top: 10px;">
@@ -507,8 +507,8 @@ export default function PosPage() {
 
     const cartJson = cart.map(item => ({
       product_id: item.id,
-      quantity: item.quantity,
-      price: item.price,
+      quantity: Number(item.quantity) || 1,
+      price: Number(item.price) || 0,
       name: item.name
     }));
 
@@ -627,16 +627,16 @@ export default function PosPage() {
   }
 
   const handlePriceChange = (productId: string, newPriceText: string) => {
-    const newPrice = parseFloat(newPriceText) || 0;
     const staffData = JSON.parse(localStorage.getItem('currentStaff') || '{}');
 
     setCart(prev => prev.map(item => {
       if (item.id === productId) {
         const original = item.originalPrice !== undefined ? item.originalPrice : item.price;
-        const isSpecial = newPrice !== original;
+        const parsedPrice = newPriceText === '' ? '' : parseFloat(newPriceText);
+        const isSpecial = parsedPrice !== '' && parsedPrice !== original;
         return {
           ...item,
-          price: newPrice,
+          price: parsedPrice,
           originalPrice: original,
           isSpecial: isSpecial,
           staffId: staffData.id || null
@@ -647,12 +647,10 @@ export default function PosPage() {
   };
 
   const handleQuantityChange = (productId: string, newQtyText: string) => {
-    const newQty = parseInt(newQtyText, 10);
-    if (isNaN(newQty)) return;
-
     setCart(prev => prev.map(item => {
       if (item.id === productId) {
-        const finalQty = newQty <= 0 ? 1 : newQty;
+        // Permitimos que quede vacío momentáneamente para que el usuario pueda borrar y escribir libremente
+        const finalQty = newQtyText === '' ? '' : parseInt(newQtyText, 10);
         return { ...item, quantity: finalQty };
       }
       return item;
@@ -898,7 +896,7 @@ export default function PosPage() {
   return (
     <div className={`min-h-screen p-2 md:p-4 flex flex-col w-full notranslate pb-20 lg:pb-4 ${themeBg}`} translate="no">
       
-      {/* BARRA SUPERIOR ADAPTABLE (Responsive Flex-wrap para móviles) */}
+      {/* BARRA SUPERIOR ADAPTABLE */}
       <header className={`p-3 rounded-lg shadow mb-3 flex flex-wrap justify-between items-center gap-2 border w-full ${panelBg}`}>
         <div className="flex items-center gap-2.5">
           <button 
@@ -956,10 +954,10 @@ export default function PosPage() {
         </div>
       </header>
 
-      {/* DISEÑO PRINCIPAL: CATÁLOGO IZQUIERDA, TICKET DERECHA (EN PC). EN MÓVIL SOLO CATÁLOGO + BOTÓN FLOTANTE */}
+      {/* DISEÑO PRINCIPAL */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 w-full">
         
-        {/* COLUMNA IZQUIERDA: BUSCADOR Y CATÁLOGO DE PRODUCTOS (Ocupa 12 cols en móvil, 8 en PC) */}
+        {/* COLUMNA IZQUIERDA: CATÁLOGO */}
         <div className={`p-3 md:p-4 rounded-lg shadow border flex flex-col lg:col-span-8 order-2 lg:order-1 ${panelBg}`}>
           <div className="mb-3 relative" ref={searchRef}>
             <input 
@@ -1057,7 +1055,7 @@ export default function PosPage() {
           </div>
         </div>
 
-        {/* COLUMNA DERECHA: TICKET DE VENTA (Visible normal en PC [lg+], oculto en móviles para no estorbar) */}
+        {/* COLUMNA DERECHA: TICKET DE VENTA (PC) */}
         <div className={`hidden lg:flex p-4 rounded-lg shadow border flex-col justify-between lg:col-span-4 order-1 lg:order-2 ${panelBg}`}>
           <div>
             <div className="flex justify-between items-center mb-3">
@@ -1102,7 +1100,7 @@ export default function PosPage() {
 
                     <div className="flex justify-between items-center pt-1 border-t border-opacity-50 font-semibold">
                       <span>Subtotal:</span>
-                      <span className="text-emerald-500 text-sm" translate="no">Q {item.price * item.quantity}</span>
+                      <span className="text-emerald-500 text-sm" translate="no">Q {(Number(item.price) || 0) * (Number(item.quantity) || 0)}</span>
                     </div>
                   </div>
                 ))
@@ -1128,7 +1126,7 @@ export default function PosPage() {
 
       </div>
 
-      {/* BARRA FLOTANTE INFERIOR PARA MÓVILES (Permite ver el total y abrir el ticket o cobrar al instante) */}
+      {/* BARRA FLOTANTE MÓVIL */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 p-3 bg-slate-900 border-t border-slate-700 flex justify-between items-center shadow-2xl z-40">
         <div className="flex items-center gap-2">
           <button 
@@ -1150,7 +1148,7 @@ export default function PosPage() {
         </div>
       </div>
 
-      {/* MODAL / PANEL DESPLEGABLE DEL CARRITO EN MÓVIL */}
+      {/* MODAL CARRITO MÓVIL */}
       {isMobileCartOpen && (
         <div className="lg:hidden fixed inset-0 bg-black/80 flex items-end z-50 animate-fadeIn" onClick={() => setIsMobileCartOpen(false)}>
           <div 
@@ -1200,7 +1198,7 @@ export default function PosPage() {
 
                       <div className="flex justify-between items-center pt-1 border-t border-opacity-50 font-semibold">
                         <span>Subtotal:</span>
-                        <span className="text-emerald-500 text-sm" translate="no">Q {item.price * item.quantity}</span>
+                        <span className="text-emerald-500 text-sm" translate="no">Q {(Number(item.price) || 0) * (Number(item.quantity) || 0)}</span>
                       </div>
                     </div>
                   ))
@@ -1226,7 +1224,7 @@ export default function PosPage() {
         </div>
       )}
 
-      {/* MENÚ LATERAL DESLIZANTE MÁS ANCHO Y CÓMODO */}
+      {/* MENÚ LATERAL DESLIZANTE */}
       {isDrawerOpen && (
         <div className="fixed inset-0 bg-black/70 flex z-[9999]" onClick={() => setIsDrawerOpen(false)}>
           <div 
@@ -1461,7 +1459,7 @@ export default function PosPage() {
               {selectedSaleDetails.map((item, idx) => (
                 <div key={idx} className={`p-2 rounded border flex justify-between ${subPanelBg}`}>
                   <span>{item.product_name} (x{item.quantity})</span>
-                  <span className="text-emerald-500 font-bold">Q {item.quantity * item.price}</span>
+                  <span className="text-emerald-500 font-bold">Q {(Number(item.quantity) || 0) * (Number(item.price) || 0)}</span>
                 </div>
               ))}
             </div>
