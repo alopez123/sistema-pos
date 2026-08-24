@@ -18,6 +18,9 @@ export default function PosPage() {
   // Estado para el Menú Lateral Deslizante (Hamburguesa ☰)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
+  // Estado para ver el carrito flotante en móviles
+  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false)
+
   const router = useRouter()
 
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false)
@@ -403,6 +406,7 @@ export default function PosPage() {
   }
 
   const totalCart = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0)
+  const totalItemsCount = cart.reduce((acc, item) => acc + item.quantity, 0)
 
   function printThermalTicket({ orderNumber, branchName, customerNit, customerName, items, total }: any) {
     const printWindow = window.open('', '_blank', 'width=300,height=600');
@@ -540,6 +544,7 @@ export default function PosPage() {
       setCart([]);
       setCustomerNit('CF');
       setCustomerName('Consumidor Final');
+      setIsMobileCartOpen(false);
       refreshAllData(selectedBranch, businessIdState);
     }
   }
@@ -891,11 +896,11 @@ export default function PosPage() {
   const inputBg = isDarkMode ? 'bg-[#0f172a] text-white border-slate-600' : 'bg-white text-slate-900 border-slate-300'
 
   return (
-    <div className={`min-h-screen p-3 md:p-4 flex flex-col w-full notranslate ${themeBg}`} translate="no">
+    <div className={`min-h-screen p-2 md:p-4 flex flex-col w-full notranslate pb-20 lg:pb-4 ${themeBg}`} translate="no">
       
-      {/* BARRA SUPERIOR */}
-      <header className={`p-3 rounded-lg shadow mb-4 flex justify-between items-center border w-full ${panelBg}`}>
-        <div className="flex items-center gap-3.5">
+      {/* BARRA SUPERIOR ADAPTABLE (Responsive Flex-wrap para móviles) */}
+      <header className={`p-3 rounded-lg shadow mb-3 flex flex-wrap justify-between items-center gap-2 border w-full ${panelBg}`}>
+        <div className="flex items-center gap-2.5">
           <button 
             onClick={() => setIsDrawerOpen(true)}
             className="p-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center shadow transition-colors"
@@ -905,18 +910,18 @@ export default function PosPage() {
           </button>
 
           {businessLogo ? (
-            <img src={businessLogo} alt="Logo" className="w-24 h-24 object-contain rounded-xl border p-0.5 shadow-sm" />
+            <img src={businessLogo} alt="Logo" className="w-12 h-12 md:w-14 md:h-14 object-contain rounded-xl border p-0.5 shadow-sm" />
           ) : (
-            <div className="w-20 h-20 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow-sm">POS</div>
+            <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow-sm">POS</div>
           )}
 
           <div>
-            <h1 className="text-sm font-bold leading-tight">Punto de Venta</h1>
+            <h1 className="text-xs md:text-sm font-bold leading-tight">Punto de Venta</h1>
             <select 
               value={selectedBranch} 
               onChange={e => handleBranchChange(e.target.value)}
               disabled={isStaff}
-              className={`border px-2.5 py-1 rounded-md outline-none font-semibold text-xs mt-1 ${inputBg}`}
+              className={`border px-2 py-0.5 rounded-md outline-none font-semibold text-xs mt-1 ${inputBg}`}
             >
               {branches.map(b => (
                 <option key={b.id} value={b.id}>{b.name}</option>
@@ -925,37 +930,37 @@ export default function PosPage() {
           </div>
         </div>
           
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
            {(userRole === 'encargado' || !isStaff) && (
              <>
-               <button onClick={() => router.push('/cajero')} className="bg-sky-600 hover:bg-sky-500 px-2.5 py-1.5 rounded font-semibold text-xs text-white shadow">💵 Caja</button>
-               <button onClick={() => router.push('/inventario')} className="bg-emerald-700 hover:bg-emerald-600 px-2.5 py-1.5 rounded font-semibold text-xs text-white shadow">📋 Inventario</button>
+               <button onClick={() => router.push('/cajero')} className="bg-sky-600 hover:bg-sky-500 px-2 py-1.5 rounded font-semibold text-xs text-white shadow">💵 Caja</button>
+               <button onClick={() => router.push('/inventario')} className="bg-emerald-700 hover:bg-emerald-600 px-2 py-1.5 rounded font-semibold text-xs text-white shadow">📋 Inventario</button>
              </>
            )}
 
-           <button onClick={toggleTicketPrinting} className={`px-2.5 py-1.5 rounded text-xs font-semibold border ${enableTicketPrinting ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-700 text-slate-300 border-slate-600'}`}>
-             🖨️ Ticket: {enableTicketPrinting ? 'ON' : 'OFF'}
+           <button onClick={toggleTicketPrinting} className={`px-2 py-1.5 rounded text-xs font-semibold border ${enableTicketPrinting ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-700 text-slate-300 border-slate-600'}`}>
+             🖨️ {enableTicketPrinting ? 'ON' : 'OFF'}
            </button>
 
-           <button onClick={toggleTheme} className={`px-2.5 py-1.5 rounded text-xs font-semibold border ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}>
+           <button onClick={toggleTheme} className={`px-2 py-1.5 rounded text-xs font-semibold border ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}>
              {isDarkMode ? '☀️' : '🌙'}
            </button>
 
-           <button onClick={() => setShowLowStockModal(true)} className={`relative px-2.5 py-1.5 rounded text-xs font-semibold ${lowStockItems.length > 0 ? 'bg-amber-600 text-white animate-pulse' : 'bg-slate-700 text-slate-300'}`}>
-             ⚠️ Stock {lowStockItems.length > 0 && `(${lowStockItems.length})`}
+           <button onClick={() => setShowLowStockModal(true)} className={`relative px-2 py-1.5 rounded text-xs font-semibold ${lowStockItems.length > 0 ? 'bg-amber-600 text-white animate-pulse' : 'bg-slate-700 text-slate-300'}`}>
+             ⚠️ {lowStockItems.length > 0 && `(${lowStockItems.length})`}
            </button>
 
-           <button onClick={handleExit} className="bg-red-700 hover:bg-red-600 px-3 py-1.5 rounded text-xs font-semibold text-white">
+           <button onClick={handleExit} className="bg-red-700 hover:bg-red-600 px-2.5 py-1.5 rounded text-xs font-semibold text-white">
              {isStaff ? 'Salir' : 'Volver'}
            </button>
         </div>
       </header>
 
-      {/* DISEÑO PRINCIPAL: CATÁLOGO A LA IZQUIERDA (8 COLS), TICKET A LA DERECHA (4 COLS) */}
+      {/* DISEÑO PRINCIPAL: CATÁLOGO IZQUIERDA, TICKET DERECHA (EN PC). EN MÓVIL SOLO CATÁLOGO + BOTÓN FLOTANTE */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 w-full">
         
-        {/* COLUMNA IZQUIERDA: BUSCADOR Y CATÁLOGO DE PRODUCTOS (8 COLUMNAS) */}
-        <div className={`p-4 rounded-lg shadow border flex flex-col lg:col-span-8 order-2 lg:order-1 ${panelBg}`}>
+        {/* COLUMNA IZQUIERDA: BUSCADOR Y CATÁLOGO DE PRODUCTOS (Ocupa 12 cols en móvil, 8 en PC) */}
+        <div className={`p-3 md:p-4 rounded-lg shadow border flex flex-col lg:col-span-8 order-2 lg:order-1 ${panelBg}`}>
           <div className="mb-3 relative" ref={searchRef}>
             <input 
               type="text"
@@ -1018,7 +1023,7 @@ export default function PosPage() {
             ))}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 overflow-y-auto max-h-[60vh] pr-1 flex-1">
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 overflow-y-auto max-h-[65vh] lg:max-h-[60vh] pr-1 flex-1">
             {filteredProducts.length === 0 ? (
               <p className="col-span-full text-center py-16 text-sm opacity-75">No hay productos que coincidan con la búsqueda.</p>
             ) : (
@@ -1052,8 +1057,8 @@ export default function PosPage() {
           </div>
         </div>
 
-        {/* COLUMNA DERECHA: TICKET DE VENTA (4 COLUMNAS) */}
-        <div className={`p-4 rounded-lg shadow border flex flex-col justify-between lg:col-span-4 order-1 lg:order-2 ${panelBg}`}>
+        {/* COLUMNA DERECHA: TICKET DE VENTA (Visible normal en PC [lg+], oculto en móviles para no estorbar) */}
+        <div className={`hidden lg:flex p-4 rounded-lg shadow border flex-col justify-between lg:col-span-4 order-1 lg:order-2 ${panelBg}`}>
           <div>
             <div className="flex justify-between items-center mb-3">
               <h2 className="text-base font-bold text-emerald-500">Ticket de Venta</h2>
@@ -1090,7 +1095,7 @@ export default function PosPage() {
                           min="1"
                           value={item.quantity}
                           onChange={(e) => handleQuantityChange(item.id, e.target.value)}
-                          className={`w-18 border rounded px-1 py-1 font-bold outline-none focus:border-emerald-500 text-center ${inputBg}`}
+                          className={`w-14 border rounded px-1 py-1 font-bold outline-none focus:border-emerald-500 text-center ${inputBg}`}
                         />
                       </div>
                     </div>
@@ -1122,6 +1127,104 @@ export default function PosPage() {
         </div>
 
       </div>
+
+      {/* BARRA FLOTANTE INFERIOR PARA MÓVILES (Permite ver el total y abrir el ticket o cobrar al instante) */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 p-3 bg-slate-900 border-t border-slate-700 flex justify-between items-center shadow-2xl z-40">
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setIsMobileCartOpen(true)}
+            className="bg-emerald-600 text-white px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow"
+          >
+            🛒 Ver Carrito ({totalItemsCount})
+          </button>
+          <span className="text-xs text-slate-300 font-semibold" translate="no">Q {totalCart}</span>
+        </div>
+        <div>
+          <button 
+            onClick={() => setIsMobileCartOpen(true)}
+            disabled={cart.length === 0}
+            className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-bold text-xs shadow"
+          >
+            Generar Orden
+          </button>
+        </div>
+      </div>
+
+      {/* MODAL / PANEL DESPLEGABLE DEL CARRITO EN MÓVIL */}
+      {isMobileCartOpen && (
+        <div className="lg:hidden fixed inset-0 bg-black/80 flex items-end z-50 animate-fadeIn" onClick={() => setIsMobileCartOpen(false)}>
+          <div 
+            className={`w-full max-h-[85vh] rounded-t-2xl p-4 md:p-5 flex flex-col justify-between shadow-2xl border-t ${panelBg}`}
+            onClick={e => e.stopPropagation()}
+          >
+            <div>
+              <div className="flex justify-between items-center mb-3 pb-2 border-b border-opacity-50">
+                <h2 className="text-base font-bold text-emerald-500">🛒 Ticket de Venta</h2>
+                <button onClick={() => setIsMobileCartOpen(false)} className="text-lg font-bold opacity-75">✕</button>
+              </div>
+
+              <div className="space-y-2.5 overflow-y-auto max-h-[48vh] pr-1">
+                {cart.length === 0 ? (
+                  <p className="text-center py-10 text-sm opacity-75">El carrito está vacío.</p>
+                ) : (
+                  cart.map(item => (
+                    <div key={item.id} className={`flex flex-col gap-2 p-3 rounded-lg border text-xs ${subPanelBg}`}>
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-sm">{item.name}</span>
+                        <button onClick={() => removeFromCart(item.id)} className="text-red-400 font-bold px-1.5 py-0.5 text-sm">✕</button>
+                      </div>
+                      
+                      <div className="flex justify-between items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          <span className="opacity-80">Q:</span>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            value={item.price} 
+                            onChange={(e) => handlePriceChange(item.id, e.target.value)}
+                            className={`w-20 border rounded px-1.5 py-1 text-emerald-500 font-bold outline-none ${inputBg}`} 
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <span className="opacity-80">Cant:</span>
+                          <input 
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => handleQuantityChange(item.id, e.target.value)}
+                            className={`w-14 border rounded px-1 py-1 font-bold outline-none text-center ${inputBg}`}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center pt-1 border-t border-opacity-50 font-semibold">
+                        <span>Subtotal:</span>
+                        <span className="text-emerald-500 text-sm" translate="no">Q {item.price * item.quantity}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-opacity-50 pt-3 mt-3 space-y-3">
+              <div className="flex justify-between items-center text-base font-bold">
+                <span>Subtotal:</span>
+                <span className="text-emerald-500 text-lg" translate="no">Q {totalCart}</span>
+              </div>
+
+              <button 
+                onClick={handleSavePendingOrder}
+                disabled={cart.length === 0 || isSubmittingOrder}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3 rounded-lg font-bold shadow text-xs flex items-center justify-center gap-1"
+              >
+                {isSubmittingOrder ? 'Generando...' : `Generar Orden - Pasar a Caja (Q ${totalCart})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MENÚ LATERAL DESLIZANTE MÁS ANCHO Y CÓMODO */}
       {isDrawerOpen && (
