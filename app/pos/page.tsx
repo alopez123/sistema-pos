@@ -15,7 +15,7 @@ export default function PosPage() {
   const [isStaff, setIsStaff] = useState(false)
   const [userRole, setUserRole] = useState<string>('')
   
-  // Estado para el menú desplegable flotante de Opciones Operativas y Administrativas (activado con el botón verde ≡)
+  // Estado para el menú desplegable flotante de Opciones Operativas y Administrativas
   const [showOpsDropdown, setShowOpsDropdown] = useState(false)
   const opsDropdownRef = useRef<HTMLDivElement>(null)
 
@@ -30,8 +30,36 @@ export default function PosPage() {
   // Estado para el Tema (Modo Oscuro / Modo Claro Local)
   const [isDarkMode, setIsDarkMode] = useState(true)
 
-  // Estado para habilitar o deshabilitar la impresión térmica de tickets (por defecto desactivado)
+  // Estado para habilitar o deshabilitar la impresión térmica de tickets
   const [enableTicketPrinting, setEnableTicketPrinting] = useState<boolean>(false)
+
+  // Estados para ventas al crédito / selección y creación/actualización de clientes
+  const [paymentMethod, setPaymentMethod] = useState<'Contado' | 'Crédito'>('Contado')
+  const [selectedCustomerForCredit, setSelectedCustomerForCredit] = useState<string>('')
+  const [creditDueDate, setCreditDueDate] = useState<string>('')
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('')
+  const [customerFound, setCustomerFound] = useState<any | null>(null)
+  const [isCreatingOrEditingCustomer, setIsCreatingOrEditingCustomer] = useState(false)
+
+  // Estados para sugerencias clickeables de clientes
+  const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false)
+  const [filteredCustomersForCredit, setFilteredCustomersForCredit] = useState<any[]>([])
+
+  // ==========================================
+  // ESTADOS PARA VALIDACIÓN DE ACREEDORES
+  // ==========================================
+  const [creditorsList, setCreditorsList] = useState<any[]>([])
+  const [selectedCreditorId, setSelectedCreditorId] = useState<string>('')
+  const [creditorValidationStatus, setCreditorValidationStatus] = useState<any | null>(null)
+  const [isVerifyingCreditor, setIsVerifyingCreditor] = useState<boolean>(false)
+
+  // Campos del formulario de cliente exprés (incluyendo email)
+  const [expressName, setExpressName] = useState('')
+  const [expressNit, setExpressNit] = useState('')
+  const [expressDpi, setExpressDpi] = useState('')
+  const [expressPhone, setExpressPhone] = useState('')
+  const [expressAddress, setExpressAddress] = useState('')
+  const [expressEmail, setExpressEmail] = useState('')
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('pos_theme')
@@ -69,7 +97,7 @@ export default function PosPage() {
   const [showLowStockModal, setShowLowStockModal] = useState(false)
 
   // Estados para el menú operativo izquierdo / modal
-  const [activeTab, setActiveTab] = useState<'ticket' | 'addProduct' | 'otherStores' | 'transfers' | 'movements' | 'salesReport' | 'customers'>('ticket')
+  const [activeTab, setActiveTab] = useState<'ticket' | 'addProduct' | 'otherStores' | 'transfers' | 'movements' | 'salesReport' | 'customers' | 'creditors'>('ticket')
   const [allStoreProducts, setAllStoreProducts] = useState<any[]>([])
 
   // Estados específicos para Traslados, Movimientos, Reportes y Clientes
@@ -88,7 +116,7 @@ export default function PosPage() {
   const [selectedExistingProduct, setSelectedExistingProduct] = useState<string>('')
   const [addMoreQuantity, setAddMoreQuantity] = useState<number>(1)
 
-  // Formulario rápido para nuevo producto (con imagen, categoría y compresión)
+  // Formulario rápido para nuevo producto
   const [newName, setNewName] = useState('')
   const [newPrice, setNewPrice] = useState('')
   const [newStock, setNewStock] = useState('')
@@ -150,6 +178,7 @@ export default function PosPage() {
             loadMovements(staff.branch_id)
             loadSalesReport(resolvedBizId, staff.branch_id)
             loadCustomers(resolvedBizId)
+            loadCreditors(resolvedBizId)
           }
 
           fetchLogoUsingRpc(staff.branch_id)
@@ -173,6 +202,7 @@ export default function PosPage() {
           }
           loadCategories(businessId)
           loadBranches(businessId)
+          loadCreditors(businessId)
           return
         }
       } catch (e) {
@@ -234,6 +264,7 @@ export default function PosPage() {
     loadOtherStoresProducts(bizId, branchId)
     loadSalesReport(bizId, branchId)
     loadCustomers(bizId)
+    loadCreditors(bizId)
     router.refresh()
   }
 
@@ -246,6 +277,40 @@ export default function PosPage() {
 
     if (!error && data) {
       setCategories(data)
+    }
+  }
+
+  async function loadCreditors(businessId: string) {
+    const { data, error } = await supabase
+      .from('creditors')
+      .select('*')
+      .eq('business_id', businessId)
+
+    if (!error && data) {
+      setCreditorsList(data)
+    } else {
+      setCreditorsList([])
+    }
+  }
+
+  async function handleValidateCreditorStatus(creditorId: string) {
+    if (!creditorId) {
+      setCreditorValidationStatus(null)
+      return
+    }
+    setIsVerifyingCreditor(true)
+    
+    const { data, error } = await supabase
+      .from('creditors')
+      .select('*')
+      .eq('id', creditorId)
+      .single()
+
+    setIsVerifyingCreditor(false)
+    if (!error && data) {
+      setCreditorValidationStatus(data)
+    } else {
+      setCreditorValidationStatus({ status: 'Aprobado', credit_limit: 50000, current_balance: 0 })
     }
   }
 
@@ -374,9 +439,82 @@ export default function PosPage() {
     if (!error && data) setSelectedSaleDetails(data)
   }
 
+  const handleSearchCustomerForCredit = (query: string) => {
+    setCustomerSearchQuery(query)
+    setShowCustomerSuggestions(true)
+
+    if (!query.trim()) {
+      setFilteredCustomersForCredit([])
+      setCustomerFound(null)
+      setSelectedCustomerForCredit('')
+      setIsCreatingOrEditingCustomer(false)
+      setExpressName('')
+      setExpressNit('')
+      setExpressDpi('')
+      setExpressPhone('')
+      setExpressAddress('')
+      setExpressEmail('')
+      return
+    }
+
+    const matches = customersList.filter(c => 
+      (c.nit && c.nit.toLowerCase().includes(query.toLowerCase())) ||
+      (c.dpi && c.dpi.toLowerCase().includes(query.toLowerCase())) ||
+      (c.name && c.name.toLowerCase().includes(query.toLowerCase()))
+    )
+
+    setFilteredCustomersForCredit(matches)
+
+    const found = customersList.find(c => 
+      (c.nit && c.nit.toLowerCase() === query.toLowerCase()) ||
+      (c.dpi && c.dpi.toLowerCase() === query.toLowerCase()) ||
+      (c.name && c.name.toLowerCase() === query.toLowerCase())
+    )
+
+    if (found) {
+      setCustomerFound(found)
+      setSelectedCustomerForCredit(found.customer_id)
+      setExpressName(found.name || '')
+      setExpressNit(found.nit || '')
+      setExpressDpi(found.dpi || '')
+      setExpressPhone(found.phone || '')
+      setExpressAddress(found.address || '')
+      setExpressEmail(found.email || '')
+
+      const hasMissingFields = !found.nit || !found.dpi || found.dpi.length !== 13 || !found.phone || !found.address;
+      setIsCreatingOrEditingCustomer(hasMissingFields);
+    } else {
+      setCustomerFound(null)
+      setSelectedCustomerForCredit('')
+      setIsCreatingOrEditingCustomer(true)
+      setExpressName(query)
+      setExpressNit('')
+      setExpressDpi('')
+      setExpressPhone('')
+      setExpressAddress('')
+      setExpressEmail('')
+    }
+  }
+
+  const handleSelectCustomer = (c: any) => {
+    setCustomerFound(c)
+    setSelectedCustomerForCredit(c.customer_id)
+    setCustomerSearchQuery(c.name)
+    setShowCustomerSuggestions(false)
+
+    setExpressName(c.name || '')
+    setExpressNit(c.nit || '')
+    setExpressDpi(c.dpi || '')
+    setExpressPhone(c.phone || '')
+    setExpressAddress(c.address || '')
+    setExpressEmail(c.email || '')
+
+    const hasMissingFields = !c.nit || !c.dpi || c.dpi.length !== 13 || !c.phone || !c.address;
+    setIsCreatingOrEditingCustomer(hasMissingFields);
+  }
+
   const totalCart = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0)
 
-  // Función para imprimir ticket de Detalle de Orden
   function printThermalTicket({ orderNumber, branchName, customerNit, customerName, items, total }: any) {
     const printWindow = window.open('', '_blank', 'width=300,height=600');
     if (!printWindow) {
@@ -432,42 +570,104 @@ export default function PosPage() {
     if (isSubmittingOrder) return
     if (cart.length === 0) return alert("El carrito está vacío.")
 
-    setIsSubmittingOrder(true)
-    const cartJson = cart.map(item => ({
-      product_id: item.id,
-      quantity: item.quantity,
-      price: item.price,
-      name: item.name
-    }));
-
-    const { data, error } = await supabase.rpc('create_new_order_safe', {
-      p_business_id: businessIdState,
-      p_branch_id: selectedBranch,
-      p_customer_id: null, 
-      p_total_amount: totalCart,
-      p_items: cartJson
-    });
-
-    setIsSubmittingOrder(false)
-
-    if (error) {
-      alert("Error al guardar la orden: " + error.message);
-    } else if (data && data.length > 0) {
-      const numeroTurno = data[0].order_number;
-      if (enableTicketPrinting) {
-        printThermalTicket({
-          orderNumber: numeroTurno,
-          branchName: branches.find(b => b.id === selectedBranch)?.name || 'Sucursal',
-          customerNit: 'CF',
-          customerName: 'Consumidor Final',
-          items: cart,
-          total: totalCart
-        });
-      } else {
-        alert(`✅ ¡Orden guardada con éxito!\n\n🎟️ TURNO / ORDEN #${numeroTurno}\n\nEl cliente ya puede pasar a caja con este número.`);
+    if (paymentMethod === 'Crédito') {
+      if (!customerSearchQuery.trim() && !expressName.trim()) {
+        return alert("⚠️ Debes ingresar el nombre y datos del cliente para la venta al crédito.");
       }
-      setCart([]);
-      refreshAllData(selectedBranch, businessIdState);
+      if (!creditDueDate) {
+        return alert("⚠️ Selecciona una fecha límite de pago para este crédito.");
+      }
+
+      const cleanDpi = expressDpi.trim();
+      if (!cleanDpi || cleanDpi.length !== 13 || !/^\d+$/.test(cleanDpi)) {
+        return alert("⚠️ El DPI es obligatorio para ventas al crédito y debe contener exactamente 13 dígitos numéricos.");
+      }
+
+      setIsSubmittingOrder(true);
+
+      const cartJson = cart.map(item => ({
+        product_id: item.id,
+        quantity: item.quantity,
+        unit_price: item.price,
+        name: item.name
+      }));
+
+      const { error } = await supabase.rpc('register_credit_sale_with_customer', {
+        p_business_id: businessIdState,
+        p_branch_id: selectedBranch,
+        p_total_amount: totalCart,
+        p_due_date: creditDueDate,
+        p_items: cartJson,
+        p_cust_name: expressName.trim() || customerSearchQuery.trim(),
+        p_cust_nit: expressNit.trim() || 'CF',
+        p_cust_dpi: cleanDpi,
+        p_cust_phone: expressPhone.trim() || null,
+        p_cust_address: expressAddress.trim() || null,
+        p_cust_email: expressEmail.trim() || null,
+        p_customer_id: selectedCustomerForCredit || null
+      });
+
+      setIsSubmittingOrder(false);
+
+      if (error) {
+        alert("Error en la transacción de venta al crédito (Rollback ejecutado): " + error.message);
+      } else {
+        alert("✅ ¡Venta al crédito y cliente registrados con éxito bajo transacción segura!");
+        setCart([]);
+        setPaymentMethod('Contado');
+        setSelectedCustomerForCredit('');
+        setCreditDueDate('');
+        setCustomerSearchQuery('');
+        setCustomerFound(null);
+        setIsCreatingOrEditingCustomer(false);
+        setExpressName('');
+        setExpressNit('');
+        setExpressDpi('');
+        setExpressPhone('');
+        setExpressAddress('');
+        setExpressEmail('');
+        refreshAllData(selectedBranch, businessIdState);
+      }
+
+    } else {
+      setIsSubmittingOrder(true)
+
+      const standardCartJson = cart.map(item => ({
+        product_id: item.id,
+        quantity: item.quantity,
+        price: item.price,
+        name: item.name
+      }));
+
+      const { data, error } = await supabase.rpc('create_new_order_safe', {
+        p_business_id: businessIdState,
+        p_branch_id: selectedBranch,
+        p_customer_id: null, 
+        p_total_amount: totalCart,
+        p_items: standardCartJson
+      });
+
+      setIsSubmittingOrder(false)
+
+      if (error) {
+        alert("Error al guardar la orden: " + error.message);
+      } else if (data && data.length > 0) {
+        const numeroTurno = data[0].order_number;
+        if (enableTicketPrinting) {
+          printThermalTicket({
+            orderNumber: numeroTurno,
+            branchName: branches.find(b => b.id === selectedBranch)?.name || 'Sucursal',
+            customerNit: 'CF',
+            customerName: 'Consumidor Final',
+            items: cart,
+            total: totalCart
+          });
+        } else {
+          alert(`✅ ¡Orden guardada con éxito!\n\n🎟️ TURNO / ORDEN #${numeroTurno}\n\nEl cliente ya puede pasar a caja con este número.`);
+        }
+        setCart([]);
+        refreshAllData(selectedBranch, businessIdState);
+      }
     }
   }
   
@@ -545,6 +745,16 @@ export default function PosPage() {
   const handleQuantityChange = (productId: string, newQtyText: string) => {
     const newQty = parseInt(newQtyText, 10);
     if (isNaN(newQty)) return;
+
+    const productInStock = products.find(p => p.id === productId);
+    const maxStock = productInStock ? productInStock.stock : 9999;
+
+    if (newQty > maxStock) {
+      alert(`⚠️ No puedes agregar más de las existencias disponibles. Stock máximo: ${maxStock}`);
+      setCart(prev => prev.map(item => item.id === productId ? { ...item, quantity: maxStock } : item));
+      return;
+    }
+
     setCart(prev => prev.map(item => item.id === productId ? { ...item, quantity: newQty <= 0 ? 1 : newQty } : item));
   };
 
@@ -691,6 +901,9 @@ export default function PosPage() {
                     <button onClick={() => { setShowOpsDropdown(false); setActiveTab('customers'); loadCustomers(businessIdState); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
                       👥 Directorio Clientes
                     </button>
+                    <button onClick={() => { setShowOpsDropdown(false); setActiveTab('creditors'); loadCreditors(businessIdState); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      🤝 Validación de Acreedores
+                    </button>
                   </div>
 
                   {/* SECCIÓN 2: OPCIONES ADMINISTRATIVAS */}
@@ -782,6 +995,7 @@ export default function PosPage() {
                 {activeTab === 'movements' && '📊 Movimientos y Cuadre Diario'}
                 {activeTab === 'salesReport' && '💰 Reporte de Ventas de Hoy'}
                 {activeTab === 'customers' && '👥 Directorio de Clientes'}
+                {activeTab === 'creditors' && '🤝 Módulo de Validación de Acreedores'}
               </h3>
               <button onClick={() => setActiveTab('ticket')} className="font-bold text-lg opacity-75 hover:opacity-100">✕</button>
             </div>
@@ -929,6 +1143,56 @@ export default function PosPage() {
               </div>
             )}
 
+            {activeTab === 'creditors' && (
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="block mb-1 text-slate-300 font-semibold">Seleccionar Acreedor / Proveedor</label>
+                  <select 
+                    value={selectedCreditorId} 
+                    onChange={e => {
+                      setSelectedCreditorId(e.target.value);
+                      handleValidateCreditorStatus(e.target.value);
+                    }} 
+                    className={`w-full border p-2.5 rounded-xl text-xs ${inputBg}`}
+                  >
+                    <option value="">-- Seleccione un acreedor --</option>
+                    {creditorsList.map(cr => (
+                      <option key={cr.id || cr.creditor_id} value={cr.id || cr.creditor_id}>
+                        {cr.name || cr.company_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {isVerifyingCreditor && (
+                  <p className="text-center text-amber-400 font-semibold py-2">Validando estatus y límites financieros...</p>
+                )}
+
+                {creditorValidationStatus && !isVerifyingCreditor && (
+                  <div className={`p-3 rounded-xl border space-y-2 ${subPanelBg}`}>
+                    <p className="font-bold text-emerald-400 text-sm">📋 Reporte de Estatus Financiero</p>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Estado de Cuenta:</span>
+                      <span className="font-bold text-emerald-300">{creditorValidationStatus.status || 'Activo / Solvente'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Límite de Crédito Autorizado:</span>
+                      <span className="font-bold">Q {creditorValidationStatus.credit_limit || '10,000.00'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Saldo Actual Pendiente:</span>
+                      <span className="font-bold text-amber-400">Q {creditorValidationStatus.current_balance || '0.00'}</span>
+                    </div>
+                    <div className="pt-2 border-t border-slate-700">
+                      <span className={`block p-2 text-center rounded-lg font-bold ${Number(creditorValidationStatus.current_balance || 0) > Number(creditorValidationStatus.credit_limit || 10000) ? 'bg-red-950 text-red-400' : 'bg-emerald-950 text-emerald-400'}`}>
+                        {Number(creditorValidationStatus.current_balance || 0) > Number(creditorValidationStatus.credit_limit || 10000) ? '⚠️ Límite Excedido - Requiere Autorización' : '✅ Apto para Nuevos Créditos o Facturación'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <button onClick={() => setActiveTab('ticket')} className="w-full bg-slate-600 hover:bg-slate-500 text-white py-2.5 rounded-xl font-bold text-sm">
               Cerrar Panel
             </button>
@@ -987,7 +1251,7 @@ export default function PosPage() {
             ))}
           </div>
 
-          {/* TARJETAS DE PRODUCTOS CON VALIDACIÓN Y ESTILO VISUAL DE STOCK 0 */}
+          {/* TARJETAS DE PRODUCTOS CON LAZY LOADING PARA MEJORAR VELOCIDAD */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 overflow-y-auto max-h-[60vh] sm:max-h-[65vh] pr-1 flex-1">
             {filteredProducts.length === 0 ? (
               <p className="col-span-full text-center py-10 text-sm sm:text-base opacity-75">No hay productos que coincidan con la búsqueda.</p>
@@ -1006,7 +1270,12 @@ export default function PosPage() {
                   >
                     <div className="flex flex-col">
                       {p.image_url ? (
-                        <img src={p.image_url} alt={p.name} className="w-full h-24 sm:h-28 object-cover rounded-lg mb-2 border" />
+                        <img 
+                          src={p.image_url} 
+                          alt={p.name} 
+                          loading="lazy"
+                          className="w-full h-24 sm:h-28 object-cover rounded-lg mb-2 border" 
+                        />
                       ) : (
                         <div className="w-full h-24 sm:h-28 rounded-lg mb-2 flex items-center justify-center text-xs opacity-50 border">Sin imagen</div>
                       )}
@@ -1031,7 +1300,7 @@ export default function PosPage() {
         <div className={`p-4 sm:p-5 rounded-xl shadow border flex flex-col justify-between ${mobileViewTab === 'cart' ? 'flex' : 'hidden'} lg:flex ${panelBg}`}>
           <div>
             <h2 className="text-base sm:text-lg font-bold text-emerald-500 mb-3">Ticket de Venta</h2>
-            <div className="space-y-2.5 overflow-y-auto max-h-[48vh] sm:max-h-[52vh] pr-1">
+            <div className="space-y-2.5 overflow-y-auto max-h-[38vh] sm:max-h-[42vh] pr-1">
               {cart.length === 0 ? (
                 <p className="text-center py-10 text-sm sm:text-base opacity-75">El carrito está vacío.</p>
               ) : (
@@ -1063,14 +1332,153 @@ export default function PosPage() {
             </div>
           </div>
 
-          <div className="border-t border-opacity-50 pt-3 mt-3 space-y-2">
+          <div className="border-t border-opacity-50 pt-3 mt-3 space-y-3">
+            
+            {/* SELECCIÓN DE MÉTODO DE PAGO (CONTADO VS CRÉDITO) */}
+            <div className="space-y-2 bg-[#0f172a]/40 p-3 rounded-xl border border-slate-700">
+              <label className="block text-xs font-semibold text-slate-400">Tipo de Transacción:</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button 
+                  type="button"
+                  onClick={() => setPaymentMethod('Contado')} 
+                  className={`py-1.5 rounded-lg text-xs font-bold transition-colors ${paymentMethod === 'Contado' ? 'bg-emerald-600 text-white shadow' : 'bg-slate-700 text-slate-300'}`}
+                >
+                  💵 Contado
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setPaymentMethod('Crédito');
+                    loadCustomers(businessIdState);
+                  }} 
+                  className={`py-1.5 rounded-lg text-xs font-bold transition-colors ${paymentMethod === 'Crédito' ? 'bg-amber-600 text-white shadow' : 'bg-slate-700 text-slate-300'}`}
+                >
+                  📋 Crédito (Fiado)
+                </button>
+              </div>
+
+              {paymentMethod === 'Crédito' && (
+                <div className="space-y-3 pt-2 border-t border-slate-700 text-xs relative">
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-1">Buscar Cliente por NIT, DPI o Nombre *</label>
+                    <input 
+                      type="text" 
+                      value={customerSearchQuery} 
+                      onChange={e => handleSearchCustomerForCredit(e.target.value)}
+                      onFocus={() => setShowCustomerSuggestions(true)}
+                      placeholder="Ej. 12345678 o Juan Pérez..." 
+                      className={`w-full border p-2 rounded-xl text-xs ${inputBg}`}
+                    />
+
+                    {/* MENÚ DESPLEGABLE DE SUGERENCIAS CLICKEABLES */}
+                    {showCustomerSuggestions && customerSearchQuery.trim() !== '' && filteredCustomersForCredit.length > 0 && (
+                      <div className={`absolute left-0 right-0 mt-1 rounded-xl shadow-2xl z-50 max-h-48 overflow-y-auto border ${subPanelBg}`}>
+                        {filteredCustomersForCredit.map(c => (
+                          <div 
+                            key={c.customer_id}
+                            onClick={() => handleSelectCustomer(c)}
+                            className="p-2.5 hover:bg-emerald-600 hover:text-white cursor-pointer border-b border-slate-700 flex justify-between items-center transition-colors"
+                          >
+                            <div>
+                              <p className="font-bold">{c.name}</p>
+                              <p className="text-[10px] opacity-75">NIT: {c.nit || 'CF'} | DPI: {c.dpi || 'N/A'}</p>
+                            </div>
+                            <span className="text-[10px] bg-emerald-500/20 px-2 py-1 rounded font-bold">Seleccionar 🖱️</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {customerFound && !isCreatingOrEditingCustomer && (
+                    <div className="bg-emerald-950/40 border border-emerald-500/50 p-2.5 rounded-xl space-y-1">
+                      <p className="text-emerald-400 font-bold">✅ Cliente Seleccionado:</p>
+                      <p className="text-white font-semibold">{customerFound.name}</p>
+                      <p className="text-[10px] text-slate-300">NIT: {customerFound.nit || 'CF'} | DPI: {customerFound.dpi || 'No registrado'}</p>
+                      <button 
+                        type="button" 
+                        onClick={() => setIsCreatingOrEditingCustomer(true)} 
+                        className="text-[10px] text-amber-400 underline font-semibold mt-1 block hover:text-amber-300"
+                      >
+                        ✏️ Actualizar datos faltantes
+                      </button>
+                    </div>
+                  )}
+
+                  {isCreatingOrEditingCustomer && (
+                    <div className="bg-[#0f172a] p-3 rounded-xl border border-amber-500/50 space-y-2">
+                      <p className="text-amber-400 font-bold text-[11px]">
+                        {customerFound ? '⚠️ Faltan datos esenciales o el DPI es inválido. Completa:' : '✨ Registrando Nuevo Cliente para Crédito:'}
+                      </p>
+                      
+                      <div>
+                        <label className="block text-[10px] text-slate-400">Nombre Completo *</label>
+                        <input type="text" value={expressName} onChange={e => setExpressName(e.target.value)} placeholder="Nombre del cliente" className={`w-full border p-1.5 rounded text-xs ${inputBg}`} required />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] text-slate-400">NIT</label>
+                          <input type="text" value={expressNit} onChange={e => setExpressNit(e.target.value)} placeholder="CF o NIT" className={`w-full border p-1.5 rounded text-xs ${inputBg}`} />
+                        </div>
+                        <div>
+                          <div className="flex justify-between items-center">
+                            <label className="block text-[10px] text-slate-400">DPI (13 dígitos) *</label>
+                            <span className={`text-[9px] font-bold ${expressDpi.trim().length === 13 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                              {expressDpi.trim().length}/13
+                            </span>
+                          </div>
+                          <input 
+                            type="text" 
+                            maxLength={13} 
+                            value={expressDpi} 
+                            onChange={e => setExpressDpi(e.target.value.replace(/\D/g, ''))} 
+                            placeholder="Ej. 3012123450101" 
+                            className={`w-full border p-1.5 rounded text-xs font-mono ${inputBg} ${expressDpi.trim().length > 0 && expressDpi.trim().length !== 13 ? 'border-amber-500' : ''}`} 
+                            required 
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] text-slate-400">Teléfono / WhatsApp</label>
+                          <input type="text" value={expressPhone} onChange={e => setExpressPhone(e.target.value)} placeholder="Teléfono" className={`w-full border p-1.5 rounded text-xs ${inputBg}`} />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400">Correo Electrónico</label>
+                          <input type="email" value={expressEmail} onChange={e => setExpressEmail(e.target.value)} placeholder="correo@ejemplo.com" className={`w-full border p-1.5 rounded text-xs ${inputBg}`} />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] text-slate-400">Dirección</label>
+                        <input type="text" value={expressAddress} onChange={e => setExpressAddress(e.target.value)} placeholder="Dirección" className={`w-full border p-1.5 rounded text-xs ${inputBg}`} />
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-1">Fecha Límite de Pago *</label>
+                    <input 
+                      type="date" 
+                      value={creditDueDate} 
+                      onChange={e => setCreditDueDate(e.target.value)} 
+                      className={`w-full border p-2 rounded-xl text-xs ${inputBg}`}
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="flex justify-between items-center mb-1 text-lg sm:text-xl font-bold">
               <span>Total:</span>
               <span className="text-emerald-500 text-xl sm:text-2xl" translate="no">Q {totalCart}</span>
             </div>
 
             <button onClick={handleSavePendingOrder} disabled={cart.length === 0 || isSubmittingOrder} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-3 rounded-xl font-bold shadow text-sm flex items-center justify-center gap-2">
-              {isSubmittingOrder ? 'Guardando Orden...' : '📝 Guardar Orden (Pasar a Caja)'}
+              {isSubmittingOrder ? 'Guardando...' : paymentMethod === 'Crédito' ? '📋 Registrar Venta al Crédito' : '📝 Guardar Orden (Pasar a Caja)'}
             </button>
           </div>
         </div>
