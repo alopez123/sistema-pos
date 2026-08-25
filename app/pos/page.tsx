@@ -46,12 +46,17 @@ export default function PosPage() {
   const [filteredCustomersForCredit, setFilteredCustomersForCredit] = useState<any[]>([])
 
   // ==========================================
-  // ESTADOS PARA VALIDACIÓN DE ACREEDORES
+  // ESTADOS PARA LÍMITE DE CRÉDITO DE CLIENTES
   // ==========================================
-  const [creditorsList, setCreditorsList] = useState<any[]>([])
-  const [selectedCreditorId, setSelectedCreditorId] = useState<string>('')
-  const [creditorValidationStatus, setCreditorValidationStatus] = useState<any | null>(null)
-  const [isVerifyingCreditor, setIsVerifyingCreditor] = useState<boolean>(false)
+  const [selectedCustomerLimitId, setSelectedCustomerLimitId] = useState<string>('')
+  const [customerLimitDetails, setCustomerLimitDetails] = useState<any | null>(null)
+  const [newCreditLimitValue, setNewCreditLimitValue] = useState<string>('3')
+  const [isUpdatingLimit, setIsUpdatingLimit] = useState<boolean>(false)
+
+  // Estados específicos para el buscador del modal de Límite de Clientes
+  const [limitSearchQuery, setLimitSearchQuery] = useState('')
+  const [showLimitSuggestions, setShowLimitSuggestions] = useState(false)
+  const [filteredCustomersForLimit, setFilteredCustomersForLimit] = useState<any[]>([])
 
   // Campos del formulario de cliente exprés (incluyendo email)
   const [expressName, setExpressName] = useState('')
@@ -97,7 +102,7 @@ export default function PosPage() {
   const [showLowStockModal, setShowLowStockModal] = useState(false)
 
   // Estados para el menú operativo izquierdo / modal
-  const [activeTab, setActiveTab] = useState<'ticket' | 'addProduct' | 'otherStores' | 'transfers' | 'movements' | 'salesReport' | 'customers' | 'creditors'>('ticket')
+  const [activeTab, setActiveTab] = useState<'ticket' | 'addProduct' | 'otherStores' | 'transfers' | 'movements' | 'salesReport' | 'customers' | 'customerLimits'>('ticket')
   const [allStoreProducts, setAllStoreProducts] = useState<any[]>([])
 
   // Estados específicos para Traslados, Movimientos, Reportes y Clientes
@@ -178,7 +183,6 @@ export default function PosPage() {
             loadMovements(staff.branch_id)
             loadSalesReport(resolvedBizId, staff.branch_id)
             loadCustomers(resolvedBizId)
-            loadCreditors(resolvedBizId)
           }
 
           fetchLogoUsingRpc(staff.branch_id)
@@ -202,7 +206,7 @@ export default function PosPage() {
           }
           loadCategories(businessId)
           loadBranches(businessId)
-          loadCreditors(businessId)
+          loadCustomers(businessId)
           return
         }
       } catch (e) {
@@ -264,7 +268,6 @@ export default function PosPage() {
     loadOtherStoresProducts(bizId, branchId)
     loadSalesReport(bizId, branchId)
     loadCustomers(bizId)
-    loadCreditors(bizId)
     router.refresh()
   }
 
@@ -280,37 +283,64 @@ export default function PosPage() {
     }
   }
 
-  async function loadCreditors(businessId: string) {
-    const { data, error } = await supabase
-      .from('creditors')
-      .select('*')
-      .eq('business_id', businessId)
-
+  async function loadCustomers(businessId: string) {
+    const { data, error } = await supabase.rpc('get_business_customers', { p_business_id: businessId })
     if (!error && data) {
-      setCreditorsList(data)
-    } else {
-      setCreditorsList([])
+      setCustomersList(data)
+      return data
     }
+    return []
   }
 
-  async function handleValidateCreditorStatus(creditorId: string) {
-    if (!creditorId) {
-      setCreditorValidationStatus(null)
+  const handleSearchCustomerForLimit = (query: string) => {
+    setLimitSearchQuery(query)
+    setShowLimitSuggestions(true)
+
+    if (!query.trim()) {
+      setFilteredCustomersForLimit([])
       return
     }
-    setIsVerifyingCreditor(true)
-    
-    const { data, error } = await supabase
-      .from('creditors')
-      .select('*')
-      .eq('id', creditorId)
-      .single()
 
-    setIsVerifyingCreditor(false)
-    if (!error && data) {
-      setCreditorValidationStatus(data)
+    const matches = customersList.filter(c => 
+      (c.nit && c.nit.toLowerCase().includes(query.toLowerCase())) ||
+      (c.dpi && c.dpi.toLowerCase().includes(query.toLowerCase())) ||
+      (c.name && c.name.toLowerCase().includes(query.toLowerCase()))
+    )
+    setFilteredCustomersForLimit(matches)
+  }
+
+  const handleSelectCustomerForLimit = (c: any) => {
+    setSelectedCustomerLimitId(c.customer_id)
+    setCustomerLimitDetails(c)
+    setNewCreditLimitValue(String(c.credit_limit || 3))
+    setLimitSearchQuery(c.name)
+    setShowLimitSuggestions(false)
+  }
+
+  async function handleSaveCustomerLimit() {
+    if (!selectedCustomerLimitId) return alert("Selecciona un cliente.")
+    const limitNum = parseInt(newCreditLimitValue, 10)
+    if (isNaN(limitNum) || limitNum < 0) return alert("Ingresa un límite válido.")
+
+    setIsUpdatingLimit(true)
+    const { error } = await supabase.rpc('update_customer_credit_limit', {
+      p_customer_id: selectedCustomerLimitId,
+      p_credit_limit: limitNum
+    })
+    
+    if (error) {
+      setIsUpdatingLimit(false)
+      alert("Error al actualizar límite: " + error.message)
     } else {
-      setCreditorValidationStatus({ status: 'Aprobado', credit_limit: 50000, current_balance: 0 })
+      // Actualizamos el estado local de inmediato con el valor enviado
+      setCustomerLimitDetails((prev: any) => prev ? { ...prev, credit_limit: limitNum } : null)
+      setNewCreditLimitValue(String(limitNum))
+      
+      // Recargamos el listado general en segundo plano
+      await loadCustomers(businessIdState)
+      
+      setIsUpdatingLimit(false)
+      alert("✅ ¡Límite de crédito actualizado con éxito!")
     }
   }
 
@@ -427,11 +457,6 @@ export default function PosPage() {
       }));
       setSalesReport(formattedSales);
     }
-  }
-
-  async function loadCustomers(businessId: string) {
-    const { data, error } = await supabase.rpc('get_business_customers', { p_business_id: businessId })
-    if (!error && data) setCustomersList(data)
   }
 
   async function handleViewSaleDetails(saleId: string) {
@@ -610,7 +635,7 @@ export default function PosPage() {
       setIsSubmittingOrder(false);
 
       if (error) {
-        alert("Error en la transacción de venta al crédito (Rollback ejecutado): " + error.message);
+        alert("Error en la transacción de venta al crédito (Límite superado o error): " + error.message);
       } else {
         alert("✅ ¡Venta al crédito y cliente registrados con éxito bajo transacción segura!");
         setCart([]);
@@ -901,8 +926,8 @@ export default function PosPage() {
                     <button onClick={() => { setShowOpsDropdown(false); setActiveTab('customers'); loadCustomers(businessIdState); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
                       👥 Directorio Clientes
                     </button>
-                    <button onClick={() => { setShowOpsDropdown(false); setActiveTab('creditors'); loadCreditors(businessIdState); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
-                      🤝 Validación de Acreedores
+                    <button onClick={() => { setShowOpsDropdown(false); setActiveTab('customerLimits'); loadCustomers(businessIdState); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      🤝 Límite de Crédito Clientes
                     </button>
                   </div>
 
@@ -995,7 +1020,7 @@ export default function PosPage() {
                 {activeTab === 'movements' && '📊 Movimientos y Cuadre Diario'}
                 {activeTab === 'salesReport' && '💰 Reporte de Ventas de Hoy'}
                 {activeTab === 'customers' && '👥 Directorio de Clientes'}
-                {activeTab === 'creditors' && '🤝 Módulo de Validación de Acreedores'}
+                {activeTab === 'customerLimits' && '🤝 Límite de Crédito Clientes'}
               </h3>
               <button onClick={() => setActiveTab('ticket')} className="font-bold text-lg opacity-75 hover:opacity-100">✕</button>
             </div>
@@ -1118,14 +1143,14 @@ export default function PosPage() {
 
             {activeTab === 'salesReport' && (
               <div className="space-y-3 text-xs">
-                <div className={`p-3 rounded-xl border font-bold text-emerald-500 text-base ${subPanelBg}`}>
+                <div className={`p-3 rounded-xl border font-bold text-purple-500 text-base ${subPanelBg}`}>
                   Total Ventas Hoy: Q {salesReport.reduce((a, s) => a + Number(s.total_amount || 0), 0)}
                 </div>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {salesReport.map(s => (
                     <div key={s.sale_id} onClick={() => handleViewSaleDetails(s.sale_id)} className={`p-2.5 rounded-xl border cursor-pointer flex justify-between ${subPanelBg}`}>
                       <span>NIT: {s.customer_nit} ({s.customer_name})</span>
-                      <span className="font-bold text-emerald-400">Q {s.total_amount}</span>
+                      <span className="font-bold text-green-400">Q {s.total_amount}</span>
                     </div>
                   ))}
                 </div>
@@ -1143,50 +1168,68 @@ export default function PosPage() {
               </div>
             )}
 
-            {activeTab === 'creditors' && (
-              <div className="space-y-3 text-xs">
+            {activeTab === 'customerLimits' && (
+              <div className="space-y-3 text-xs relative">
                 <div>
-                  <label className="block mb-1 text-slate-300 font-semibold">Seleccionar Acreedor / Proveedor</label>
-                  <select 
-                    value={selectedCreditorId} 
-                    onChange={e => {
-                      setSelectedCreditorId(e.target.value);
-                      handleValidateCreditorStatus(e.target.value);
-                    }} 
+                  <label className="block mb-1 text-slate-300 font-semibold">Buscar y Seleccionar Cliente</label>
+                  <input 
+                    type="text"
+                    value={limitSearchQuery}
+                    onChange={e => handleSearchCustomerForLimit(e.target.value)}
+                    onFocus={() => setShowLimitSuggestions(true)}
+                    placeholder="🔍 Escribe nombre, NIT o DPI..."
                     className={`w-full border p-2.5 rounded-xl text-xs ${inputBg}`}
-                  >
-                    <option value="">-- Seleccione un acreedor --</option>
-                    {creditorsList.map(cr => (
-                      <option key={cr.id || cr.creditor_id} value={cr.id || cr.creditor_id}>
-                        {cr.name || cr.company_name}
-                      </option>
-                    ))}
-                  </select>
+                  />
+
+                  {showLimitSuggestions && limitSearchQuery.trim() !== '' && filteredCustomersForLimit.length > 0 && (
+                    <div className={`absolute left-0 right-0 mt-1 rounded-xl shadow-2xl z-50 max-h-48 overflow-y-auto border ${subPanelBg}`}>
+                      {filteredCustomersForLimit.map(c => (
+                        <div 
+                          key={c.customer_id}
+                          onClick={() => handleSelectCustomerForLimit(c)}
+                          className="p-2.5 hover:bg-emerald-600 hover:text-white cursor-pointer border-b border-slate-700 flex justify-between items-center transition-colors"
+                        >
+                          <div>
+                            <p className="font-bold">{c.name}</p>
+                            <p className="text-[10px] opacity-75">NIT: {c.nit || 'CF'} | DPI: {c.dpi || 'N/A'}</p>
+                          </div>
+                          <span className="text-[10px] bg-emerald-500/20 px-2 py-1 rounded font-bold">Seleccionar 🖱️</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {isVerifyingCreditor && (
-                  <p className="text-center text-amber-400 font-semibold py-2">Validando estatus y límites financieros...</p>
-                )}
-
-                {creditorValidationStatus && !isVerifyingCreditor && (
-                  <div className={`p-3 rounded-xl border space-y-2 ${subPanelBg}`}>
-                    <p className="font-bold text-emerald-400 text-sm">📋 Reporte de Estatus Financiero</p>
+                {customerLimitDetails && (
+                  <div className={`p-3 rounded-xl border space-y-3 mt-3 ${subPanelBg}`}>
+                    <p className="font-bold text-emerald-400 text-sm">📋 Configuración de Crédito</p>
                     <div className="flex justify-between">
-                      <span className="text-slate-400">Estado de Cuenta:</span>
-                      <span className="font-bold text-emerald-300">{creditorValidationStatus.status || 'Activo / Solvente'}</span>
+                      <span className="text-slate-400">Cliente:</span>
+                      <span className="font-bold text-white">{customerLimitDetails.name}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-400">Límite de Crédito Autorizado:</span>
-                      <span className="font-bold">Q {creditorValidationStatus.credit_limit || '10,000.00'}</span>
+                      <span className="text-slate-400">NIT / DPI:</span>
+                      <span className="font-semibold">{customerLimitDetails.nit || 'CF'} | {customerLimitDetails.dpi || 'N/A'}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Saldo Actual Pendiente:</span>
-                      <span className="font-bold text-amber-400">Q {creditorValidationStatus.current_balance || '0.00'}</span>
-                    </div>
-                    <div className="pt-2 border-t border-slate-700">
-                      <span className={`block p-2 text-center rounded-lg font-bold ${Number(creditorValidationStatus.current_balance || 0) > Number(creditorValidationStatus.credit_limit || 10000) ? 'bg-red-950 text-red-400' : 'bg-emerald-950 text-emerald-400'}`}>
-                        {Number(creditorValidationStatus.current_balance || 0) > Number(creditorValidationStatus.credit_limit || 10000) ? '⚠️ Límite Excedido - Requiere Autorización' : '✅ Apto para Nuevos Créditos o Facturación'}
-                      </span>
+                    
+                    <div className="space-y-1 pt-2 border-t border-slate-700">
+                      <label className="block text-slate-300 font-semibold">Límite de Facturas al Crédito Simultáneas:</label>
+                      <div className="flex gap-2">
+                        <input 
+                          type="number" 
+                          min="1" 
+                          value={newCreditLimitValue} 
+                          onChange={e => setNewCreditLimitValue(e.target.value)} 
+                          className={`flex-1 border p-2 rounded-lg text-xs font-bold text-emerald-400 ${inputBg}`} 
+                        />
+                        <button 
+                          onClick={handleSaveCustomerLimit}
+                          disabled={isUpdatingLimit}
+                          className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg font-bold text-white"
+                        >
+                          {isUpdatingLimit ? 'Guardando...' : 'Actualizar'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

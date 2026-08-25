@@ -52,6 +52,7 @@ export default function Dashboard() {
   const [imageFile, setImageFile] = useState<File | null>(null)
   
   const [newBranchName, setNewBranchName] = useState('')
+  const [branchLimits, setBranchLimits] = useState<{ [key: string]: string }>({})
   const [userEmail, setUserEmail] = useState<string>('')
   const [isAdmin, setIsAdmin] = useState(false)
   const [currentBusinessId, setCurrentBusinessId] = useState<string>('')
@@ -139,11 +140,36 @@ export default function Dashboard() {
     if (error) return console.error(error.message)
     if (data) {
       setBranches(data)
+      const limitsMap: { [key: string]: string } = {}
+      data.forEach((b: any) => {
+        limitsMap[b.id] = b.max_credit_purchases !== undefined && b.max_credit_purchases !== null ? String(b.max_credit_purchases) : '5'
+      })
+      setBranchLimits(limitsMap)
+
       if (data.length > 0 && (!selectedBranch || !data.some((b: any) => b.id === selectedBranch))) {
         setSelectedBranch(data[0].id)
       } else if (data.length === 0) {
         setSelectedBranch('')
       }
+    }
+  }
+
+  async function updateBranchLimit(branchId: string) {
+    const limitVal = parseInt(branchLimits[branchId])
+    if (isNaN(limitVal) || limitVal < 0) {
+      return alert("Ingresa un número válido para el límite de crédito.")
+    }
+
+    const { data, error } = await supabase.rpc('update_branch_credit_limit', {
+      p_branch_id: branchId,
+      p_max_credit_purchases: limitVal
+    })
+
+    if (error) {
+      alert("Error al actualizar límite: " + error.message)
+    } else {
+      alert("¡Límite de compras al crédito actualizado con éxito!")
+      fetchBranchesForBusiness(currentBusinessId)
     }
   }
 
@@ -617,17 +643,36 @@ export default function Dashboard() {
 
             {branches.length > 0 && (
               <div className="border-t border-opacity-50 pt-4 mt-4">
-                <h3 className="text-xs font-bold opacity-75 uppercase mb-3">Sucursales Registradas y Gestión</h3>
-                <div className="space-y-2">
+                <h3 className="text-xs font-bold opacity-75 uppercase mb-3">Sucursales Registradas, Gestión y Límite de Compras al Crédito</h3>
+                <div className="space-y-3">
                   {branches.map(b => (
-                    <div key={b.id} className={`flex justify-between items-center p-3 rounded border gap-2 ${subPanelBg}`}>
-                      <span className="text-sm font-semibold text-emerald-500 truncate">{b.name}</span>
-                      <button 
-                        onClick={() => deleteBranch(b.id, b.name)}
-                        className="bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded text-xs font-semibold transition-colors shrink-0 shadow"
-                      >
-                        Dar de Baja
-                      </button>
+                    <div key={b.id} className={`flex flex-col sm:flex-row justify-between items-start sm:items-center p-3.5 rounded border gap-3 ${subPanelBg}`}>
+                      <div>
+                        <span className="text-sm font-bold text-emerald-500 block">{b.name}</span>
+                        <span className="text-[11px] opacity-75">Límite máx. de compras al crédito activas permitidas:</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                        <input 
+                          type="number" 
+                          min="0"
+                          value={branchLimits[b.id] !== undefined ? branchLimits[b.id] : '5'}
+                          onChange={e => setBranchLimits({ ...branchLimits, [b.id]: e.target.value })}
+                          className={`border p-2 rounded text-sm w-24 text-center font-bold outline-none ${inputBg}`}
+                        />
+                        <button 
+                          onClick={() => updateBranchLimit(b.id)}
+                          className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded text-xs font-semibold shadow transition-colors"
+                        >
+                          Guardar Límite
+                        </button>
+                        <button 
+                          onClick={() => deleteBranch(b.id, b.name)}
+                          className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded text-xs font-semibold transition-colors shadow"
+                        >
+                          Dar de Baja
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

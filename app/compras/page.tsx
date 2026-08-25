@@ -253,7 +253,6 @@ export default function ComprasPage() {
       })
       setPurchasePaymentsList(paymentsData || [])
 
-      // Consulta mediante RPC segura para evitar problemas de relaciones FK en Supabase
       const { data: itemsData, error: itemsError } = await supabase.rpc('get_purchase_items_safe', {
         p_purchase_id: purchase.id
       })
@@ -469,6 +468,7 @@ export default function ComprasPage() {
 
   const totalPurchaseAmount = purchaseCart.reduce((acc, item) => acc + (item.cost * item.quantity), 0)
 
+  // VALIDACIÓN DE LÍMITE DE CRÉDITO POR SUCURSAL AL REGISTRAR COMPRA
   const handleSavePurchase = async () => {
     if (!selectedSupplier) return showToast("Selecciona un proveedor.", 'error')
     if (purchaseCart.length === 0) return showToast("Agrega al menos un producto a la orden de compra.", 'error')
@@ -510,7 +510,8 @@ export default function ComprasPage() {
       loadProducts(businessId, branchId)
       setActiveTab('history')
     } catch (err: any) {
-      showToast("Error crítico al registrar la compra: " + err.message, 'error')
+      // Captura y muestra el mensaje exacto devuelto por la validación de Supabase si se supera el límite de crédito
+      showToast(err.message || "Error crítico al registrar la compra.", 'error')
     } finally {
       setSavingPurchase(false)
     }
