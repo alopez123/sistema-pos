@@ -114,6 +114,40 @@ export default function CreditAccountsPage() {
     }
   }
 
+  // Función para verificar si la fecha de compromiso ya pasó y el crédito sigue pendiente
+  const isVencido = (dueDate: string, status: string) => {
+    if (!dueDate || (status && status.toLowerCase() !== 'pendiente')) return false;
+    const today = new Date().toISOString().split('T')[0];
+    return dueDate < today;
+  };
+
+  const handleWhatsAppReminder = (credito: any) => {
+    const telefono = credito.customer?.phone || '';
+    
+    // Buscamos el nombre de la sucursal
+    const branchIdCredito = credito.sale?.branch_id || credito.branch_id;
+    const sucursalEncontrada = branches.find(b => b.id === branchIdCredito);
+    const nombreSucursal = sucursalEncontrada ? sucursalEncontrada.name : (credito.branch_name || 'Sucursal');
+
+    // Extraemos y formateamos la fecha de la compra (si viene en el objeto)
+    const fechaCruda = credito.created_at || credito.sale?.created_at;
+    const fechaCompra = fechaCruda ? new Date(fechaCruda).toLocaleDateString() : 'reciente';
+
+    // Mensaje incorporando la fecha de la compra
+    const mensaje = `Se le recuerda que tiene pendiente el pago de: Q ${Number(credito.balance).toFixed(2)} de la compra realizada el ${fechaCompra} en el comercial: ${nombreSucursal}.`;
+    
+    if (telefono) {
+      const url = `https://wa.me/502${telefono}?text=${encodeURIComponent(mensaje)}`;
+      window.open(url, '_blank');
+    } else {
+      const telManual = prompt("El cliente no tiene teléfono registrado. Ingresa el número de WhatsApp (ej. 502XXXXXXXX):");
+      if (telManual) {
+        const url = `https://wa.me/${telManual}?text=${encodeURIComponent(mensaje)}`;
+        window.open(url, '_blank');
+      }
+    }
+  };
+
   async function handleRegisterPayment(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedCredit || !paymentAmount) return
@@ -184,8 +218,8 @@ export default function CreditAccountsPage() {
         {/* Cabecera */}
         <div className="flex justify-between items-center border-b border-slate-700 pb-4">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-emerald-400">📋 Módulo de Acreedores / Cuentas por Cobrar</h1>
-            <p className="text-xs sm:text-sm text-slate-400">Control de créditos independientes, detalle de compras y abonos</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-emerald-400">📋 Módulo de Acreedores / Cuentas por Cobrar[cite: 2]</h1>
+            <p className="text-xs sm:text-sm text-slate-400">Control de créditos independientes, detalle de compras y abonos[cite: 2]</p>
           </div>
           <button 
             onClick={() => router.push('/dashboard')} 
@@ -250,45 +284,61 @@ export default function CreditAccountsPage() {
                     <td colSpan={7} className="text-center py-8 text-slate-500">No hay cuentas por cobrar registradas.</td>
                   </tr>
                 ) : (
-                  filteredCredits.map(c => (
-                    <tr key={c.id} className="hover:bg-slate-800/50 transition-colors">
-                      <td 
-                        onClick={() => handleOpenHistory(c)}
-                        className="p-3 font-semibold text-emerald-400 cursor-pointer hover:underline"
-                        title="Ver historial de abonos"
-                      >
-                        {c.customer?.name || 'Cliente General'}
-                        <span className="block text-[10px] text-slate-400">Ver historial de abonos ➔</span>
-                      </td>
-                      <td className="p-3 text-slate-300">NIT: {c.customer?.nit || 'CF'}<br/><span className="text-[10px] text-slate-500">DPI: {c.customer?.dpi || 'N/A'}</span></td>
-                      <td className="p-3">
-                        <button 
-                          onClick={() => handleViewSaleDetails(c)}
-                          className="bg-sky-600/30 hover:bg-sky-600/50 text-sky-300 border border-sky-500/50 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  filteredCredits.map(c => {
+                    const vencido = isVencido(c.due_date, c.status);
+                    return (
+                      <tr key={c.id} className="hover:bg-slate-800/50 transition-colors">
+                        <td 
+                          onClick={() => handleOpenHistory(c)}
+                          className="p-3 font-semibold text-emerald-400 cursor-pointer hover:underline"
+                          title="Ver historial de abonos"
                         >
-                          📦 Ver Productos
-                        </button>
-                      </td>
-                      <td className="p-3" translate="no">Q {Number(c.total_amount).toFixed(2)}</td>
-                      <td className="p-3 font-bold text-emerald-400" translate="no">Q {Number(c.balance).toFixed(2)}</td>
-                      <td className="p-3">
-                        <span className="text-amber-300 block text-[11px]">{c.due_date}</span>
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold mt-1 inline-block ${c.status === 'Pagado' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-amber-950 text-amber-400 border border-amber-800'}`}>
-                          {c.status || 'Pendiente'}
-                        </span>
-                      </td>
-                      <td className="p-3 text-right">
-                        {c.balance > 0 && (
+                          {c.customer?.name || 'Cliente General'}
+                          <span className="block text-[10px] text-slate-400">Ver historial de abonos ➔</span>
+                        </td>
+                        <td className="p-3 text-slate-300">NIT: {c.customer?.nit || 'CF'}<br/><span className="text-[10px] text-slate-500">DPI: {c.customer?.dpi || 'N/A'}</span></td>
+                        <td className="p-3">
                           <button 
-                            onClick={() => setSelectedCredit(c)}
-                            className="bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-colors cursor-pointer"
+                            onClick={() => handleViewSaleDetails(c)}
+                            className="bg-sky-600/30 hover:bg-sky-600/50 text-sky-300 border border-sky-500/50 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer"
                           >
-                            💰 Abonar / Pagar
+                            📦 Ver Productos
                           </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td className="p-3" translate="no">Q {Number(c.total_amount).toFixed(2)}</td>
+                        <td className="p-3 font-bold text-emerald-400" translate="no">Q {Number(c.balance).toFixed(2)}</td>
+                        <td className="p-3">
+                          <span className={`block text-[11px] font-bold ${vencido ? 'text-red-500 animate-pulse' : 'text-amber-300'}`}>
+                            {c.due_date}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold mt-1 inline-block ${c.status === 'Pagado' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : vencido ? 'bg-red-950 text-red-400 border border-red-800' : 'bg-amber-950 text-amber-400 border border-amber-800'}`}>
+                            {vencido ? '¡VENCIDO!' : (c.status || 'Pendiente')}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex justify-end gap-1.5 items-center">
+                            {c.balance > 0 && (
+                              <>
+                                <button 
+                                  onClick={() => handleWhatsAppReminder(c)}
+                                  className="bg-emerald-600 hover:bg-emerald-500 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white transition-colors cursor-pointer flex items-center gap-1 shadow"
+                                  title="Enviar recordatorio por WhatsApp"
+                                >
+                                  💬 Recordar Pago
+                                </button>
+                                <button 
+                                  onClick={() => setSelectedCredit(c)}
+                                  className="bg-sky-600 hover:bg-sky-500 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-colors cursor-pointer shadow"
+                                >
+                                  💰 Abonar / Pagar
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
                 )}
               </tbody>
             </table>

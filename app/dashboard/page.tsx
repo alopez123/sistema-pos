@@ -12,7 +12,7 @@ export default function Dashboard() {
   // Estado para controlar la vista activa mediante las Cards del Menú Principal
   const [activeSection, setActiveSection] = useState<'menu' | 'branches' | 'staff' | 'categories' | 'add_product' | 'products_list'>('menu')
 
-  // Estado para el Menú Lateral Deslizante (Hamburguesa ☰)
+  // Estado para el Menú Lateral Deslizante (☰)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
   // Estado para el Tema (Modo Oscuro / Modo Claro Local)
@@ -597,13 +597,26 @@ export default function Dashboard() {
               >
                 <div>
                   <div className="text-2xl mb-2">📋</div>
-                  <h3 className="font-bold text-base text-emerald-400">Acreedores / Cuentas por Cobrar</h3>
+                  <h3 className="font-bold text-base text-emerald-500">Acreedores / Cuentas por Cobrar</h3>
                   <p className="text-xs opacity-75 mt-1">Controla créditos, saldos pendientes y registra abonos de clientes.</p>
                 </div>
                 <span className="text-xs font-bold text-emerald-400">Ver Módulo ➔</span>
               </div>
 
-              {/* CARD 7: ESTADÍSTICAS Y REPORTES */}
+              {/* CARD 7: PROVEEDORES Y MOVIMIENTOS */}
+              <div 
+                onClick={() => router.push('/proveedores/movimientos')}
+                className={`p-5 rounded-xl border cursor-pointer hover:border-emerald-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
+              >
+                <div>
+                  <div className="text-2xl mb-2">📦</div>
+                  <h3 className="font-bold text-base text-emerald-400">Proveedores / Cuentas por Pagar</h3>
+                  <p className="text-xs opacity-75 mt-1">Control de proveedores registrados y auditoría de inventario en tiempo real.</p>
+                </div>
+                <span className="text-xs font-bold text-emerald-400">Ver Módulo ➔</span>
+              </div>
+
+              {/* CARD 8: ESTADÍSTICAS Y REPORTES */}
               <div 
                 onClick={() => router.push('/estadisticas')}
                 className={`p-5 rounded-xl border cursor-pointer hover:border-indigo-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
@@ -997,6 +1010,10 @@ export default function Dashboard() {
                 </button>
                 <button onClick={() => { setIsDrawerOpen(false); router.push('/acreedores'); }} className="w-full bg-emerald-600 hover:bg-emerald-500 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
                   <span>📋 Módulo de Acreedores</span>
+                  <span>➔</span>
+                </button>
+                <button onClick={() => { setIsDrawerOpen(false); router.push('/proveedores/movimientos'); }} className="w-full bg-emerald-700 hover:bg-emerald-600 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
+                  <span>📦 Proveedores y Movimientos</span>
                   <span>➔</span>
                 </button>
                 <button onClick={() => { setIsDrawerOpen(false); router.push('/compras'); }} className="w-full bg-amber-600 hover:bg-amber-500 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
