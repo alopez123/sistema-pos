@@ -26,6 +26,20 @@ export default function CashierPage() {
   // Estado para el Tema (Modo Oscuro / Modo Claro Local)
   const [isDarkMode, setIsDarkMode] = useState(true)
 
+  // Estado para Notificaciones Flotantes (Toast) modernas
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => { setToast(null) }, 4500)
+  }
+
+  // Estado para prevenir doble clic al cobrar orden
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false)
+
+  // Estado para Modal de Confirmación de Cancelación de Orden
+  const [orderToCancel, setOrderToCancel] = useState<any | null>(null)
+
   useEffect(() => {
     const savedTheme = localStorage.getItem('cashier_theme')
     if (savedTheme === 'light') {
@@ -110,8 +124,8 @@ export default function CashierPage() {
           bizData.payment_status === 'Atrasado'
         ) {
           localStorage.clear()
-          alert("Acceso bloqueado en Caja: La suscripción de este negocio se encuentra pendiente, atrasada o suspendida. Realice el pago para continuar.")
-          router.push('/')
+          showToast("Acceso bloqueado en Caja: Suscripción pendiente o suspendida.", 'error')
+          setTimeout(() => router.push('/'), 2000)
           return
         }
       }
@@ -195,7 +209,7 @@ export default function CashierPage() {
     e.preventDefault()
     const amount = parseFloat(openingAmountInput)
     if (isNaN(amount) || amount < 0) {
-      return alert("Ingresa un monto de apertura válido.")
+      return showToast("Ingresa un monto de apertura válido.", 'error')
     }
 
     const { error } = await supabase.from('cash_registers').insert({
@@ -207,9 +221,9 @@ export default function CashierPage() {
     })
 
     if (error) {
-      alert("Error al abrir la caja: " + error.message)
+      showToast("Error al abrir la caja: " + error.message, 'error')
     } else {
-      alert("¡Inicio de día registrado con éxito! Las ventas inician desde cero.")
+      showToast("¡Inicio de día registrado con éxito! Las ventas inician desde cero.", 'success')
       setShowOpenModal(false)
       setOpeningAmountInput('')
       checkCashRegisterStatus(selectedBranch, businessId)
@@ -228,9 +242,9 @@ export default function CashierPage() {
     })
 
     if (error) {
-      alert("Error al cerrar caja: " + error.message)
+      showToast("Error al cerrar caja: " + error.message, 'error')
     } else {
-      alert(`¡Cierre de día registrado con éxito!\nFondo Inicial: Q ${cashRegister.opening_amount}\nVentas Totales del Turno: Q ${totalSalesRecord.toFixed(2)}\nEfectivo Exacto en Caja: Q ${physicalCash.toFixed(2)}`)
+      showToast(`¡Cierre de día registrado con éxito! Ventas Totales: Q ${totalSalesRecord.toFixed(2)}`, 'success')
       setShowCloseModal(false)
       setClosingPhysicalCash('')
       setCashRegister(null)
@@ -294,15 +308,17 @@ export default function CashierPage() {
   }
 
   async function handlePayOrder() {
+    if (isSubmittingPayment) return
+
     if (!cashRegister) {
-      alert("La caja de esta sucursal está cerrada. Debes dar 'Inicio de Día' antes de cobrar.")
+      showToast("La caja de esta sucursal está cerrada. Debes dar 'Inicio de Día' antes de cobrar.", 'error')
       return
     }
 
     if (!selectedOrder) return
 
     if (!customerNit.trim() || !customerName.trim()) {
-      alert("Por favor ingresa el NIT y el Nombre del cliente.")
+      showToast("Por favor ingresa el NIT y el Nombre del cliente.", 'error')
       return
     }
 
@@ -310,32 +326,35 @@ export default function CashierPage() {
 
     if (paymentMethod === 'tarjeta') {
       if (!voucherNumber.trim()) {
-        return alert("Por favor ingresa el número de voucher de la tarjeta de crédito.")
+        return showToast("Por favor ingresa el número de voucher de la tarjeta de crédito.", 'error')
       }
     } else if (paymentMethod === 'efectivo') {
       const given = parseFloat(cashGiven)
       if (isNaN(given) || given < totalOrderAmount) {
-        return alert("El efectivo entregado por el cliente es menor al total a cobrar.")
+        return showToast("El efectivo entregado por el cliente es menor al total a cobrar.", 'error')
       }
     } else if (paymentMethod === 'mixto') {
-      const cardPart = parseFloat(cardAmountMixed)
-      const cashPart = parseFloat(cashGiven)
+      const cardPart = parseFloat(cardAmountMixed) || 0
+      const cashPart = parseFloat(cashGiven) || 0
 
       if (isNaN(cardPart) || cardPart <= 0) {
-        return alert("Ingresa un monto válido a pagar con tarjeta en el pago mixto.")
+        return showToast("Ingresa un monto válido a pagar con tarjeta en el pago mixto.", 'error')
       }
       if (cardPart >= totalOrderAmount) {
-        return alert("El monto con tarjeta no puede ser mayor o igual al total.")
+        return showToast("El monto con tarjeta no puede ser mayor o igual al total.", 'error')
       }
       if (!voucherNumber.trim()) {
-        return alert("Por favor ingresa el número de voucher para la parte pagada con tarjeta.")
+        return showToast("Por favor ingresa el número de voucher para la parte pagada con tarjeta.", 'error')
       }
 
       const remainingToCover = totalOrderAmount - cardPart
-      if (isNaN(cashPart) || cashPart < remainingToCover) {
-        return alert(`El efectivo entregado es insuficiente. El saldo restante es Q ${remainingToCover.toFixed(2)}.`)
+      if (cashPart < remainingToCover) {
+        const missing = remainingToCover - cashPart
+        return showToast(`El efectivo entregado es insuficiente. Falta Q ${missing.toFixed(2)}.`, 'error')
       }
     }
+
+    setIsSubmittingPayment(true)
 
     const { error } = await supabase.rpc('pay_and_close_order', {
       p_order_id: selectedOrder.id,
@@ -345,10 +364,12 @@ export default function CashierPage() {
       p_voucher_number: (paymentMethod === 'tarjeta' || paymentMethod === 'mixto') ? voucherNumber.trim() : null
     })
 
+    setIsSubmittingPayment(false)
+
     if (error) {
-      alert("Error al cobrar la orden: " + error.message)
+      showToast("Error al cobrar la orden: " + error.message, 'error')
     } else {
-      alert("¡Cobro exitoso! Venta registrada correctamente.")
+      showToast("¡Cobro exitoso! Venta registrada correctamente.", 'success')
       setSelectedOrder(null)
       setOrderItems([])
       setCustomerNit('CF')
@@ -362,20 +383,21 @@ export default function CashierPage() {
     }
   }
 
-  async function handleCancelOrder(orderId: string) {
-    if (!confirm("¿Estás seguro de cancelar esta orden?")) return
+  async function handleConfirmCancelOrder() {
+    if (!orderToCancel) return
 
-    const { error } = await supabase.rpc('cancel_order', { p_order_id: orderId })
+    const { error } = await supabase.rpc('cancel_order', { p_order_id: orderToCancel.id })
 
     if (error) {
-      alert("Error al cancelar: " + error.message)
+      showToast("Error al cancelar: " + error.message, 'error')
     } else {
-      alert("Orden cancelada correctamente.")
+      showToast("Orden cancelada correctamente.", 'success')
       setSelectedOrder(null)
       setOrderItems([])
       setIsMobileOrderModalOpen(false)
       loadPendingOrders(selectedBranch)
     }
+    setOrderToCancel(null)
   }
 
   async function handleViewSaleDetails(saleId: string) {
@@ -408,8 +430,8 @@ export default function CashierPage() {
     } else if (paymentMethod === 'mixto' && cardAmountMixed && cashGiven) {
       const cardVal = parseFloat(cardAmountMixed) || 0
       const cashVal = parseFloat(cashGiven) || 0
-      const remaining = Math.max(0, totalAmountNum - cardVal)
-      cashChange = Math.max(0, cashVal - remaining)
+      const remainingToCover = Math.max(0, totalAmountNum - cardVal)
+      cashChange = Math.max(0, cashVal - remainingToCover)
     }
   }
 
@@ -419,8 +441,20 @@ export default function CashierPage() {
   const inputBg = isDarkMode ? 'bg-[#0f172a] text-white border-slate-600' : 'bg-white text-slate-900 border-slate-300'
 
   return (
-    <div className={`min-h-screen p-2 md:p-4 flex flex-col w-full notranslate pb-20 lg:pb-4 ${themeBg}`} translate="no">
+    <div className={`min-h-screen p-2 md:p-4 flex flex-col w-full notranslate pb-20 lg:pb-4 relative ${themeBg}`} translate="no">
       
+      {/* TOAST FLOTANTE PROFESIONAL CON Z-INDEX SUPERIOR (999999) */}
+      {toast && (
+        <div className="fixed top-5 right-5 z-[999999] animate-bounce">
+          <div className={`px-5 py-3 rounded-xl shadow-2xl border font-bold text-sm flex items-center gap-3 ${
+            toast.type === 'success' ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-red-600 text-white border-red-400'
+          }`}>
+            <span>{toast.type === 'success' ? '✅' : '❌'}</span>
+            <span>{toast.message}</span>
+          </div>
+        </div>
+      )}
+
       {/* BARRA SUPERIOR CON TOTAL DE VENTAS Y BOTÓN MODO OSCURO/CLARO (ESTILO POS) */}
       <header className={`p-3 rounded-lg shadow mb-3 flex flex-wrap justify-between items-center gap-2 border w-full ${panelBg}`}>
         <div className="flex items-center gap-2.5">
@@ -705,15 +739,17 @@ export default function CashierPage() {
                 <span className="text-emerald-500 text-lg" translate="no">Q {selectedOrder.total_amount}</span>
               </div>
 
+              {/* BOTÓN COBRAR CON BLOQUEO ANTI-DOBLE CLIC */}
               <button 
                 onClick={handlePayOrder}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 py-3 rounded-lg font-bold text-xs shadow transition-colors text-white"
+                disabled={isSubmittingPayment}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 disabled:cursor-not-allowed py-3 rounded-lg font-bold text-xs shadow transition-colors text-white"
               >
-                💳 Cobrar y Cerrar Orden
+                {isSubmittingPayment ? 'Procesando Cobro...' : '💳 Cobrar y Cerrar Orden'}
               </button>
 
               <button 
-                onClick={() => handleCancelOrder(selectedOrder.id)}
+                onClick={() => setOrderToCancel(selectedOrder)}
                 className="w-full bg-red-700 hover:bg-red-600 py-2 rounded-lg font-semibold text-xs shadow transition-colors text-white"
               >
                 ❌ Cancelar Orden (Devuelve Stock)
@@ -950,18 +986,44 @@ export default function CashierPage() {
                 <span className="text-emerald-500 text-lg" translate="no">Q {selectedOrder.total_amount}</span>
               </div>
 
+              {/* BOTÓN COBRAR MÓVIL CON BLOQUEO ANTI-DOBLE CLIC */}
               <button 
                 onClick={handlePayOrder}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 py-3 rounded-lg font-bold text-xs shadow transition-colors text-white"
+                disabled={isSubmittingPayment}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 disabled:cursor-not-allowed py-3 rounded-lg font-bold text-xs shadow transition-colors text-white"
               >
-                💳 Cobrar y Cerrar Orden
+                {isSubmittingPayment ? 'Procesando Cobro...' : '💳 Cobrar y Cerrar Orden'}
               </button>
 
               <button 
-                onClick={() => handleCancelOrder(selectedOrder.id)}
+                onClick={() => setOrderToCancel(selectedOrder)}
                 className="w-full bg-red-700 hover:bg-red-600 py-2 rounded-lg font-semibold text-xs shadow transition-colors text-white"
               >
                 ❌ Cancelar Orden
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMACIÓN PARA CANCELAR ORDEN */}
+      {orderToCancel && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[99999]">
+          <div className={`p-6 rounded-xl border border-red-500 w-full max-w-sm shadow-2xl space-y-4 ${panelBg}`}>
+            <h3 className="text-lg font-bold text-red-500">⚠️ ¿Cancelar Orden #{orderToCancel.order_number}?</h3>
+            <p className="text-xs opacity-80">Esta acción eliminará la orden en espera y devolverá automáticamente los productos al inventario.</p>
+            <div className="flex gap-2 pt-2">
+              <button 
+                onClick={handleConfirmCancelOrder}
+                className="flex-1 bg-red-600 hover:bg-red-500 py-2.5 rounded text-xs font-bold text-white"
+              >
+                Sí, Cancelar Orden
+              </button>
+              <button 
+                onClick={() => setOrderToCancel(null)}
+                className="bg-slate-700 px-4 py-2.5 rounded text-xs text-white"
+              >
+                No, Volver
               </button>
             </div>
           </div>
@@ -1057,7 +1119,7 @@ export default function CashierPage() {
                  e.preventDefault();
                  const physicalCash = parseFloat(closingPhysicalCash);
                  if (Math.abs(physicalCash - expectedCash) > 0.01) {
-                   return alert(`❌ Error: El efectivo físico (Q ${physicalCash.toFixed(2)}) no cuadra con el esperado (Q ${expectedCash.toFixed(2)}).`);
+                   return showToast(`❌ Error: El efectivo físico (Q ${physicalCash.toFixed(2)}) no cuadra con el esperado (Q ${expectedCash.toFixed(2)}).`, 'error');
                  }
                  handleCloseDay(e, physicalCash, totalVentasGeneral);
               }} className="space-y-3 text-xs">

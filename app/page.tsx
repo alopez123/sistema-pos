@@ -8,10 +8,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   
-  // Estado para el número de WhatsApp del Admin consultado desde la base de datos[cite: 7]
-  const [adminPhone, setAdminPhone] = useState('50248069299') // Valor por defecto de respaldo[cite: 7]
+  // Estado para Notificaciones Flotantes (Toast) profesional
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
 
-  // Estados renovación QR + Token[cite: 7]
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'error') => {
+    setToast({ message, type })
+    setTimeout(() => { setToast(null) }, 4500)
+  }
+  
+  // Estado para el número de WhatsApp del Admin consultado desde la base de datos
+  const [adminPhone, setAdminPhone] = useState('50248069299') // Valor por defecto de respaldo
+
+  // Estados renovación QR + Token
   const [showRenewalModal, setShowRenewalModal] = useState(false)
   const [pendingBusiness, setPendingBusiness] = useState<any>(null)
   const [selectedBank, setSelectedBank] = useState<'BI' | 'BANRURAL'>('BI')
@@ -21,7 +29,7 @@ export default function LoginPage() {
   const [inputToken, setInputToken] = useState('')
   const [validatingToken, setValidatingToken] = useState(false)
 
-  // Estados para Modal de Cambio Obligatorio de Contraseña (Primer Uso)[cite: 7]
+  // Estados para Modal de Cambio Obligatorio de Contraseña (Primer Uso)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -30,7 +38,7 @@ export default function LoginPage() {
 
   const router = useRouter()
 
-  // Consultar el número de WhatsApp del administrador al cargar la página[cite: 7]
+  // Consultar el número de WhatsApp del administrador al cargar la página
   useEffect(() => {
     async function fetchAdminWhatsApp() {
       try {
@@ -50,7 +58,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      // 1. Intentar inicio de sesión como Dueño de Negocio[cite: 7]
+      // 1. Intentar inicio de sesión como Dueño de Negocio
       const { data, error } = await supabase
         .rpc('verify_business_login', { p_email: email, p_password: password })
 
@@ -75,7 +83,7 @@ export default function LoginPage() {
 
         const status = (userAccount.status || 'activo').toLowerCase();
         if (status !== 'activo') {
-          alert('Esta cuenta se encuentra ' + status + '. Contacte al soporte.')
+          showToast('Esta cuenta se encuentra ' + status + '. Contacte al soporte.', 'error')
           setLoading(false)
           return
         }
@@ -91,12 +99,12 @@ export default function LoginPage() {
         return
       }
 
-      // 2. Intentar inicio de sesión como Empleado / Sucursal (Staff)[cite: 7]
+      // 2. Intentar inicio de sesión como Empleado / Sucursal (Staff)
       const { data: staffData, error: staffError } = await supabase
         .rpc('verify_staff_login', { p_username: email.trim().toLowerCase(), p_access_code: password.trim() })
 
       if (staffError || !staffData || staffData.length === 0) {
-        alert('Usuario, correo o contraseña incorrectos.')
+        showToast('Usuario, correo o contraseña incorrectos.', 'error')
         setLoading(false)
         return
       }
@@ -104,12 +112,12 @@ export default function LoginPage() {
       const staff = staffData[0]
       const targetBizId = staff.business_id || staff.busines_id
 
-      // Consultar el negocio usando la función RPC segura para saltar el RLS[cite: 7]
+      // Consultar el negocio usando la función RPC segura para saltar el RLS
       const { data: bizDataList, error: bizError } = await supabase
         .rpc('get_business_status_by_id', { p_business_id: targetBizId })
 
       if (bizError || !bizDataList || bizDataList.length === 0) {
-        alert('No se encontró información del negocio asociado.')
+        showToast('No se encontró información del negocio asociado.', 'error')
         setLoading(false)
         return
       }
@@ -118,7 +126,7 @@ export default function LoginPage() {
 
       const bizStatus = (bizData.status || 'activo').toLowerCase();
       if (bizStatus !== 'activo' && bizStatus !== 'pendiente' && bizStatus !== 'atrasado') {
-        alert('Acceso denegado: El negocio se encuentra ' + bizStatus + '.')
+        showToast('Acceso denegado: El negocio se encuentra ' + bizStatus + '.', 'error')
         setLoading(false)
         return
       }
@@ -139,7 +147,7 @@ export default function LoginPage() {
         branch_id: staff.branch_id, business_id: targetBizId, branch_name: branchData?.name || 'Sucursal', role: userRole
       }))
 
-      // Validación corregida y ordenada de roles para redirección correcta[cite: 7]
+      // Validación corregida y ordenada de roles para redirección correcta
       if (userRole === 'cajero') {
         router.push('/cajero')
       } else if (userRole === 'bodega') {
@@ -150,17 +158,17 @@ export default function LoginPage() {
 
     } catch (err) {
       console.error("Error inesperado:", err)
-      alert("Ocurrió un error al intentar ingresar.")
+      showToast("Ocurrió un error al intentar ingresar.", 'error')
     } finally {
       setLoading(false)
     }
   }
 
-  // --- FUNCIÓN DE RECUPERACIÓN DE CONTRASEÑA POR WHATSAPP MEDIANTE RPC ---[cite: 7]
+  // --- FUNCIÓN DE RECUPERACIÓN DE CONTRASEÑA POR WHATSAPP MEDIANTE RPC ---
   const handleForgotPassword = async () => {
     const inputVal = email.trim();
     if (!inputVal) {
-      alert("Por favor ingresa tu correo o nombre de usuario en el campo superior para identificar el negocio.");
+      showToast("Por favor ingresa tu correo o nombre de usuario en el campo superior.", 'error');
       return;
     }
 
@@ -186,11 +194,11 @@ export default function LoginPage() {
 
   const handleUpdatePassword = async () => {
     if (!newPassword.trim() || newPassword.length < 6) {
-      alert("La nueva contraseña debe tener al menos 6 caracteres.")
+      showToast("La nueva contraseña debe tener al menos 6 caracteres.", 'error')
       return
     }
     if (newPassword !== confirmPassword) {
-      alert("Las contraseñas no coinciden.")
+      showToast("Las contraseñas no coinciden.", 'error')
       return
     }
 
@@ -203,7 +211,7 @@ export default function LoginPage() {
 
       if (error) throw error
 
-      alert("¡Contraseña actualizada con éxito! Ya puedes ingresar al sistema.")
+      showToast("¡Contraseña actualizada con éxito! Ya puedes ingresar al sistema.", 'success')
       setShowPasswordModal(false)
       setNewPassword('')
       setConfirmPassword('')
@@ -213,7 +221,7 @@ export default function LoginPage() {
       router.push('/dashboard')
 
     } catch (err: any) {
-      alert("Error al actualizar contraseña: " + err.message)
+      showToast("Error al actualizar contraseña: " + err.message, 'error')
     } finally {
       setChangingPassword(false)
     }
@@ -246,7 +254,7 @@ export default function LoginPage() {
 
   const handleSendPaymentProof = async () => {
     if (!referenceCode.trim()) {
-      alert("Por favor ingresa el número de boleta o referencia de pago.")
+      showToast("Por favor ingresa el número de boleta o referencia de pago.", 'error')
       return
     }
 
@@ -269,7 +277,7 @@ export default function LoginPage() {
 
       window.open(`https://wa.me/${adminPhone}?text=${message}`, '_blank')
     } catch (err: any) {
-      alert("Error al adjuntar comprobante: " + err.message)
+      showToast("Error al adjuntar comprobante: " + err.message, 'error')
     } finally {
       setUploadingProof(false)
     }
@@ -277,7 +285,7 @@ export default function LoginPage() {
 
   const handleActivateWithToken = async () => {
     if (!inputToken.trim()) {
-      alert("Por favor ingresa el token de activación.")
+      showToast("Por favor ingresa el token de activación.", 'error')
       return
     }
 
@@ -292,24 +300,37 @@ export default function LoginPage() {
       if (error) throw error
 
       if (isValid === true) {
-        alert("¡Suscripción activada con éxito! Ya puedes iniciar sesión.")
+        showToast("¡Suscripción activada con éxito! Ya puedes iniciar sesión.", 'success')
         setShowRenewalModal(false)
         setInputToken('')
         setReferenceCode('')
         setProofFile(null)
         setPendingBusiness(null)
       } else {
-        alert("Token incorrecto o inválido para este periodo. Verifica con el administrador.")
+        showToast("Token incorrecto o inválido para este periodo. Verifica con el administrador.", 'error')
       }
     } catch (err: any) {
-      alert("Error al validar token: " + err.message)
+      showToast("Error al validar token: " + err.message, 'error')
     } finally {
       setValidatingToken(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0f172a] p-4 notranslate" translate="no">
+    <div className="min-h-screen flex items-center justify-center bg-[#0f172a] p-4 notranslate relative" translate="no">
+      
+      {/* TOAST FLOTANTE PROFESIONAL */}
+      {toast && (
+        <div className="fixed top-5 right-5 z-[99999] animate-bounce">
+          <div className={`px-5 py-3 rounded-xl shadow-2xl border font-bold text-sm flex items-center gap-3 ${
+            toast.type === 'success' ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-red-600 text-white border-red-400'
+          }`}>
+            <span>{toast.type === 'success' ? '✅' : '⚠️'}</span>
+            <span>{toast.message}</span>
+          </div>
+        </div>
+      )}
+
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-white text-3xl font-extrabold tracking-wide">Quantika <span className="text-emerald-500">POS</span></h1>
@@ -375,7 +396,7 @@ export default function LoginPage() {
           <div className="bg-[#1e293b] p-6 rounded-xl border border-emerald-500 w-full max-w-sm text-white shadow-2xl space-y-4">
             <div className="text-center space-y-1">
               <h3 className="text-lg font-bold text-emerald-400">🔒 Establecer Nueva Contraseña</h3>
-              <p className="text-xs text-slate-300">Es tu primer inicio de sesión. Por seguridad, debes cambiar tu contraseña temporal.</p>
+              <p className="text-xs text-slate-300">Es tu primer inicio de sesión o se ha restablecido tu cuenta. Por seguridad, debes cambiar tu contraseña.</p>
             </div>
 
             <div className="space-y-3 pt-2">

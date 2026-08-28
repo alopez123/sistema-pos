@@ -103,24 +103,57 @@ export default function InventarioPage() {
     }
   }
 
+  // CONSULTA DE MOVIMIENTOS SEGURA FILTRANDO POR SUCURSAL Y NEGOCIO
   const loadMovements = async (branchId: string) => {
+    if (!branchId || !businessId) return
     setLoadingMovements(true)
-    const { data, error } = await supabase
-      .from('inventory_movements')
-      .select('*, product:products(name)')
-      .eq('branch_id', branchId)
-      .order('created_at', { ascending: false })
-      .limit(100)
+    
+    try {
+      // 1. Primero validamos que la sucursal pertenezca estrictamente al negocio actual (Multi-Tenant)
+      const { data: branchCheck } = await supabase
+        .from('branches')
+        .select('id')
+        .eq('id', branchId)
+        .eq('business_id', businessId)
+        .single()
 
-    setLoadingMovements(false)
-    if (!error && data) {
-      setBranchMovements(data)
+      if (!branchCheck) {
+        console.error("Intento de acceso denegado: La sucursal no pertenece a este negocio.")
+        setBranchMovements([])
+        return
+      }
+
+      // 2. Consultamos los movimientos de forma segura
+      const { data, error } = await supabase
+        .from('inventory_movements')
+        .select(`
+          id,
+          movement_type,
+          quantity,
+          created_at,
+          branch_id,
+          product_id,
+          products (
+            name
+          )
+        `)
+        .eq('branch_id', branchId)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      const formatted = (data || []).map((m: any) => ({
+        ...m,
+        product: { name: m.products?.name || 'Producto' }
+      }))
+
+      setBranchMovements(formatted)
+    } catch (err: any) {
+      console.error("Error al cargar movimientos seguros:", err.message)
+      setBranchMovements([])
+    } finally {
+      setLoadingMovements(false)
     }
-  }
-
-  const handleBranchChange = (branchId: string) => {
-    setSelectedBranch(branchId)
-    loadInventory(branchId)
   }
 
   const handleQuickAdjust = async (e: React.FormEvent) => {
@@ -161,13 +194,15 @@ export default function InventarioPage() {
     return matchesSearch && matchesCategory
   })
 
-  // Filtrado preciso de movimientos según la pestaña seleccionada
+  // Filtrado flexible de movimientos incluyendo 'compra' e 'ingreso'
   const filteredMovements = branchMovements.filter(m => {
     const type = (m.movement_type || '').toLowerCase().trim()
     
     if (movementTab === 'todos') return true
     if (movementTab === 'venta') return type === 'venta' || type === 'sales'
-    if (movementTab === 'ingreso') return type.includes('ingreso') || type.includes('compra')
+    if (movementTab === 'ingreso') {
+      return type === 'ingreso' || type === 'compra' || type === 'proveedor' || type.includes('ingreso') || type.includes('compra') || type.includes('proveedor')
+    }
     if (movementTab === 'ajuste') return type.includes('ajuste') || type.includes('manual')
     if (movementTab === 'traslado_salida') return type.includes('salida') || type.includes('traslado_salida')
     if (movementTab === 'traslado_entrada') return type.includes('entrada') || type.includes('traslado_entrada')
@@ -199,7 +234,10 @@ export default function InventarioPage() {
             <h1 className="text-xs md:text-sm font-bold leading-tight text-emerald-500">Administración de Inventario</h1>
             <select 
               value={selectedBranch} 
-              onChange={e => handleBranchChange(e.target.value)}
+              onChange={e => {
+                setSelectedBranch(e.target.value);
+                loadInventory(e.target.value);
+              }}
               className={`border px-2 py-0.5 rounded-md font-semibold text-xs mt-1 outline-none focus:border-emerald-500 ${inputBg}`}
             >
               {branches.map(b => (
@@ -210,7 +248,7 @@ export default function InventarioPage() {
         </div>
         
         <div className="flex items-center gap-2">
-          {/* BOTÓN INTERRUPTOR DE TEMA (SOLO ICONO COMO EN EL POS Y CAJA) */}
+          {/* BOTÓN INTERRUPTOR DE TEMA (SOLO ICONO) */}
           <button 
             onClick={toggleTheme}
             className={`p-2 rounded-lg text-sm font-semibold border transition-colors ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}
@@ -402,7 +440,7 @@ export default function InventarioPage() {
               {loadingMovements ? (
                 <p className="text-center py-8 opacity-75">Cargando movimientos...</p>
               ) : filteredMovements.length === 0 ? (
-                <p className="text-center py-8 opacity-75">No hay movimientos registrados en esta categoría.</p>
+                <p className="text-center py-8 opacity-75">No hay movimientos registrados en esta categoría para esta sucursal.</p>
               ) : (
                 filteredMovements.map((m) => (
                   <div key={m.id} className={`p-3 rounded border space-y-1 ${subPanelBg}`}>
@@ -414,8 +452,14 @@ export default function InventarioPage() {
                         {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
                       </span>
                     </div>
-                    <div className="flex justify-between text-[11px] opacity-75">
-                      <span className="uppercase tracking-wider font-semibold text-amber-500">{m.movement_type}</span>
+                    <div className="flex justify-between text-[11px] opacity-75 items-center">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="uppercase tracking-wider font-semibold text-amber-500">{m.movement_type}</span>
+                        {/* ETIQUETA VISIBLE DE LA SUCURSAL */}
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold border border-emerald-500/35">
+                          📍 Sucursal: {branches.find(b => b.id === selectedBranch)?.name || 'Sucursal Activa'}
+                        </span>
+                      </div>
                       <span>{new Date(m.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
                     </div>
                   </div>

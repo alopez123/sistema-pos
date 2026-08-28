@@ -15,25 +15,17 @@ export default function PosPage() {
   const [isStaff, setIsStaff] = useState(false)
   const [userRole, setUserRole] = useState<string>('')
   
-  // Estado para el menú desplegable flotante de Opciones Operativas y Administrativas
   const [showOpsDropdown, setShowOpsDropdown] = useState(false)
   const opsDropdownRef = useRef<HTMLDivElement>(null)
 
   const router = useRouter()
 
-  // Estado para la vista móvil en teléfonos (alternar entre catálogo y ticket)
   const [mobileViewTab, setMobileViewTab] = useState<'catalog' | 'cart'>('catalog')
-
-  // Estado para prevenir doble clic al guardar orden
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false)
-
-  // Estado para el Tema (Modo Oscuro / Modo Claro Local)
   const [isDarkMode, setIsDarkMode] = useState(true)
-
-  // Estado para habilitar o deshabilitar la impresión térmica de tickets
   const [enableTicketPrinting, setEnableTicketPrinting] = useState<boolean>(false)
 
-  // Estados para ventas al crédito / selección y creación/actualización de clientes
+  // ESTADOS PARA VENTAS AL CONTADO O CRÉDITO
   const [paymentMethod, setPaymentMethod] = useState<'Contado' | 'Crédito'>('Contado')
   const [selectedCustomerForCredit, setSelectedCustomerForCredit] = useState<string>('')
   const [creditDueDate, setCreditDueDate] = useState<string>('')
@@ -41,30 +33,39 @@ export default function PosPage() {
   const [customerFound, setCustomerFound] = useState<any | null>(null)
   const [isCreatingOrEditingCustomer, setIsCreatingOrEditingCustomer] = useState(false)
 
-  // Estados para sugerencias clickeables de clientes
   const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false)
   const [filteredCustomersForCredit, setFilteredCustomersForCredit] = useState<any[]>([])
 
-  // ==========================================
-  // ESTADOS PARA LÍMITE DE CRÉDITO DE CLIENTES
-  // ==========================================
   const [selectedCustomerLimitId, setSelectedCustomerLimitId] = useState<string>('')
   const [customerLimitDetails, setCustomerLimitDetails] = useState<any | null>(null)
   const [newCreditLimitValue, setNewCreditLimitValue] = useState<string>('3')
   const [isUpdatingLimit, setIsUpdatingLimit] = useState<boolean>(false)
 
-  // Estados específicos para el buscador del modal de Límite de Clientes
   const [limitSearchQuery, setLimitSearchQuery] = useState('')
   const [showLimitSuggestions, setShowLimitSuggestions] = useState(false)
   const [filteredCustomersForLimit, setFilteredCustomersForLimit] = useState<any[]>([])
 
-  // Campos del formulario de cliente exprés (incluyendo email)
   const [expressName, setExpressName] = useState('')
   const [expressNit, setExpressNit] = useState('')
   const [expressDpi, setExpressDpi] = useState('')
   const [expressPhone, setExpressPhone] = useState('')
   const [expressAddress, setExpressAddress] = useState('')
   const [expressEmail, setExpressEmail] = useState('')
+
+  const [showCustomModal, setShowCustomModal] = useState(false)
+  const [pendingCustomProduct, setPendingCustomProduct] = useState<any>(null)
+  const [customNotesInput, setCustomNotesInput] = useState('')
+  const [customPriceInput, setCustomPriceInput] = useState('')
+  const [customEventDateInput, setCustomEventDateInput] = useState('')
+
+  const [customOrdersSubTab, setCustomOrdersSubTab] = useState<'pendientes' | 'entregados'>('pendientes')
+
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => { setToast(null) }, 4500)
+  }
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('pos_theme')
@@ -89,23 +90,18 @@ export default function PosPage() {
     localStorage.setItem('pos_print_tickets', newPrintingState ? 'true' : 'false')
   }
 
-  // Estado para el Logotipo del Negocio
   const [businessLogo, setBusinessLogo] = useState<string | null>(null)
 
-  // Estados para el buscador y autocompletado
   const [searchTerm, setSearchTerm] = useState('')
   const [otherStoresSearch, setOtherStoresSearch] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
 
-  // Estado para el panel flotante de Alerta de Stock Bajo
   const [showLowStockModal, setShowLowStockModal] = useState(false)
 
-  // Estados para el menú operativo izquierdo / modal
-  const [activeTab, setActiveTab] = useState<'ticket' | 'addProduct' | 'otherStores' | 'transfers' | 'movements' | 'salesReport' | 'customers' | 'customerLimits'>('ticket')
+  const [activeTab, setActiveTab] = useState<'ticket' | 'addProduct' | 'otherStores' | 'transfers' | 'movements' | 'salesReport' | 'customers' | 'customerLimits' | 'customOrders'>('ticket')
   const [allStoreProducts, setAllStoreProducts] = useState<any[]>([])
 
-  // Estados específicos para Traslados, Movimientos, Reportes y Clientes
   const [businessIdState, setBusinessIdState] = useState<string>('')
   const [transfersList, setTransfersList] = useState<any[]>([])
   const [transferProduct, setTransferProduct] = useState<any>(null)
@@ -113,27 +109,20 @@ export default function PosPage() {
   const [branchMovements, setBranchMovements] = useState<any[]>([])
   const [salesReport, setSalesReport] = useState<any[]>([])
   const [customersList, setCustomersList] = useState<any[]>([])
+  const [customOrdersList, setCustomOrdersList] = useState<any[]>([])
 
-  // Estado para ver el detalle de una venta seleccionada
-  const [selectedSaleDetails, setSelectedSaleDetails] = useState<any[] | null>(null)
-
-  // Estados inteligentes para la pestaña Agregar / Reabastecer
   const [selectedExistingProduct, setSelectedExistingProduct] = useState<string>('')
   const [addMoreQuantity, setAddMoreQuantity] = useState<number>(1)
 
-  // Formulario rápido para nuevo producto
   const [newName, setNewName] = useState('')
-  const [newPrice, setNewPrice] = useState('')
-  const [newStock, setNewStock] = useState('')
   const [newCategoryId, setNewCategoryId] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
 
-  // Estados para el Modal de Creación Rápida de Categorías
-  const [showNewCategoryModal, setShowNewCategoryModal] = useState(false)
-  const [newCategoryName, setNewCategoryName] = useState('')
-  const [savingCategory, setSavingCategory] = useState(false)
+  const [isCreatingCategoryInline, setIsCreatingCategoryInline] = useState(false)
+  const [inlineCategoryName, setInlineCategoryName] = useState('')
+  const [savingCategoryInline, setSavingCategoryInline] = useState(false)
 
   useEffect(() => {
     const staffStr = localStorage.getItem('currentStaff')
@@ -183,6 +172,7 @@ export default function PosPage() {
             loadMovements(staff.branch_id)
             loadSalesReport(resolvedBizId, staff.branch_id)
             loadCustomers(resolvedBizId)
+            loadCustomOrders(resolvedBizId, staff.branch_id)
           }
 
           fetchLogoUsingRpc(staff.branch_id)
@@ -227,39 +217,8 @@ export default function PosPage() {
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
-    
-    async function initialLoadAndValidateStatus() {
-      const staffLocal = localStorage.getItem('currentStaff')
-      const bizId = localStorage.getItem('currentBusiness') ? JSON.parse(localStorage.getItem('currentBusiness')!).id : null;
-      
-      let resolvedBizId = bizId;
-      if (staffLocal) {
-        try {
-          const staff = JSON.parse(staffLocal);
-          resolvedBizId = staff.business_id || staff.busines_id;
-        } catch(e) {}
-      }
-
-      if (resolvedBizId) {
-        const { data } = await supabase.from('businesses').select('status, payment_status, logo_url').eq('id', resolvedBizId).single();
-        if (data?.logo_url) setBusinessLogo(data.logo_url);
-        
-        if (
-          (data?.status && data.status.toLowerCase() !== 'activo') ||
-          data?.payment_status === 'Pendiente' ||
-          data?.payment_status === 'Atrasado'
-        ) {
-          localStorage.removeItem('currentStaff');
-          localStorage.removeItem('currentBusiness');
-          alert("Acceso bloqueado: La suscripción de este negocio se encuentra pendiente o suspendida. Realice el pago para continuar.");
-          router.push('/');
-        }
-      }
-    }
-    initialLoadAndValidateStatus();
-
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [router])
+  }, [])
 
   const refreshAllData = (branchId: string, bizId: string) => {
     loadProducts(branchId)
@@ -268,6 +227,7 @@ export default function PosPage() {
     loadOtherStoresProducts(bizId, branchId)
     loadSalesReport(bizId, branchId)
     loadCustomers(bizId)
+    loadCustomOrders(bizId, branchId)
     router.refresh()
   }
 
@@ -290,6 +250,46 @@ export default function PosPage() {
       return data
     }
     return []
+  }
+
+  async function loadCustomOrders(bId?: string, brId?: string) {
+    let currentBizId = bId || businessIdState;
+    const currentBranchId = brId || selectedBranch;
+
+    if (!currentBizId) {
+      const staffStr = localStorage.getItem('currentStaff');
+      if (staffStr) {
+        try {
+          const staff = JSON.parse(staffStr);
+          currentBizId = staff.business_id || staff.busines_id;
+        } catch (e) {}
+      }
+    }
+    if (!currentBizId || !currentBranchId) return;
+
+    const { data, error } = await supabase.rpc('get_custom_orders_report', {
+      p_business_id: currentBizId,
+      p_branch_id: currentBranchId
+    });
+
+    if (!error && data) {
+      setCustomOrdersList(data);
+    }
+  }
+
+  async function handleToggleOrderStatus(orderId: string, currentStatus: string) {
+    const newStatus = currentStatus === 'entregado' ? 'pendiente' : 'entregado';
+    const { error } = await supabase.rpc('update_order_delivery_status', {
+      p_order_id: orderId,
+      p_status: newStatus
+    });
+
+    if (error) {
+      showToast("Error al actualizar estado: " + error.message, 'error');
+    } else {
+      showToast(newStatus === 'entregado' ? "✅ ¡Pedido marcado como Entregado!" : "🔄 Pedido devuelto a pendientes.", 'success');
+      loadCustomOrders(businessIdState, selectedBranch);
+    }
   }
 
   const handleSearchCustomerForLimit = (query: string) => {
@@ -318,9 +318,9 @@ export default function PosPage() {
   }
 
   async function handleSaveCustomerLimit() {
-    if (!selectedCustomerLimitId) return alert("Selecciona un cliente.")
+    if (!selectedCustomerLimitId) return showToast("Selecciona un cliente.", 'error')
     const limitNum = parseInt(newCreditLimitValue, 10)
-    if (isNaN(limitNum) || limitNum < 0) return alert("Ingresa un límite válido.")
+    if (isNaN(limitNum) || limitNum < 0) return showToast("Ingresa un límite válido.", 'error')
 
     setIsUpdatingLimit(true)
     const { error } = await supabase.rpc('update_customer_credit_limit', {
@@ -330,41 +330,36 @@ export default function PosPage() {
     
     if (error) {
       setIsUpdatingLimit(false)
-      alert("Error al actualizar límite: " + error.message)
+      showToast("Error al actualizar límite: " + error.message, 'error')
     } else {
-      // Actualizamos el estado local de inmediato con el valor enviado
       setCustomerLimitDetails((prev: any) => prev ? { ...prev, credit_limit: limitNum } : null)
       setNewCreditLimitValue(String(limitNum))
-      
-      // Recargamos el listado general en segundo plano
       await loadCustomers(businessIdState)
-      
       setIsUpdatingLimit(false)
-      alert("✅ ¡Límite de crédito actualizado con éxito!")
+      showToast("✅ ¡Límite de crédito actualizado con éxito!", 'success')
     }
   }
 
-  async function handleCreateCategory(e: React.FormEvent) {
-    e.preventDefault()
-    if (!newCategoryName.trim() || !businessIdState) return
+  async function handleCreateCategoryInline() {
+    if (!inlineCategoryName.trim() || !businessIdState) return
 
-    setSavingCategory(true)
+    setSavingCategoryInline(true)
     const { data, error } = await supabase
       .from('categories')
-      .insert([{ business_id: businessIdState, name: newCategoryName.trim() }])
+      .insert([{ business_id: businessIdState, name: inlineCategoryName.trim() }])
       .select('*')
       .single()
 
-    setSavingCategory(false)
+    setSavingCategoryInline(false)
 
     if (error) {
-      alert("Error al crear categoría: " + error.message)
+      showToast("Error al crear categoría: " + error.message, 'error')
     } else if (data) {
-      alert("¡Categoría creada con éxito!")
+      showToast("¡Categoría creada con éxito!", 'success')
       setCategories(prev => [...prev, data])
       setNewCategoryId(data.id)
-      setNewCategoryName('')
-      setShowNewCategoryModal(false)
+      setInlineCategoryName('')
+      setIsCreatingCategoryInline(false)
     }
   }
 
@@ -459,11 +454,6 @@ export default function PosPage() {
     }
   }
 
-  async function handleViewSaleDetails(saleId: string) {
-    const { data, error } = await supabase.rpc('get_sale_details', { p_sale_id: saleId })
-    if (!error && data) setSelectedSaleDetails(data)
-  }
-
   const handleSearchCustomerForCredit = (query: string) => {
     setCustomerSearchQuery(query)
     setShowCustomerSuggestions(true)
@@ -540,72 +530,21 @@ export default function PosPage() {
 
   const totalCart = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0)
 
-  function printThermalTicket({ orderNumber, branchName, customerNit, customerName, items, total }: any) {
-    const printWindow = window.open('', '_blank', 'width=300,height=600');
-    if (!printWindow) {
-      alert("Por favor permite las ventanas emergentes (pop-ups) para imprimir el ticket.");
-      return;
-    }
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Orden #${orderNumber}</title>
-          <style>
-            body { font-family: 'Courier New', Courier, monospace; font-size: 12px; width: 250px; margin: 0 auto; padding: 10px; color: #000; }
-            .text-center { text-align: center; } .bold { font-weight: bold; } .flex { display: flex; justify-content: space-between; }
-            .divider { border-bottom: 1px dashed #000; margin: 8px 0; } table { width: 100%; border-collapse: collapse; }
-            th, td { font-size: 11px; text-align: left; padding: 2px 0; } .right { text-align: right; }
-          </style>
-        </head>
-        <body>
-          <div class="text-center bold" style="font-size: 14px;">DETALLE DE ORDEN</div>
-          <div class="text-center">${branchName}</div>
-          <div class="divider"></div>
-          <div><span class="bold">ORDEN / TURNO:</span> #${orderNumber}</div>
-          <div><span class="bold">FECHA:</span> ${new Date().toLocaleString()}</div>
-          <div><span class="bold">CLIENTE:</span> ${customerName}</div>
-          <div><span class="bold">NIT:</span> ${customerNit}</div>
-          <div class="divider"></div>
-          <table>
-            <thead><tr><th>Cant / Descripción</th><th class="right">Subtotal</th></tr></thead>
-            <tbody>
-              ${items.map((i: any) => `
-                <tr><td colspan="2" class="bold">${i.quantity} x ${i.name}</td></tr>
-                <tr><td>P/U: Q ${i.price.toFixed(2)}</td><td class="right">Q ${(i.price * i.quantity).toFixed(2)}</td></tr>
-              `).join('')}
-            </tbody>
-          </table>
-          <div class="divider"></div>
-          <div class="flex bold" style="font-size: 14px;"><span>TOTAL:</span><span>Q ${total.toFixed(2)}</span></div>
-          <div class="divider"></div>
-          <div class="text-center" style="font-size: 10px; margin-top: 10px;">¡Pase a caja con este ticket para realizar su pago!<br>Gracias por su preferencia</div>
-        </body>
-      </html>
-    `;
-
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => { printWindow.print(); printWindow.close(); }, 300);
-  }
-
   async function handleSavePendingOrder() {
     if (isSubmittingOrder) return
-    if (cart.length === 0) return alert("El carrito está vacío.")
+    if (cart.length === 0) return showToast("El carrito está vacío.", 'error')
 
     if (paymentMethod === 'Crédito') {
       if (!customerSearchQuery.trim() && !expressName.trim()) {
-        return alert("⚠️ Debes ingresar el nombre y datos del cliente para la venta al crédito.");
+        return showToast("⚠️ Debes ingresar el nombre y datos del cliente para la venta al crédito.", 'error');
       }
       if (!creditDueDate) {
-        return alert("⚠️ Selecciona una fecha límite de pago para este crédito.");
+        return showToast("⚠️ Selecciona una fecha límite de pago para este crédito.", 'error');
       }
 
       const cleanDpi = expressDpi.trim();
       if (!cleanDpi || cleanDpi.length !== 13 || !/^\d+$/.test(cleanDpi)) {
-        return alert("⚠️ El DPI es obligatorio para ventas al crédito y debe contener exactamente 13 dígitos numéricos.");
+        return showToast("⚠️ El DPI es obligatorio para ventas al crédito y debe contener exactamente 13 dígitos numéricos.", 'error');
       }
 
       setIsSubmittingOrder(true);
@@ -614,7 +553,9 @@ export default function PosPage() {
         product_id: item.id,
         quantity: item.quantity,
         unit_price: item.price,
-        name: item.name
+        name: item.name,
+        notes: item.notes || null,
+        event_date: item.eventDate || null
       }));
 
       const { error } = await supabase.rpc('register_credit_sale_with_customer', {
@@ -635,9 +576,9 @@ export default function PosPage() {
       setIsSubmittingOrder(false);
 
       if (error) {
-        alert("Error en la transacción de venta al crédito (Límite superado o error): " + error.message);
+        showToast("Error en la transacción al crédito: " + error.message, 'error');
       } else {
-        alert("✅ ¡Venta al crédito y cliente registrados con éxito bajo transacción segura!");
+        showToast("✅ ¡Venta al crédito registrada con éxito!", 'success');
         setCart([]);
         setPaymentMethod('Contado');
         setSelectedCustomerForCredit('');
@@ -657,17 +598,37 @@ export default function PosPage() {
     } else {
       setIsSubmittingOrder(true)
 
+      let resolvedCustomerId = selectedCustomerForCredit || null;
+
+      if (!resolvedCustomerId && customerSearchQuery.trim()) {
+        const { data: newCustData, error: custError } = await supabase.rpc('create_or_get_customer', {
+          p_business_id: businessIdState,
+          p_name: customerSearchQuery.trim(),
+          p_nit: 'CF',
+          p_dpi: null,
+          p_phone: null,
+          p_address: null,
+          p_email: null
+        });
+
+        if (!custError && newCustData) {
+          resolvedCustomerId = newCustData;
+        }
+      }
+
       const standardCartJson = cart.map(item => ({
         product_id: item.id,
         quantity: item.quantity,
         price: item.price,
-        name: item.name
+        name: item.name,
+        notes: item.notes || null,
+        event_date: item.eventDate || null
       }));
 
       const { data, error } = await supabase.rpc('create_new_order_safe', {
         p_business_id: businessIdState,
         p_branch_id: selectedBranch,
-        p_customer_id: null, 
+        p_customer_id: resolvedCustomerId, 
         p_total_amount: totalCart,
         p_items: standardCartJson
       });
@@ -675,22 +636,13 @@ export default function PosPage() {
       setIsSubmittingOrder(false)
 
       if (error) {
-        alert("Error al guardar la orden: " + error.message);
+        showToast("Error al guardar la orden: " + error.message, 'error')
       } else if (data && data.length > 0) {
         const numeroTurno = data[0].order_number;
-        if (enableTicketPrinting) {
-          printThermalTicket({
-            orderNumber: numeroTurno,
-            branchName: branches.find(b => b.id === selectedBranch)?.name || 'Sucursal',
-            customerNit: 'CF',
-            customerName: 'Consumidor Final',
-            items: cart,
-            total: totalCart
-          });
-        } else {
-          alert(`✅ ¡Orden guardada con éxito!\n\n🎟️ TURNO / ORDEN #${numeroTurno}\n\nEl cliente ya puede pasar a caja con este número.`);
-        }
+        showToast(`✅ ¡Orden guardada! TURNO / ORDEN #${numeroTurno}`, 'success');
         setCart([]);
+        setCustomerSearchQuery('');
+        setCustomerFound(null);
         refreshAllData(selectedBranch, businessIdState);
       }
     }
@@ -707,52 +659,64 @@ export default function PosPage() {
     const isCustomByName = product.name && (
       product.name.toLowerCase().includes('vinil') || 
       product.name.toLowerCase().includes('personaliz') ||
-      product.name.toLowerCase().includes('manta')
+      product.name.toLowerCase().includes('manta') ||
+      product.name.toLowerCase().includes('arreglo') // Añade aquí más palabras clave si lo requieres
     );
-
-    if (!isCustomByName && product.stock <= 0) {
-      alert("⚠️ Este producto no tiene existencias disponibles (Stock 0) y no puede ser agregado.")
-      return
-    }
     
     if (isCustomByName) {
-      const customDesc = prompt("Ingresa las medidas, peso o características (Ej. Manta 2x1.5m):");
-      if (!customDesc) return;
-      const customPriceStr = prompt("Ingresa el precio de venta cotizado:");
-      const customPrice = parseFloat(customPriceStr || '0');
-      if (isNaN(customPrice) || customPrice <= 0) return alert("Precio inválido.");
-
-      const staffData = JSON.parse(localStorage.getItem('currentStaff') || '{}');
-      setCart(prevCart => [
-        ...prevCart,
-        {
-          ...product,
-          id: product.id,
-          name: `${product.name} (${customDesc})`,
-          price: customPrice,
-          originalPrice: customPrice,
-          quantity: 1,
-          stock: 9999,
-          isSpecial: false,
-          staffId: staffData.id || null
-        }
-      ]);
+      setPendingCustomProduct(product);
+      setCustomNotesInput('');
+      setCustomPriceInput('');
+      setCustomEventDateInput('');
+      setShowCustomModal(true);
       return;
+    }
+
+    if (product.stock <= 0) {
+      showToast("⚠️ Este producto no tiene existencias disponibles (Stock 0).", 'error')
+      return
     }
 
     const staffData = JSON.parse(localStorage.getItem('currentStaff') || '{}')
     setCart(prevCart => {
-      const existing = prevCart.find(item => item.id === product.id)
+      const existing = prevCart.find(item => item.id === product.id && !item.notes)
       if (existing) {
         if (existing.quantity >= product.stock) {
-          alert("No puedes agregar más de las existencias disponibles.")
+          showToast("No puedes agregar más de las existencias disponibles.", 'error')
           return prevCart
         }
-        return prevCart.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item)
+        return prevCart.map(item => item.id === product.id && !item.notes ? { ...item, quantity: item.quantity + 1 } : item)
       } else {
-        return [...prevCart, { ...product, quantity: 1, originalPrice: product.price, isSpecial: false, staffId: staffData.id || null }]
+        return [...prevCart, { ...product, quantity: 1, originalPrice: product.price, isSpecial: false, staffId: staffData.id || null, notes: '', eventDate: null }]
       }
     })
+  }
+  
+  const handleConfirmCustomProduct = () => {
+    if (!customNotesInput.trim()) return showToast("Ingresa las medidas, peso o características.", 'error');
+    const customPrice = parseFloat(customPriceInput || '0');
+    if (isNaN(customPrice) || customPrice <= 0) return showToast("Ingresa un precio de venta válido.", 'error');
+
+    const staffData = JSON.parse(localStorage.getItem('currentStaff') || '{}');
+    setCart(prevCart => [
+      ...prevCart,
+      {
+        ...pendingCustomProduct,
+        id: pendingCustomProduct.id,
+        name: pendingCustomProduct.name,
+        notes: customNotesInput.trim(),
+        eventDate: customEventDateInput || null,
+        price: customPrice,
+        originalPrice: customPrice,
+        quantity: 1,
+        stock: 9999,
+        isSpecial: false,
+        staffId: staffData.id || null
+      }
+    ]);
+
+    setShowCustomModal(false);
+    setPendingCustomProduct(null);
   }
 
   const handlePriceChange = (productId: string, newPriceText: string) => {
@@ -774,8 +738,14 @@ export default function PosPage() {
     const productInStock = products.find(p => p.id === productId);
     const maxStock = productInStock ? productInStock.stock : 9999;
 
-    if (newQty > maxStock) {
-      alert(`⚠️ No puedes agregar más de las existencias disponibles. Stock máximo: ${maxStock}`);
+    const isCustomByName = productInStock?.name && (
+      productInStock.name.toLowerCase().includes('vinil') || 
+      productInStock.name.toLowerCase().includes('personaliz') ||
+      productInStock.name.toLowerCase().includes('manta')
+    );
+
+    if (!isCustomByName && newQty > maxStock) {
+      showToast(`⚠️ Stock máximo disponible: ${maxStock}`, 'error');
       setCart(prev => prev.map(item => item.id === productId ? { ...item, quantity: maxStock } : item));
       return;
     }
@@ -788,7 +758,7 @@ export default function PosPage() {
   const handleAddOrRestockProduct = async (e: React.FormEvent) => {
     e.preventDefault()
     if (selectedExistingProduct === 'NEW') {
-      if (!newName.trim() || !newPrice || !selectedBranch) return alert("Completa el nombre y el precio.")
+      if (!newName.trim() || !selectedBranch) return showToast("Completa el nombre del producto.", 'error')
       setUploadingImage(true)
       let imageUrl = null
       try {
@@ -802,25 +772,29 @@ export default function PosPage() {
           }
         }
         const { error } = await supabase.rpc('add_product_safe', {
-          p_name: newName.trim(), p_price: parseFloat(newPrice) || 0, p_stock: parseInt(newStock) || 0,
-          p_branch_id: selectedBranch, p_image_url: imageUrl, p_category_id: newCategoryId || null
+          p_name: newName.trim(), 
+          p_price: 0, 
+          p_stock: 9999,
+          p_branch_id: selectedBranch, 
+          p_image_url: imageUrl, 
+          p_category_id: newCategoryId || null
         })
-        if (error) alert("Error: " + error.message)
+        if (error) showToast("Error: " + error.message, 'error')
         else {
-          alert("¡Producto agregado!")
-          setNewName(''); setNewPrice(''); setNewStock(''); setNewCategoryId(''); setImageFile(null); setImagePreview(null); setSelectedExistingProduct('');
+          showToast("¡Producto personalizado creado con éxito!", 'success')
+          setNewName(''); setNewCategoryId(''); setImageFile(null); setImagePreview(null); setSelectedExistingProduct('');
           refreshAllData(selectedBranch, businessIdState);
           setActiveTab('ticket')
         }
       } finally { setUploadingImage(false) }
     } else {
-      if (!selectedExistingProduct) return alert("Selecciona un producto.")
+      if (!selectedExistingProduct) return showToast("Selecciona un producto.", 'error')
       const { error } = await supabase.rpc('add_stock_to_product', {
         p_branch_id: selectedBranch, p_product_id: selectedExistingProduct, p_quantity: Number(addMoreQuantity)
       })
-      if (error) alert("Error: " + error.message)
+      if (error) showToast("Error: " + error.message, 'error')
       else {
-        alert("¡Stock actualizado!")
+        showToast("¡Stock actualizado con éxito!", 'success')
         setSelectedExistingProduct(''); setAddMoreQuantity(1);
         refreshAllData(selectedBranch, businessIdState);
         setActiveTab('ticket')
@@ -831,22 +805,22 @@ export default function PosPage() {
   const handleRequestTransfer = async (e: React.FormEvent) => {
     e.preventDefault()
     const parsedQty = Number(transferQuantity)
-    if (!transferProduct || parsedQty <= 0 || parsedQty > transferProduct.stock) return alert("Cantidad inválida o supera el stock.")
+    if (!transferProduct || parsedQty <= 0 || parsedQty > transferProduct.stock) return showToast("Cantidad inválida o supera el stock.", 'error')
     const { error } = await supabase.from('inventory_transfers').insert({
       business_id: businessIdState, product_id: transferProduct.id || transferProduct.product_id,
       source_branch_id: transferProduct.branch_id, destination_branch_id: selectedBranch, quantity: parsedQty, status: 'pendiente'
     })
-    if (error) alert("Error: " + error.message)
+    if (error) showToast("Error: " + error.message, 'error')
     else {
-      alert("¡Solicitud enviada!")
+      showToast("¡Solicitud enviada con éxito!", 'success')
       setTransferProduct(null); setTransferQuantity(1); loadTransfers(businessIdState, selectedBranch)
     }
   }
 
   const handleCompleteTransfer = async (transferId: string) => {
     const { error } = await supabase.rpc('complete_transfer', { transfer_id: transferId, current_biz_id: businessIdState })
-    if (error) alert("Error: " + error.message)
-    else { alert("¡Traslado completado!"); refreshAllData(selectedBranch, businessIdState); }
+    if (error) showToast("Error: " + error.message, 'error')
+    else { showToast("¡Traslado completado!", 'success'); refreshAllData(selectedBranch, businessIdState); }
   }
 
   const compressImage = (file: File): Promise<Blob> => {
@@ -884,12 +858,21 @@ export default function PosPage() {
   return (
     <div className={`min-h-screen p-3 sm:p-6 flex flex-col w-full max-w-full overflow-x-hidden notranslate ${themeBg}`} translate="no">
       
-      {/* HEADER SUPERIOR CON EL BOTÓN VERDE ≡ DE MENÚ AGRUPADO */}
+      {toast && (
+        <div className="fixed top-5 right-5 z-[9999999] animate-bounce">
+          <div className={`px-5 py-3 rounded-xl shadow-2xl border font-bold text-sm flex items-center gap-3 ${
+            toast.type === 'success' ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-red-600 text-white border-red-400'
+          }`}>
+            <span>{toast.type === 'success' ? '✅' : '❌'}</span>
+            <span>{toast.message}</span>
+          </div>
+        </div>
+      )}
+
       <header className={`p-3 sm:p-4 rounded-xl shadow mb-4 flex flex-col gap-3 border w-full ${panelBg}`}>
         <div className="flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
           <div className="flex items-center gap-3">
             
-            {/* BOTÓN VERDE CON ÍCONO HAMBURGUESA ≡ */}
             <div className="relative" ref={opsDropdownRef}>
               <button
                 onClick={() => setShowOpsDropdown(!showOpsDropdown)}
@@ -899,11 +882,8 @@ export default function PosPage() {
                 ≡
               </button>
 
-              {/* MENÚ DESPLEGABLE FLOTANTE AGRUPADO */}
               {showOpsDropdown && (
                 <div className={`absolute left-0 mt-2 w-64 rounded-xl shadow-2xl border z-50 p-3 space-y-3 ${panelBg}`}>
-                  
-                  {/* SECCIÓN 1: OPCIONES OPERATIVAS */}
                   <div>
                     <p className="text-[11px] font-bold text-emerald-500 px-2 py-1 uppercase tracking-wider border-b border-opacity-30 mb-1">
                       ⚙️ Opciones Operativas
@@ -923,6 +903,12 @@ export default function PosPage() {
                     <button onClick={() => { setShowOpsDropdown(false); setActiveTab('salesReport'); loadSalesReport(businessIdState, selectedBranch); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
                       💰 Reporte de Ventas
                     </button>
+                    <button onClick={() => { setShowOpsDropdown(false); setActiveTab('customOrders'); loadCustomOrders(businessIdState, selectedBranch); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      🎨 Pedidos Personalizados
+                    </button>
+                    <button onClick={() => { setShowOpsDropdown(false); router.push('/cotizaciones'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      📄 Cotizaciones / Proformas
+                    </button>
                     <button onClick={() => { setShowOpsDropdown(false); setActiveTab('customers'); loadCustomers(businessIdState); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
                       👥 Directorio Clientes
                     </button>
@@ -931,30 +917,28 @@ export default function PosPage() {
                     </button>
                   </div>
 
-                  {/* SECCIÓN 2: OPCIONES ADMINISTRATIVAS */}
-                  <div className="border-t border-opacity-30 pt-2">
-                    <p className="text-[11px] font-bold text-purple-400 px-2 py-1 uppercase tracking-wider border-b border-opacity-30 mb-1">
-                      🛡️ Opciones Administrativas
-                    </p>
-                    <button onClick={() => { setShowOpsDropdown(false); router.push('/inventario'); }} className="w-full text-left px-3 py-2 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
-                      📋 Módulo de Inventario
-                    </button>
-                    <button onClick={() => { setShowOpsDropdown(false); router.push('/cotizaciones'); }} className="w-full text-left px-3 py-2 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
-                      📄 Cotizaciones / Proformas
-                    </button>
-                    <button onClick={() => { setShowOpsDropdown(false); router.push('/compras'); }} className="w-full text-left px-3 py-2 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
-                      📦 Compras y Reabastecimiento
-                    </button>
-                    <button onClick={() => { setShowOpsDropdown(false); router.push('/clientes/reportes'); }} className="w-full text-left px-3 py-2 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
-                      👥 Clientes y Reportes
-                    </button>
-                    <button onClick={() => { setShowOpsDropdown(false); router.push('/ventas-historia'); }} className="w-full text-left px-3 py-2 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
-                      📅 Historial / Días
-                    </button>
-                    <button onClick={() => { setShowOpsDropdown(false); router.push('/precios-especiales'); }} className="w-full text-left px-3 py-2 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
-                      🛡️ Auditoría de Precios
-                    </button>
-                  </div>
+                  {userRole !== 'venta' && userRole !== 'vendedor' && (
+                    <div className="border-t border-opacity-30 pt-2">
+                      <p className="text-[11px] font-bold text-purple-400 px-2 py-1 uppercase tracking-wider border-b border-opacity-30 mb-1">
+                        🛡️ Opciones Administrativas
+                      </p>
+                      <button onClick={() => { setShowOpsDropdown(false); router.push('/inventario'); }} className="w-full text-left px-3 py-2 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                        📋 Módulo de Inventario
+                      </button>
+                      <button onClick={() => { setShowOpsDropdown(false); router.push('/compras'); }} className="w-full text-left px-3 py-2 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                        📦 Compras y Reabastecimiento
+                      </button>
+                      <button onClick={() => { setShowOpsDropdown(false); router.push('/clientes/reportes'); }} className="w-full text-left px-3 py-2 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                        👥 Clientes y Reportes
+                      </button>
+                      <button onClick={() => { setShowOpsDropdown(false); router.push('/ventas-historia'); }} className="w-full text-left px-3 py-2 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                        📅 Historial / Días
+                      </button>
+                      <button onClick={() => { setShowOpsDropdown(false); router.push('/precios-especiales'); }} className="w-full text-left px-3 py-2 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                        🛡️ Auditoría de Precios
+                      </button>
+                    </div>
+                  )}
 
                 </div>
               )}
@@ -979,7 +963,6 @@ export default function PosPage() {
             </div>
           </div>
 
-          {/* BARRA DE ACCESOS RÁPIDOS MÍNIMOS */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-thin w-full sm:w-auto justify-start sm:justify-end">
              {(userRole === 'encargado' || !isStaff) && (
                <button onClick={() => router.push('/cajero')} className="bg-sky-600 hover:bg-sky-500 px-3 py-2 rounded-lg font-semibold text-xs transition-colors shadow flex items-center gap-1 text-white whitespace-nowrap">💵 Caja</button>
@@ -1002,23 +985,22 @@ export default function PosPage() {
         </div>
       </header>
 
-      {/* SELECTOR DE VISTA EN TELÉFONO */}
       <div className="flex lg:hidden grid grid-cols-2 gap-2 mb-4">
         <button onClick={() => setMobileViewTab('catalog')} className={`py-2.5 rounded-xl font-bold text-xs shadow ${mobileViewTab === 'catalog' ? 'bg-emerald-600 text-white' : `${panelBg} opacity-85`}`}>🛍️ Catálogo</button>
         <button onClick={() => setMobileViewTab('cart')} className={`py-2.5 rounded-xl font-bold text-xs shadow relative ${mobileViewTab === 'cart' ? 'bg-emerald-600 text-white' : `${panelBg} opacity-85`}`}>🛒 Ticket ({cart.reduce((a, c) => a + c.quantity, 0)})</button>
       </div>
 
-      {/* MODAL DE OPCIONES OPERATIVAS */}
       {activeTab !== 'ticket' && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 99999 }}>
           <div className={`p-5 sm:p-6 rounded-2xl border border-emerald-500 w-full max-w-xl shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto ${panelBg}`}>
             <div className="flex justify-between items-center border-b pb-3 border-opacity-50">
               <h3 className="text-base font-bold text-emerald-500 uppercase tracking-wide">
-                {activeTab === 'addProduct' && '➕ Agregar / Reabastecer Inventario'}
+                {activeTab === 'addProduct' && '➕ Crear Producto Personalizado / Reabastecer'}
                 {activeTab === 'otherStores' && '🏬 Inventario en Red (Otras Sucursales)'}
                 {activeTab === 'transfers' && '🔄 Módulo de Traslados'}
                 {activeTab === 'movements' && '📊 Movimientos y Cuadre Diario'}
                 {activeTab === 'salesReport' && '💰 Reporte de Ventas de Hoy'}
+                {activeTab === 'customOrders' && '🎨 Pedidos Personalizados (Producción / Bodega)'}
                 {activeTab === 'customers' && '👥 Directorio de Clientes'}
                 {activeTab === 'customerLimits' && '🤝 Límite de Crédito Clientes'}
               </h3>
@@ -1028,10 +1010,10 @@ export default function PosPage() {
             {activeTab === 'addProduct' && (
               <form onSubmit={handleAddOrRestockProduct} className="space-y-3 text-sm">
                 <div>
-                  <label className="block mb-1 opacity-90">Seleccionar Producto</label>
+                  <label className="block mb-1 opacity-90">Seleccionar Producto o Crear Nuevo</label>
                   <select value={selectedExistingProduct} onChange={e => setSelectedExistingProduct(e.target.value)} className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`}>
                     <option value="">-- Selecciona una opción --</option>
-                    <option value="NEW">✨ [+ Crear Nuevo Producto]</option>
+                    <option value="NEW">✨ [+ Crear Nuevo Producto Personalizado]</option>
                     {products.map(p => <option key={p.id} value={p.id}>📦 {p.name} (Stock actual: {p.stock})</option>)}
                   </select>
                 </div>
@@ -1046,26 +1028,62 @@ export default function PosPage() {
                 {selectedExistingProduct === 'NEW' && (
                   <div className="space-y-3 border-t pt-3 mt-2 border-opacity-50">
                     <div>
-                      <label className="block mb-1 opacity-90">Nombre del Nuevo Producto</label>
-                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ej. Plato Extra" className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`} required />
+                      <label className="block mb-1 opacity-90">Nombre del Producto Personalizado *</label>
+                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ej. Arreglo Especial con Rosas" className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`} required />
                     </div>
+                    
                     <div>
                       <div className="flex justify-between items-center mb-1">
                         <label className="block opacity-90">Categoría</label>
-                        <button type="button" onClick={() => setShowNewCategoryModal(true)} className="text-emerald-500 font-bold text-xs">+ Crear Nueva</button>
+                        {!isCreatingCategoryInline && (
+                          <button type="button" onClick={() => setIsCreatingCategoryInline(true)} className="text-emerald-500 font-bold text-xs hover:underline">+ Crear Nueva</button>
+                        )}
                       </div>
-                      <select value={newCategoryId} onChange={e => setNewCategoryId(e.target.value)} className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`}>
-                        <option value="">-- Sin Categoría --</option>
-                        {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                      </select>
+
+                      {!isCreatingCategoryInline ? (
+                        <select value={newCategoryId} onChange={e => setNewCategoryId(e.target.value)} className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`}>
+                          <option value="">-- Sin Categoría --</option>
+                          {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                        </select>
+                      ) : (
+                        <div className={`p-3 rounded-xl border border-emerald-500/60 space-y-2 ${subPanelBg}`}>
+                          <p className="text-xs font-bold text-emerald-400">✨ Nueva Categoría Integrada</p>
+                          <input 
+                            type="text" 
+                            value={inlineCategoryName} 
+                            onChange={e => setInlineCategoryName(e.target.value)} 
+                            placeholder="Nombre de la categoría..." 
+                            className={`w-full border p-2 rounded-xl text-xs ${inputBg}`} 
+                            autoFocus 
+                          />
+                          <div className="flex gap-2">
+                            <button 
+                              type="button" 
+                              disabled={savingCategoryInline || !inlineCategoryName.trim()} 
+                              onClick={handleCreateCategoryInline} 
+                              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-1.5 rounded-lg font-bold text-xs"
+                            >
+                              {savingCategoryInline ? 'Guardando...' : 'Guardar Categoría'}
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => { setIsCreatingCategoryInline(false); setInlineCategoryName(''); }} 
+                              className="bg-slate-600 hover:bg-slate-500 text-white px-3 py-1.5 rounded-lg text-xs"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block mb-1 opacity-70">Precio (Q)</label>
+                      <input type="text" value="A cotizar en el ticket" disabled className={`w-full border p-2.5 rounded-xl text-sm opacity-60 cursor-not-allowed ${inputBg}`} />
                     </div>
                     <div>
-                      <label className="block mb-1 opacity-90">Precio (Q)</label>
-                      <input type="number" step="0.01" value={newPrice} onChange={e => setNewPrice(e.target.value)} placeholder="0.00" className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`} required />
-                    </div>
-                    <div>
-                      <label className="block mb-1 opacity-90">Stock Inicial</label>
-                      <input type="number" value={newStock} onChange={e => setNewStock(e.target.value)} placeholder="0" className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`} />
+                      <label className="block mb-1 opacity-70">Stock Inicial</label>
+                      <input type="text" value="N/A" disabled className={`w-full border p-2.5 rounded-xl text-sm font-bold text-emerald-500 opacity-85 cursor-not-allowed ${inputBg}`} />
                     </div>
                     <div>
                       <label className="block mb-1 opacity-90">Imagen del Producto</label>
@@ -1143,16 +1161,106 @@ export default function PosPage() {
 
             {activeTab === 'salesReport' && (
               <div className="space-y-3 text-xs">
-                <div className={`p-3 rounded-xl border font-bold text-purple-500 text-base ${subPanelBg}`}>
-                  Total Ventas Hoy: Q {salesReport.reduce((a, s) => a + Number(s.total_amount || 0), 0)}
+                <div className={`p-3 rounded-xl border font-bold text-purple-400 text-base flex justify-between items-center ${subPanelBg}`}>
+                  <span>Total Ventas Hoy:</span>
+                  <span className="text-emerald-400">Q {salesReport.reduce((a, s) => a + Number(s.total_amount || 0), 0)}</span>
                 </div>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {salesReport.map(s => (
-                    <div key={s.sale_id} onClick={() => handleViewSaleDetails(s.sale_id)} className={`p-2.5 rounded-xl border cursor-pointer flex justify-between ${subPanelBg}`}>
-                      <span>NIT: {s.customer_nit} ({s.customer_name})</span>
-                      <span className="font-bold text-green-400">Q {s.total_amount}</span>
-                    </div>
-                  ))}
+
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {salesReport.length === 0 ? (
+                    <p className="text-center py-6 opacity-75">No hay ventas registradas hoy.</p>
+                  ) : (
+                    salesReport.map(s => (
+                      <div 
+                        key={s.sale_id} 
+                        className={`p-3 rounded-xl border flex justify-between items-center ${subPanelBg}`}
+                      >
+                        <div>
+                          <p className="font-bold text-slate-200">NIT: {s.customer_nit} ({s.customer_name})</p>
+                          <p className="text-[10px] text-slate-400">Hora: {new Date(s.created_at).toLocaleTimeString()}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-bold text-emerald-400 block text-sm">Q {s.total_amount}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'customOrders' && (
+              <div className="space-y-3 text-xs">
+                <div className="grid grid-cols-2 gap-2 bg-slate-900/50 p-1 rounded-xl border border-slate-700">
+                  <button 
+                    onClick={() => setCustomOrdersSubTab('pendientes')}
+                    className={`py-2 rounded-lg font-bold transition-all ${
+                      customOrdersSubTab === 'pendientes' 
+                        ? 'bg-amber-600 text-white shadow' 
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    🟡 Pendientes ({customOrdersList.filter(o => o.status !== 'entregado').length})
+                  </button>
+                  <button 
+                    onClick={() => setCustomOrdersSubTab('entregados')}
+                    className={`py-2 rounded-lg font-bold transition-all ${
+                      customOrdersSubTab === 'entregados' 
+                        ? 'bg-emerald-600 text-white shadow' 
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    🟢 Historial Entregados ({customOrdersList.filter(o => o.status === 'entregado').length})
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {customOrdersList.filter(o => customOrdersSubTab === 'entregados' ? o.status === 'entregado' : o.status !== 'entregado').length === 0 ? (
+                    <p className="text-center py-8 opacity-75">
+                      {customOrdersSubTab === 'pendientes' ? 'No hay pedidos pendientes por armar o entregar.' : 'No hay historial de pedidos entregados.'}
+                    </p>
+                  ) : (
+                    customOrdersList
+                      .filter(o => customOrdersSubTab === 'entregados' ? o.status === 'entregado' : o.status !== 'entregado')
+                      .map((order, idx) => (
+                        <div key={idx} className={`p-3 rounded-xl border space-y-2 ${subPanelBg}`}>
+                          <div className="flex justify-between items-center font-bold">
+                            <span className="text-emerald-400 text-sm">Orden / Turno #{order.order_number}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded text-[10px]">Q {order.price}</span>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${order.status === 'entregado' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                                {order.status === 'entregado' ? 'Entregado 🟢' : 'Pendiente 🟡'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <p className="text-slate-300"><strong>Cliente:</strong> {order.customer_name} (NIT: {order.customer_nit})</p>
+                          <p className="text-slate-200 font-semibold"><strong>Producto:</strong> {order.product_name} ({order.quantity} unids)</p>
+                          
+                          <div className="bg-emerald-950/40 border border-emerald-500/40 p-2 rounded-lg text-emerald-300 space-y-1">
+                            <p>📝 <strong>Notas:</strong> {order.notes}</p>
+                            {order.event_date && (
+                              <p className="text-amber-300">📅 <strong>Fecha de Entrega/Evento:</strong> {new Date(order.event_date).toLocaleString()}</p>
+                            )}
+                          </div>
+
+                          <div className="flex justify-between items-center pt-1 border-t border-slate-700">
+                            <span className="text-[10px] text-slate-400">Fecha de Creación: {new Date(order.created_at).toLocaleString()}</span>
+                            
+                            <button
+                              onClick={() => handleToggleOrderStatus(order.order_id, order.status)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                                order.status === 'entregado' 
+                                  ? 'bg-slate-700 hover:bg-slate-600 text-slate-300' 
+                                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow'
+                              }`}
+                            >
+                              {order.status === 'entregado' ? '↩️ Marcar Pendiente' : '✅ Marcar Entregado'}
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                  )}
                 </div>
               </div>
             )}
@@ -1243,10 +1351,8 @@ export default function PosPage() {
         </div>
       )}
 
-      {/* DISEÑO PRINCIPAL DE DOS COLUMNAS AMPLIADAS (CATÁLOGO Y TICKET) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 flex-1 w-full">
         
-        {/* PANEL CENTRAL: CATÁLOGO DE PRODUCTOS */}
         <div className={`lg:col-span-2 p-4 sm:p-5 rounded-xl shadow border flex flex-col ${mobileViewTab === 'catalog' ? 'flex' : 'hidden'} lg:flex ${panelBg}`}>
           <div className="mb-3 relative" ref={searchRef}>
             <input 
@@ -1260,27 +1366,36 @@ export default function PosPage() {
 
             {showSuggestions && searchTerm.trim() !== '' && (
               <div className={`absolute left-0 right-0 mt-1 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto border ${subPanelBg}`}>
-                {filteredProducts.map(p => (
-                  <button 
-                    key={p.id} 
-                    onClick={() => { 
-                      if (p.stock <= 0) {
-                        alert("⚠️ Este producto no tiene existencias disponibles (Stock 0).");
-                        return;
-                      }
-                      addToCart(p); 
-                      setSearchTerm(''); 
-                      setShowSuggestions(false); 
-                    }} 
-                    className={`w-full text-left px-4 py-3 hover:opacity-75 flex justify-between items-center border-b text-sm ${p.stock <= 0 ? 'opacity-45 cursor-not-allowed' : ''}`}
-                  >
-                    <div>
-                      <span className="font-semibold">{p.name}</span>
-                      <span className={`ml-2 text-xs font-semibold ${p.stock <= 0 ? 'text-red-400 font-bold' : 'opacity-75'}`}>(Stock: {p.stock})</span>
-                    </div>
-                    <span className="text-emerald-500 font-bold">Q {p.price}</span>
-                  </button>
-                ))}
+                {filteredProducts.map(p => {
+                  const isCustomByName = p.name && (
+                    p.name.toLowerCase().includes('vinil') || 
+                    p.name.toLowerCase().includes('personaliz') ||
+                    p.name.toLowerCase().includes('manta')
+                  );
+                  const isOutOfStock = !isCustomByName && p.stock <= 0;
+
+                  return (
+                    <button 
+                      key={p.id} 
+                      onClick={() => { 
+                        if (isOutOfStock) {
+                          showToast("⚠️ Este producto no tiene existencias disponibles (Stock 0).", 'error');
+                          return;
+                        }
+                        addToCart(p); 
+                        setSearchTerm(''); 
+                        setShowSuggestions(false); 
+                      }} 
+                      className={`w-full text-left px-4 py-3 hover:opacity-75 flex justify-between items-center border-b text-sm ${isOutOfStock ? 'opacity-45 cursor-not-allowed' : ''}`}
+                    >
+                      <div>
+                        <span className="font-semibold">{p.name}</span>
+                        <span className={`ml-2 text-xs font-semibold ${isOutOfStock ? 'text-red-400 font-bold' : 'opacity-75'}`}>(Stock: {isCustomByName ? 'N/A' : p.stock})</span>
+                      </div>
+                      <span className="text-emerald-500 font-bold">{isCustomByName ? 'A cotizar' : `Q ${p.price}`}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1294,13 +1409,18 @@ export default function PosPage() {
             ))}
           </div>
 
-          {/* TARJETAS DE PRODUCTOS CON LAZY LOADING PARA MEJORAR VELOCIDAD */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 overflow-y-auto max-h-[60vh] sm:max-h-[65vh] pr-1 flex-1">
             {filteredProducts.length === 0 ? (
               <p className="col-span-full text-center py-10 text-sm sm:text-base opacity-75">No hay productos que coincidan con la búsqueda.</p>
             ) : (
               filteredProducts.map(p => {
-                const isOutOfStock = p.stock <= 0;
+                const isCustomByName = p.name && (
+                  p.name.toLowerCase().includes('vinil') || 
+                  p.name.toLowerCase().includes('personaliz') ||
+                  p.name.toLowerCase().includes('manta')
+                );
+                const isOutOfStock = !isCustomByName && p.stock <= 0;
+
                 return (
                   <div 
                     key={p.id} 
@@ -1323,14 +1443,14 @@ export default function PosPage() {
                         <div className="w-full h-24 sm:h-28 rounded-lg mb-2 flex items-center justify-center text-xs opacity-50 border">Sin imagen</div>
                       )}
                       <span className={`text-[11px] sm:text-xs block mb-1 ${isOutOfStock ? 'text-red-400 font-bold' : 'font-semibold opacity-80'}`}>
-                        Stock: <strong className={isOutOfStock ? 'text-red-400' : 'text-emerald-500'}>{p.is_custom ? 'N/A' : p.stock}</strong> {isOutOfStock ? '(Agotado)' : ''}
+                        Stock: <strong className={isOutOfStock ? 'text-red-400' : 'text-emerald-500'}>{isCustomByName ? 'N/A' : p.stock}</strong> {isOutOfStock ? '(Agotado)' : ''}
                       </span>
                       <h3 className={`font-bold line-clamp-2 text-xs sm:text-sm leading-snug ${isOutOfStock ? 'opacity-75' : 'group-hover:text-emerald-500'}`}>{p.name}</h3>
                     </div>
                     
                     <div className="mt-2 pt-2 border-t border-opacity-50 flex items-center justify-between">
-                      <span className="text-[10px] sm:text-xs uppercase opacity-70">{p.is_custom ? 'Variable' : 'Precio'}</span>
-                      <span className="text-emerald-500 font-extrabold text-sm sm:text-base" translate="no">{p.is_custom ? 'A cotizar' : `Q ${p.price}`}</span>
+                      <span className="text-[10px] sm:text-xs uppercase opacity-70">{isCustomByName ? 'Variable' : 'Precio'}</span>
+                      <span className="text-emerald-500 font-extrabold text-sm sm:text-base" translate="no">{isCustomByName ? 'A cotizar' : `Q ${p.price}`}</span>
                     </div>
                   </div>
                 );
@@ -1339,11 +1459,11 @@ export default function PosPage() {
           </div>
         </div>
 
-        {/* PANEL DERECHO: TICKET / DETALLE DE ORDEN */}
         <div className={`p-4 sm:p-5 rounded-xl shadow border flex flex-col justify-between ${mobileViewTab === 'cart' ? 'flex' : 'hidden'} lg:flex ${panelBg}`}>
           <div>
             <h2 className="text-base sm:text-lg font-bold text-emerald-500 mb-3">Ticket de Venta</h2>
-            <div className="space-y-2.5 overflow-y-auto max-h-[38vh] sm:max-h-[42vh] pr-1">
+            
+            <div className="space-y-2.5 overflow-y-auto max-h-[30vh] sm:max-h-[35vh] pr-1">
               {cart.length === 0 ? (
                 <p className="text-center py-10 text-sm sm:text-base opacity-75">El carrito está vacío.</p>
               ) : (
@@ -1353,6 +1473,15 @@ export default function PosPage() {
                       <span className="font-bold">{item.name}</span>
                       <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-300 font-bold px-2 py-0.5 rounded text-xs">✕</button>
                     </div>
+
+                    {item.notes && (
+                      <div className="bg-emerald-950/30 border border-emerald-500/30 p-2 rounded-lg text-[11px] text-emerald-300 space-y-0.5">
+                        <p>📝 <strong>Especificación:</strong> {item.notes}</p>
+                        {item.eventDate && (
+                          <p className="text-amber-300">📅 <strong>Entrega/Evento:</strong> {new Date(item.eventDate).toLocaleString()}</p>
+                        )}
+                      </div>
+                    )}
                     
                     <div className="flex justify-between items-center gap-2">
                       <div className="flex items-center gap-1">
@@ -1413,7 +1542,6 @@ export default function PosPage() {
                       className={`w-full border p-2 rounded-xl text-xs ${inputBg}`}
                     />
 
-                    {/* MENÚ DESPLEGABLE DE SUGERENCIAS CLICKEABLES */}
                     {showCustomerSuggestions && customerSearchQuery.trim() !== '' && filteredCustomersForCredit.length > 0 && (
                       <div className={`absolute left-0 right-0 mt-1 rounded-xl shadow-2xl z-50 max-h-48 overflow-y-auto border ${subPanelBg}`}>
                         {filteredCustomersForCredit.map(c => (
@@ -1528,7 +1656,73 @@ export default function PosPage() {
 
       </div>
 
-      {/* MODAL DE STOCK BAJO */}
+      {showCustomModal && pendingCustomProduct && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 999999 }}>
+          <div className={`p-6 rounded-2xl border border-emerald-500 w-full max-w-md shadow-2xl space-y-4 ${panelBg}`}>
+            <div className="flex justify-between items-center border-b pb-3 border-opacity-50">
+              <h3 className="text-base font-bold text-emerald-500">✨ Especificaciones de Producción</h3>
+              <button onClick={() => setShowCustomModal(false)} className="font-bold text-lg opacity-75 hover:opacity-100">✕</button>
+            </div>
+
+            <div>
+              <p className="font-bold text-sm">{pendingCustomProduct.name}</p>
+              <p className="text-xs opacity-75 mt-1">Ingresa las medidas, diseño, colores o notas para que bodega pueda despacharlo correctamente:</p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold mb-1 opacity-90">Notas / Medidas / Características *</label>
+                <textarea 
+                  value={customNotesInput}
+                  onChange={e => setCustomNotesInput(e.target.value)}
+                  placeholder="Ej. Manta 2x1.5m con acabado brillante y ojales..."
+                  rows={3}
+                  className={`w-full border p-2.5 rounded-xl text-sm outline-none resize-none ${inputBg}`}
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1 opacity-90">Fecha y Hora de Entrega / Evento</label>
+                <input 
+                  type="datetime-local"
+                  value={customEventDateInput}
+                  onChange={e => setCustomEventDateInput(e.target.value)}
+                  className={`w-full border p-2.5 rounded-xl text-sm outline-none ${inputBg}`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1 opacity-90">Precio de Venta Cotizado (Q) *</label>
+                <input 
+                  type="number"
+                  step="0.01"
+                  value={customPriceInput}
+                  onChange={e => setCustomPriceInput(e.target.value)}
+                  placeholder="0.00"
+                  className={`w-full border p-2.5 rounded-xl text-sm outline-none ${inputBg}`}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button 
+                onClick={handleConfirmCustomProduct}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-xl font-bold text-sm shadow"
+              >
+                Agregar al Carrito
+              </button>
+              <button 
+                onClick={() => setShowCustomModal(false)}
+                className="bg-slate-600 hover:bg-slate-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showLowStockModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
           <div className={`p-5 sm:p-6 rounded-2xl border border-amber-500 w-full max-w-md shadow-2xl space-y-4 ${panelBg}`}>
@@ -1542,40 +1736,6 @@ export default function PosPage() {
               ))}
             </div>
             <button onClick={() => setShowLowStockModal(false)} className="w-full bg-slate-600 text-white py-2.5 rounded-xl font-semibold text-sm">Cerrar</button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL DETALLE DE VENTA */}
-      {selectedSaleDetails !== null && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-          <div className={`p-5 sm:p-6 rounded-2xl border border-emerald-500 w-full max-w-md shadow-2xl ${panelBg}`}>
-            <h3 className="text-base font-bold text-emerald-500 mb-4">📦 Detalle de la Venta</h3>
-            <div className="space-y-2 max-h-64 overflow-y-auto text-sm">
-              {selectedSaleDetails.map((item, idx) => (
-                <div key={idx} className={`p-3 rounded-xl border flex justify-between ${subPanelBg}`}>
-                  <span>{item.product_name} ({item.quantity} x Q {item.price})</span>
-                  <span className="font-bold text-emerald-400">Q {item.quantity * item.price}</span>
-                </div>
-              ))}
-            </div>
-            <button onClick={() => setSelectedSaleDetails(null)} className="mt-6 w-full bg-slate-600 text-white py-3 rounded-xl font-semibold text-sm">Cerrar</button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL NUEVA CATEGORÍA */}
-      {showNewCategoryModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className={`p-5 sm:p-6 rounded-2xl border border-emerald-500 w-full max-w-sm space-y-4 ${panelBg}`}>
-            <h3 className="text-base font-bold text-emerald-500">✨ Nueva Categoría</h3>
-            <form onSubmit={handleCreateCategory} className="space-y-3 text-sm">
-              <input type="text" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder="Nombre..." className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`} required autoFocus />
-              <div className="flex gap-2">
-                <button type="submit" disabled={savingCategory} className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl font-bold">Guardar</button>
-                <button type="button" onClick={() => setShowNewCategoryModal(false)} className="bg-slate-600 text-white px-4 py-2.5 rounded-xl">Cancelar</button>
-              </div>
-            </form>
           </div>
         </div>
       )}

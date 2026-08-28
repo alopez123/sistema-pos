@@ -18,6 +18,14 @@ export default function Dashboard() {
   // Estado para el Tema (Modo Oscuro / Modo Claro Local)
   const [isDarkMode, setIsDarkMode] = useState(true)
 
+  // Estado para Notificaciones Flotantes (Toast) profesionales
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => { setToast(null) }, 4500)
+  }
+
   useEffect(() => {
     const savedTheme = localStorage.getItem('dashboard_theme')
     if (savedTheme === 'light') {
@@ -157,7 +165,7 @@ export default function Dashboard() {
   async function updateBranchLimit(branchId: string) {
     const limitVal = parseInt(branchLimits[branchId])
     if (isNaN(limitVal) || limitVal < 0) {
-      return alert("Ingresa un número válido para el límite de crédito.")
+      return showToast("Ingresa un número válido para el límite de crédito.", "error")
     }
 
     const { data, error } = await supabase.rpc('update_branch_credit_limit', {
@@ -166,9 +174,9 @@ export default function Dashboard() {
     })
 
     if (error) {
-      alert("Error al actualizar límite: " + error.message)
+      showToast("Error al actualizar límite: " + error.message, "error")
     } else {
-      alert("¡Límite de compras al crédito actualizado con éxito!")
+      showToast("¡Límite de compras al crédito actualizado con éxito!", "success")
       fetchBranchesForBusiness(currentBusinessId)
     }
   }
@@ -196,9 +204,9 @@ export default function Dashboard() {
         .eq('id', editingCategoryId)
 
       if (error) {
-        alert("Error al actualizar categoría: " + error.message)
+        showToast("Error al actualizar categoría: " + error.message, "error")
       } else {
-        alert("¡Categoría actualizada con éxito!")
+        showToast("¡Categoría actualizada con éxito!", "success")
         setEditingCategoryId(null)
         setNewCategoryName('')
         fetchCategories(currentBusinessId)
@@ -210,9 +218,9 @@ export default function Dashboard() {
       })
 
       if (error) {
-        alert("Error al crear categoría: " + error.message)
+        showToast("Error al crear categoría: " + error.message, "error")
       } else {
-        alert("¡Categoría creada con éxito!")
+        showToast("¡Categoría creada con éxito!", "success")
         setNewCategoryName('')
         fetchCategories(currentBusinessId)
       }
@@ -237,9 +245,9 @@ export default function Dashboard() {
     })
 
     if (error) {
-      alert("Error al ejecutar la acción: " + error.message)
+      showToast("Error al ejecutar la acción: " + error.message, "error")
     } else {
-      alert(data.message)
+      showToast(data.message, data.success ? "success" : "error")
       if (data.success) {
         fetchCategories(currentBusinessId)
       }
@@ -262,11 +270,11 @@ export default function Dashboard() {
 
   async function handleSaveStaff() {
     if (!username.trim() || !staffName.trim() || !selectedBranch) {
-      return alert("Completa el nombre, usuario y selecciona la sucursal.")
+      return showToast("Completa el nombre, usuario y selecciona la sucursal.", "error")
     }
 
     if (!editingStaffId && !accessCode.trim()) {
-      return alert("Por favor ingresa un código de acceso para el nuevo empleado.")
+      return showToast("Por favor ingresa un código de acceso para el nuevo empleado.", "error")
     }
 
     const fullUsername = username.includes('-') ? username.trim().toLowerCase() : `${businessNemonico}-${username.trim().toLowerCase()}`
@@ -284,9 +292,9 @@ export default function Dashboard() {
       })
 
       if (error) {
-        alert("Error al actualizar personal: " + error.message)
+        showToast("Error al actualizar personal: " + error.message, "error")
       } else {
-        alert("¡Personal actualizado con éxito!")
+        showToast("¡Personal actualizado con éxito!", "success")
         cancelEditStaff()
         fetchStaff()
       }
@@ -301,9 +309,9 @@ export default function Dashboard() {
       })
 
       if (error) {
-        alert("Error al registrar personal: " + error.message)
+        showToast("Error al registrar personal: " + error.message, "error")
       } else {
-        alert(`¡Personal asignado con éxito! Usuario: ${fullUsername} (${staffRole.toUpperCase()})`)
+        showToast(`¡Personal asignado con éxito! Usuario: ${fullUsername} (${staffRole.toUpperCase()})`, "success")
         cancelEditStaff()
         fetchStaff()
       }
@@ -331,12 +339,15 @@ export default function Dashboard() {
   async function deleteStaff(staffId: string) {
     if (!confirm("¿Deseas quitar el acceso a este empleado?")) return
     const { error } = await supabase.rpc('delete_branch_user_safe', { p_user_id: staffId })
-    if (error) alert("Error: " + error.message)
-    else fetchStaff()
+    if (error) showToast("Error: " + error.message, "error")
+    else {
+      showToast("Personal eliminado correctamente.", "success")
+      fetchStaff()
+    }
   }
 
   async function handleSaveProduct() {
-    if (!selectedBranch || !name.trim()) return alert("Selecciona sucursal y nombre.")
+    if (!selectedBranch || !name.trim()) return showToast("Selecciona sucursal y nombre.", "error")
 
     let imageUrl = null
     if (imageFile) {
@@ -348,7 +359,7 @@ export default function Dashboard() {
         const { data } = supabase.storage.from('products').getPublicUrl(fileName)
         imageUrl = data.publicUrl
       } catch (err) {
-        return alert("Error al procesar/subir imagen.")
+        return showToast("Error al procesar/subir imagen.", "error")
       }
     }
 
@@ -362,9 +373,9 @@ export default function Dashboard() {
         p_category_id: selectedCategoryId || null
       })
 
-      if (error) alert("Error al actualizar: " + error.message)
+      if (error) showToast("Error al actualizar: " + error.message, "error")
       else {
-        alert("¡Producto actualizado con éxito!")
+        showToast("¡Producto actualizado con éxito!", "success")
         cancelEdit()
         fetchProducts()
       }
@@ -379,9 +390,9 @@ export default function Dashboard() {
         p_is_custom: isCustomProduct
       })
 
-      if (error) alert("Error al agregar: " + error.message)
+      if (error) showToast("Error al agregar: " + error.message, "error")
       else {
-        alert("¡Producto agregado con éxito!")
+        showToast("¡Producto agregado con éxito!", "success")
         cancelEdit()
         fetchProducts()
       }
@@ -412,8 +423,11 @@ export default function Dashboard() {
   async function deleteProduct(productId: string) {
     if (!confirm("¿Estás seguro de eliminar este producto?")) return
     const { error } = await supabase.rpc('delete_product_safe', { p_product_id: productId })
-    if (error) alert("Error al eliminar: " + error.message)
-    else fetchProducts()
+    if (error) showToast("Error al eliminar: " + error.message, "error")
+    else {
+      showToast("Producto eliminado con éxito.", "success")
+      fetchProducts()
+    }
   }
 
   async function addBranch() {
@@ -426,11 +440,11 @@ export default function Dashboard() {
     })
 
     if (error) {
-      alert("Error al crear sucursal: " + error.message)
+      showToast("Error al crear sucursal: " + error.message, "error")
       return
     }
 
-    alert(data.message)
+    showToast(data.message, data.success ? "success" : "error")
 
     if (data.success) {
       setNewBranchName('')
@@ -447,11 +461,11 @@ export default function Dashboard() {
     })
 
     if (error) {
-      alert("Error al dar de baja la sucursal: " + error.message)
+      showToast("Error al dar de baja la sucursal: " + error.message, "error")
       return
     }
 
-    alert(data.message)
+    showToast(data.message, data.success ? "success" : "error")
 
     if (data.success) {
       fetchBranchesForBusiness(currentBusinessId)
@@ -472,7 +486,20 @@ export default function Dashboard() {
   const inputBg = isDarkMode ? 'bg-[#0f172a] text-white border-slate-600' : 'bg-white text-slate-900 border-slate-300'
 
   return (
-    <div className={`min-h-screen p-2 md:p-4 flex flex-col notranslate pb-20 lg:pb-4 ${themeBg}`} translate="no">
+    <div className={`min-h-screen p-2 md:p-4 flex flex-col notranslate pb-20 lg:pb-4 relative ${themeBg}`} translate="no">
+      
+      {/* TOAST FLOTANTE PROFESIONAL */}
+      {toast && (
+        <div className="fixed top-5 right-5 z-[99999] animate-bounce">
+          <div className={`px-5 py-3 rounded-xl shadow-2xl border font-bold text-sm flex items-center gap-3 ${
+            toast.type === 'success' ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-red-600 text-white border-red-400'
+          }`}>
+            <span>{toast.type === 'success' ? '✅' : '⚠️'}</span>
+            <span>{toast.message}</span>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-5xl mx-auto w-full">
         
         {/* HEADER ADAPTABLE CON BOTÓN HAMBURGUESA (☰) Y TEMA */}
@@ -610,7 +637,7 @@ export default function Dashboard() {
               >
                 <div>
                   <div className="text-2xl mb-2">📦</div>
-                  <h3 className="font-bold text-base text-emerald-400">Proveedores / Cuentas por Pagar</h3>
+                  <h3 className="font-bold text-base text-emerald-500">Proveedores / Cuentas por Pagar</h3>
                   <p className="text-xs opacity-75 mt-1">Control de proveedores registrados y auditoría de inventario en tiempo real.</p>
                 </div>
                 <span className="text-xs font-bold text-emerald-400">Ver Módulo ➔</span>

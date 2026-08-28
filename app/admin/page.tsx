@@ -254,7 +254,7 @@ export default function AdminDashboard() {
     }
   }
 
-  async function handleSaveAndActivate() {
+ async function handleSaveAndActivate() {
     if (!selectedBusiness) return
 
     setUploadingLogo(true)
@@ -299,6 +299,17 @@ export default function AdminDashboard() {
       })
 
       if (error) throw error
+
+      // ── NUEVA LÓGICA: Actualiza la contraseña si el campo no está vacío ──
+      if (editPassword && editPassword.trim() !== '') {
+        const { error: passError } = await supabase.rpc('update_business_password_safe', {
+          p_business_id: selectedBusiness.id,
+          p_new_password: editPassword.trim()
+        })
+
+        if (passError) throw passError
+      }
+      // ──────────────────────────────────────────────────────────────────
 
       alert("¡Suscripción, nombre y detalles actualizados con éxito!")
       setSelectedBusiness(null)

@@ -15,25 +15,20 @@ export default function ComprasPage() {
   const [businessId, setBusinessId] = useState<string>('')
   const [branchId, setBranchId] = useState<string>('')
   const [branches, setBranches] = useState<any[]>([])
+  const [staffRole, setStaffRole] = useState<string>('')
 
-  // Estado para Notificaciones Flotantes (Toast) elegantes
+  // Estado para Notificaciones Flotantes (Toast) modernas
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ message, type })
-    setTimeout(() => {
-      setToast(null)
-    }, 4000)
+    setTimeout(() => { setToast(null) }, 4500)
   }
 
-  // Estado para el Menú Lateral Deslizante (Hamburguesa ☰)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
-
-  // Estado para el Tema (Modo Oscuro / Modo Claro Local)
   const [isDarkMode, setIsDarkMode] = useState(true)
-
-  // Estado para evitar múltiples envíos en compras
   const [savingPurchase, setSavingPurchase] = useState(false)
+  const [addingToCart, setAddingToCart] = useState(false)
 
   // Estados para Modal de Abonos a Proveedores
   const [selectedPurchaseForPayment, setSelectedPurchaseForPayment] = useState<any | null>(null)
@@ -43,20 +38,16 @@ export default function ComprasPage() {
   const [paymentNotes, setPaymentNotes] = useState('')
   const [submittingPayment, setSubmittingPayment] = useState(false)
 
-  // Estados para Ver el Historial de Abonos y Productos de una Factura específica
+  // Estados para Ver Historial de Abonos y Productos
   const [viewingPaymentsPurchase, setViewingPaymentsPurchase] = useState<any | null>(null)
   const [purchasePaymentsList, setPurchasePaymentsList] = useState<any[]>([])
   const [purchaseItemsList, setPurchaseItemsList] = useState<any[]>([])
   const [loadingModalData, setLoadingModalData] = useState(false)
-
-  // Estado para filtro de sucursal en el historial
   const [historyBranchFilter, setHistoryBranchFilter] = useState<string>('ALL')
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('purchases_theme')
-    if (savedTheme === 'light') {
-      setIsDarkMode(false)
-    }
+    if (savedTheme === 'light') setIsDarkMode(false)
   }, [])
 
   const toggleTheme = () => {
@@ -69,18 +60,18 @@ export default function ComprasPage() {
   const [categories, setCategories] = useState<any[]>([])
   const [newProdName, setNewProdName] = useState('')
   const [newProdPrice, setNewProdPrice] = useState('')
-  const [isCustomProduct, setIsCustomProduct] = useState(false)
+  const [isCustomProduct, setIsCustomProduct] = useState(false) 
   const [newProdCategory, setNewProdCategory] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
 
-  // Estados para el Modal de Creación Rápida de Categorías
+  // Estados para Modal de Categorías
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [savingCategory, setSavingCategory] = useState(false)
 
-  // Estados para Proveedores
+  // Proveedores
   const [suppliers, setSuppliers] = useState<any[]>([])
   const [supName, setSupName] = useState('')
   const [supContact, setSupContact] = useState('')
@@ -88,7 +79,7 @@ export default function ComprasPage() {
   const [supEmail, setSupEmail] = useState('')
   const [supAddress, setSupAddress] = useState('')
 
-  // Estados para Registrar Compra y Crédito
+  // Registrar Compra
   const [products, setProducts] = useState<any[]>([])
   const [selectedSupplier, setSelectedSupplier] = useState('')
   const [invoiceNumber, setInvoiceNumber] = useState('')
@@ -100,6 +91,7 @@ export default function ComprasPage() {
   const [purchaseCost, setPurchaseCost] = useState('')
   const [purchasesHistory, setPurchasesHistory] = useState<any[]>([])
 
+  // INICIALIZACIÓN ROBUSTA Y SEGURA MULTI-TENANT
   useEffect(() => {
     try {
       const bizStr = localStorage.getItem('currentBusiness')
@@ -108,62 +100,48 @@ export default function ComprasPage() {
       let bId = ''
       let brId = ''
 
-      if (bizStr) {
-        try {
-          const biz = JSON.parse(bizStr)
-          bId = biz.id || biz.business_id || ''
-        } catch (err) {}
-      }
-
-      if (!bId && staffDataStr) {
+      if (staffDataStr) {
         try {
           const staff = JSON.parse(staffDataStr)
           bId = staff.business_id || staff.busines_id || ''
           brId = staff.branch_id || ''
+          setStaffRole(staff.role || 'vendedor')
         } catch (err) {}
       }
 
-      setBusinessId(bId)
-      if (brId) setBranchId(brId)
+      if (!bId && bizStr) {
+        try {
+          const biz = JSON.parse(bizStr)
+          bId = biz.id || biz.business_id || biz.busines_id || ''
+          setStaffRole('dueño')
+        } catch (err) {}
+      }
 
       if (bId) {
-        loadBranches(bId).then(async (loadedBranches) => {
-          await loadSuppliers(bId)
-          await loadPurchasesHistory(bId, 'ALL', loadedBranches)
-          loadCategories(bId)
-          const initialBranch = brId || (loadedBranches.length > 0 ? loadedBranches[0].id : '')
-          if (initialBranch) {
-            loadProducts(bId, initialBranch)
-          }
-        })
+        setBusinessId(bId)
+        loadBranchesAndInitialize(bId, brId)
+        loadSuppliers(bId)
+        loadCategories(bId)
+        loadPurchasesHistory(bId, 'ALL')
       }
     } catch (e) {
       console.error("Error al cargar sesión:", e)
     }
   }, [])
 
-  const loadBranches = async (bId: string) => {
-    const { data } = await supabase.from('branches').select('*').eq('business_id', bId)
-    if (data) {
+  const loadBranchesAndInitialize = async (bId: string, initialBrId: string) => {
+    const { data, error } = await supabase.from('branches').select('*').eq('business_id', bId)
+    if (!error && data && data.length > 0) {
       setBranches(data)
-      if (data.length > 0 && !branchId) {
-        setBranchId(data[0].id)
-      }
-      return data
+      const targetBranch = initialBrId && data.some(b => b.id === initialBrId) ? initialBrId : data[0].id
+      setBranchId(targetBranch)
+      loadProducts(bId, targetBranch)
     }
-    return []
   }
 
   const loadCategories = async (bId: string) => {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .eq('business_id', bId)
-      .order('name', { ascending: true })
-
-    if (!error && data) {
-      setCategories(data)
-    }
+    const { data, error } = await supabase.from('categories').select('*').eq('business_id', bId).order('name', { ascending: true })
+    if (!error && data) setCategories(data)
   }
 
   const handleCreateCategory = async (e: React.FormEvent) => {
@@ -175,7 +153,6 @@ export default function ComprasPage() {
       p_business_id: businessId,
       p_name: newCategoryName.trim()
     })
-
     setSavingCategory(false)
 
     if (error) {
@@ -183,87 +160,70 @@ export default function ComprasPage() {
     } else {
       showToast("¡Categoría creada con éxito!", 'success')
       await loadCategories(businessId)
-      if (data && data.category_id) {
-        setNewProdCategory(data.category_id)
-      }
+      if (data && data.category_id) setNewProdCategory(data.category_id)
       setNewCategoryName('')
       setShowNewCategoryModal(false)
     }
   }
 
+  // 1. CARGA SEGURA DE PROVEEDORES MEDIANTE RPC[cite: 1]
   const loadSuppliers = async (bId: string) => {
-    const { data, error } = await supabase.rpc('get_suppliers_safe', { p_business_id: bId })
-    if (!error && data) {
-      setSuppliers(data)
-      return data
-    }
-    return []
-  }
-
-  const loadProducts = async (bId: string, bBranchId: string) => {
-    if (!bId || !bBranchId) return
-
-    const { data, error } = await supabase.rpc('get_products_for_purchase', {
-      p_business_id: bId,
-      p_branch_id: bBranchId
+    if (!bId) return
+    const { data, error } = await supabase.rpc('get_suppliers_by_business', {
+      p_business_id: bId
     })
 
-    if (error) {
-      console.error("Error al cargar productos para compra:", error.message)
-      setProducts([])
-    } else if (data) {
-      setProducts(data)
+    if (!error && data) {
+      setSuppliers(data)
     } else {
-      setProducts([])
+      setSuppliers([])
     }
   }
 
-  const loadPurchasesHistory = async (bId: string, branchFilter: string = 'ALL', currentBranchesList: any[] = branches) => {
-    if (!bId) return
+  // 2. CARGA SEGURA DE PRODUCTOS PARA COMPRA POR SUCURSAL Y NEGOCIO
+  const loadProducts = async (bId: string, bBranchId: string) => {
+    if (!bId || !bBranchId) return
+    
+    const { data, error } = await supabase.rpc('get_products_by_branch', {
+      p_branch_id: bBranchId
+    })
+    
+    if (!error && data) setProducts(data)
+    else setProducts([])
+  }
 
+  // 3. HISTORIAL DE COMPRAS MULTI-TENANT
+  const loadPurchasesHistory = async (bId: string, branchFilter: string = 'ALL') => {
+    if (!bId) return
+    
     const { data, error } = await supabase.rpc('get_purchases_history', {
       p_business_id: bId,
       p_branch_id: branchFilter
     })
+    
+    if (!error && data) {
+      const { data: branchList } = await supabase.from('branches').select('*').eq('business_id', bId)
+      const currentBranches = branchList || []
 
-    if (error) {
-      console.error("Error cargando historial con RPC:", error.message)
-      setPurchasesHistory([])
-    } else if (data) {
       const formatted = data.map((p: any) => {
-        const foundBranch = currentBranchesList.find(b => b.id === p.branch_id)
-        return {
-          ...p,
-          branch_name: foundBranch ? foundBranch.name : 'Sucursal Principal'
-        }
+        const foundBranch = currentBranches.find((b: any) => b.id === p.branch_id)
+        return { ...p, branch_name: foundBranch ? foundBranch.name : 'Sucursal Principal' }
       })
       setPurchasesHistory(formatted)
     } else {
       setPurchasesHistory([])
     }
   }
-
+  
   const openPurchaseDetailsModal = async (purchase: any) => {
     setViewingPaymentsPurchase(purchase)
     setLoadingModalData(true)
-    
     try {
-      const { data: paymentsData } = await supabase.rpc('get_purchase_payments', {
-        p_purchase_id: purchase.id
-      })
+      const { data: paymentsData } = await supabase.rpc('get_purchase_payments', { p_purchase_id: purchase.id })
       setPurchasePaymentsList(paymentsData || [])
-
-      const { data: itemsData, error: itemsError } = await supabase.rpc('get_purchase_items_safe', {
-        p_purchase_id: purchase.id
-      })
-
-      if (!itemsError && itemsData) {
-        setPurchaseItemsList(itemsData)
-      } else {
-        setPurchaseItemsList([])
-      }
+      const { data: itemsData } = await supabase.rpc('get_purchase_items_safe', { p_purchase_id: purchase.id })
+      setPurchaseItemsList(itemsData || [])
     } catch (err) {
-      console.error("Error cargando detalles de compra:", err)
       setPurchaseItemsList([])
     } finally {
       setLoadingModalData(false)
@@ -279,39 +239,23 @@ export default function ComprasPage() {
         img.src = event.target?.result as string
         img.onload = () => {
           const canvas = document.createElement('canvas')
-          const MAX_WIDTH = 800
-          const MAX_HEIGHT = 800
           let width = img.width
           let height = img.height
-
           if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width
-              width = MAX_WIDTH
-            }
+            if (width > 800) { height *= 800 / width; width = 800; }
           } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height
-              height = MAX_HEIGHT
-            }
+            if (height > 800) { width *= 800 / height; height = 800; }
           }
-
           canvas.width = width
           canvas.height = height
           const ctx = canvas.getContext('2d')
           ctx?.drawImage(img, 0, 0, width, height)
-
           canvas.toBlob((blob) => {
-            if (blob) {
-              resolve(blob)
-            } else {
-              reject(new Error('Falló la compresión de la imagen'))
-            }
+            if (blob) resolve(blob)
+            else reject(new Error('Falló compresión'))
           }, 'image/jpeg', 0.7)
         }
-        img.onerror = (error) => reject(error)
       }
-      reader.onerror = (error) => reject(error)
     })
   }
 
@@ -336,51 +280,49 @@ export default function ComprasPage() {
       p_address: supAddress.trim()
     })
 
-    if (error) {
-      showToast("Error al crear proveedor: " + error.message, 'error')
-    } else {
+    if (error) showToast("Error al crear proveedor: " + error.message, 'error')
+    else {
       showToast("¡Proveedor registrado con éxito!", 'success')
-      setSupName('')
-      setSupContact('')
-      setSupPhone('')
-      setSupEmail('')
-      setSupAddress('')
+      setSupName(''); setSupContact(''); setSupPhone(''); setSupEmail(''); setSupAddress('')
       loadSuppliers(businessId)
     }
   }
 
   const addProductToPurchaseCart = async () => {
+    if (addingToCart) return
+    setAddingToCart(true)
+
     const qty = Number(purchaseQty) || 1
     const cost = parseFloat(purchaseCost) || 0
 
-    if (selectedProductToAdd === 'NEW') {
-      if (!newProdName.trim() || !branchId) {
-        return showToast("Ingresa el nombre del nuevo producto.", 'error')
-      }
-      if (!isCustomProduct && !newProdPrice) {
-        return showToast("Ingresa el precio de venta del producto.", 'error')
-      }
+    try {
+      if (selectedProductToAdd === 'NEW') {
+        if (!newProdName.trim() || !branchId) {
+          showToast("Ingresa el nombre del nuevo producto.", 'error')
+          setAddingToCart(false)
+          return
+        }
+        if (!isCustomProduct && !newProdPrice) {
+          showToast("Ingresa el precio de venta del producto.", 'error')
+          setAddingToCart(false)
+          return
+        }
 
-      setUploadingImage(true)
-      let imageUrl = null
+        setUploadingImage(true)
+        let imageUrl = null
 
-      try {
         if (imageFile) {
           const compressedBlob = await compressImage(imageFile)
           const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.jpg`
           const filePath = `products/${fileName}`
 
-          const { error: uploadError } = await supabase.storage
-            .from('products')
-            .upload(filePath, compressedBlob, {
-              contentType: 'image/jpeg',
-              upsert: false
-            })
+          const { error: uploadError } = await supabase.storage.from('products').upload(filePath, compressedBlob, {
+            contentType: 'image/jpeg',
+            upsert: false
+          })
 
           if (!uploadError) {
-            const { data: publicUrlData } = supabase.storage
-              .from('products')
-              .getPublicUrl(filePath)
+            const { data: publicUrlData } = supabase.storage.from('products').getPublicUrl(filePath)
             imageUrl = publicUrlData.publicUrl
           }
         }
@@ -395,9 +337,12 @@ export default function ComprasPage() {
           p_is_custom: isCustomProduct
         })
 
+        setUploadingImage(false)
+
         if (error) {
-          setUploadingImage(false)
-          return showToast("Error al crear el nuevo producto: " + error.message, 'error')
+          showToast("Error al crear el nuevo producto: " + error.message, 'error')
+          setAddingToCart(false)
+          return
         }
 
         let newProdId = rawNewProdId
@@ -415,7 +360,8 @@ export default function ComprasPage() {
           name: newProdName.trim(),
           price: isCustomProduct ? 0 : (parseFloat(newProdPrice) || 0),
           stock: 0,
-          image_url: imageUrl
+          image_url: imageUrl,
+          is_custom: isCustomProduct
         }
 
         setPurchaseCart(prev => {
@@ -438,37 +384,41 @@ export default function ComprasPage() {
         setPurchaseQty(1)
         setPurchaseCost('')
 
-      } catch (err) {
-        console.error("Error al procesar imagen o producto:", err)
-        showToast("Ocurrió un error al procesar el producto nuevo.", 'error')
-      } finally {
-        setUploadingImage(false)
-      }
-
-    } else {
-      if (!selectedProductToAdd) return showToast("Selecciona un producto.", 'error')
-      const prod = products.find(p => p.id === selectedProductToAdd)
-      if (!prod) return
-
-      const finalCost = cost || Number(prod.price) || 0
-
-      setPurchaseCart(prev => {
-        const existing = prev.find(item => item.id === prod.id)
-        if (existing) {
-          return prev.map(item => item.id === prod.id ? { ...item, quantity: item.quantity + qty, cost: finalCost } : item)
+      } else {
+        if (!selectedProductToAdd) {
+          showToast("Selecciona un producto.", 'error')
+          setAddingToCart(false)
+          return
         }
-        return [...prev, { ...prod, quantity: qty, cost: finalCost }]
-      })
+        const prod = products.find(p => p.id === selectedProductToAdd)
+        if (!prod) {
+          setAddingToCart(false)
+          return
+        }
 
-      setSelectedProductToAdd('')
-      setPurchaseQty(1)
-      setPurchaseCost('')
+        const finalCost = cost || Number(prod.price) || 0
+
+        setPurchaseCart(prev => {
+          const existing = prev.find(item => item.id === prod.id)
+          if (existing) {
+            return prev.map(item => item.id === prod.id ? { ...item, quantity: item.quantity + qty, cost: finalCost } : item)
+          }
+          return [...prev, { ...prod, quantity: qty, cost: finalCost }]
+        })
+
+        setSelectedProductToAdd('')
+        setPurchaseQty(1)
+        setPurchaseCost('')
+      }
+    } catch (err) {
+      showToast("Ocurrió un error al procesar el producto.", 'error')
+    } finally {
+      setAddingToCart(false)
     }
   }
 
   const totalPurchaseAmount = purchaseCart.reduce((acc, item) => acc + (item.cost * item.quantity), 0)
 
-  // VALIDACIÓN DE LÍMITE DE CRÉDITO POR SUCURSAL AL REGISTRAR COMPRA
   const handleSavePurchase = async () => {
     if (!selectedSupplier) return showToast("Selecciona un proveedor.", 'error')
     if (purchaseCart.length === 0) return showToast("Agrega al menos un producto a la orden de compra.", 'error')
@@ -510,7 +460,6 @@ export default function ComprasPage() {
       loadProducts(businessId, branchId)
       setActiveTab('history')
     } catch (err: any) {
-      // Captura y muestra el mensaje exacto devuelto por la validación de Supabase si se supera el límite de crédito
       showToast(err.message || "Error crítico al registrar la compra.", 'error')
     } finally {
       setSavingPurchase(false)
@@ -550,78 +499,81 @@ export default function ComprasPage() {
     }
   }
 
+  const handleLogout = async () => {
+    localStorage.removeItem('currentBusiness')
+    localStorage.removeItem('currentStaff')
+    await supabase.auth.signOut()
+    router.push('/')
+  }
+
   const themeBg = isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-slate-100 text-slate-900'
   const panelBg = isDarkMode ? 'bg-[#1e293b] border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900 shadow-md'
   const subPanelBg = isDarkMode ? 'bg-[#0f172a] border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
   const inputBg = isDarkMode ? 'bg-[#0f172a] text-white border-slate-600' : 'bg-white text-slate-900 border-slate-300'
 
   return (
-    <div className={`min-h-screen p-2 md:p-4 flex flex-col notranslate pb-20 lg:pb-4 ${themeBg}`} translate="no">
+    <div className={`min-h-screen p-2 md:p-4 flex flex-col notranslate pb-20 lg:pb-4 relative ${themeBg}`} translate="no">
       
-      {/* TOAST FLOTANTE DE NOTIFICACIONES */}
+      {/* TOAST FLOTANTE PROFESIONAL */}
       {toast && (
         <div className="fixed top-5 right-5 z-[99999] animate-bounce">
           <div className={`px-5 py-3 rounded-xl shadow-2xl border font-bold text-sm flex items-center gap-3 ${
-            toast.type === 'success' ? 'bg-emerald-600 text-white border-emerald-400 shadow-emerald-950/50' :
-            toast.type === 'error' ? 'bg-red-600 text-white border-red-400 shadow-red-950/50' :
-            'bg-amber-600 text-white border-amber-400 shadow-amber-950/50'
+            toast.type === 'success' ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-red-600 text-white border-red-400'
           }`}>
-            <span>{toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : 'ℹ️'}</span>
+            <span>{toast.type === 'success' ? '✅' : '❌'}</span>
             <span>{toast.message}</span>
           </div>
         </div>
       )}
 
-      {/* BARRA SUPERIOR */}
-      <header className={`p-3 rounded-lg shadow mb-4 flex flex-wrap justify-between items-center gap-2 border w-full ${panelBg}`}>
+      {/* HEADER */}
+      <header className={`p-3 rounded-lg shadow mb-4 flex justify-between items-center border w-full ${panelBg}`}>
         <div className="flex items-center gap-2.5">
           <button 
             onClick={() => setIsDrawerOpen(true)}
             className="p-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center shadow transition-colors"
+            title="Menú y Herramientas"
           >
             ☰
           </button>
-          <h1 className="text-xs md:text-sm font-bold text-emerald-500">📦 Módulo de Proveedores y Compras</h1>
+          <div>
+            <h1 className="text-xs md:text-sm font-bold text-emerald-500">📦 Módulo de Proveedores y Compras</h1>
+            <p className="text-[10px] opacity-75">Control de entradas y cuentas por pagar ({staffRole.toUpperCase()})</p>
+          </div>
         </div>
-        
-        <button 
-          onClick={toggleTheme}
-          className={`p-2 rounded-lg text-sm font-semibold border transition-colors ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}
-        >
-          {isDarkMode ? '☀️' : '🌙'}
-        </button>
+
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => router.push('/inventario')}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-bold shadow transition-colors flex items-center gap-1.5"
+          >
+            📋 Ir a Inventario
+          </button>
+          <button 
+            onClick={toggleTheme} 
+            className={`p-2 rounded-lg text-sm font-semibold border transition-colors ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}
+            title={isDarkMode ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro'}
+          >
+            {isDarkMode ? '☀️' : '🌙'}
+          </button>
+        </div>
       </header>
 
       {/* PESTAÑAS */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        <button 
-          onClick={() => setActiveTab('suppliers')} 
-          className={`px-4 py-2 rounded-lg text-xs md:text-sm font-bold transition-colors ${activeTab === 'suppliers' ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} border`}`}
-        >
-          👥 Proveedores
-        </button>
-        <button 
-          onClick={() => setActiveTab('newPurchase')} 
-          className={`px-4 py-2 rounded-lg text-xs md:text-sm font-bold transition-colors ${activeTab === 'newPurchase' ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} border`}`}
-        >
-          ➕ Registrar Compra / Ingreso
-        </button>
-        <button 
-          onClick={() => setActiveTab('history')} 
-          className={`px-4 py-2 rounded-lg text-xs md:text-sm font-bold transition-colors ${activeTab === 'history' ? 'bg-emerald-600 text-white shadow' : `${subPanelBg} border`}`}
-        >
-          📋 Historial y Cuentas por Pagar
-        </button>
+      <div className="flex gap-2 mb-4">
+        <button onClick={() => setActiveTab('suppliers')} className={`px-4 py-2 rounded-lg text-xs md:text-sm font-bold ${activeTab === 'suppliers' ? 'bg-emerald-600 text-white' : `${subPanelBg} border`}`}>👥 Proveedores</button>
+        <button onClick={() => setActiveTab('newPurchase')} className={`px-4 py-2 rounded-lg text-xs md:text-sm font-bold ${activeTab === 'newPurchase' ? 'bg-emerald-600 text-white' : `${subPanelBg} border`}`}>➕ Registrar Compra</button>
+        <button onClick={() => setActiveTab('history')} className={`px-4 py-2 rounded-lg text-xs md:text-sm font-bold ${activeTab === 'history' ? 'bg-emerald-600 text-white' : `${subPanelBg} border`}`}>📋 Historial y Cuentas por Pagar</button>
       </div>
 
-      {/* CONTENIDO PROVEEDORES */}
+      {/* TAB PROVEEDORES */}
       {activeTab === 'suppliers' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <form onSubmit={handleCreateSupplier} className={`p-5 rounded-lg border space-y-3 h-fit ${panelBg}`}>
             <h2 className="text-base font-bold text-emerald-500 mb-2">Nuevo Proveedor</h2>
             <div>
               <label className="text-xs opacity-75 block mb-1">Empresa / Proveedor *</label>
-              <input type="text" value={supName} onChange={e => setSupName(e.target.value)} placeholder="Ej. Distribuidora El Tornillo" className={`w-full border p-2.5 rounded text-sm outline-none focus:border-emerald-500 ${inputBg}`} required />
+              <input type="text" value={supName} onChange={e => setSupName(e.target.value)} placeholder="Ej. Distribuidora El Tornillo" className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`} required />
             </div>
             <div>
               <label className="text-xs opacity-75 block mb-1">Persona de Contacto</label>
@@ -663,58 +615,62 @@ export default function ComprasPage() {
         </div>
       )}
 
-      {/* CONTENIDO NUEVA COMPRA */}
+      {/* TAB NUEVA COMPRA */}
       {activeTab === 'newPurchase' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className={`p-5 rounded-lg border space-y-4 ${panelBg}`}>
             <h2 className="text-base font-bold text-emerald-500">Datos de la Factura / Compra</h2>
             <div>
               <label className="text-xs opacity-75 block mb-1">Sucursal Destino</label>
-              <select value={branchId} onChange={e => { const newBr = e.target.value; setBranchId(newBr); loadProducts(businessId, newBr); }} className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`}>
+              <select value={branchId} onChange={e => { setBranchId(e.target.value); loadProducts(businessId, e.target.value); }} className={`w-full border p-2.5 rounded text-sm ${inputBg}`}>
                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs opacity-75 block mb-1">Proveedor *</label>
-              <select value={selectedSupplier} onChange={e => setSelectedSupplier(e.target.value)} className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`}>
+              <select value={selectedSupplier} onChange={e => setSelectedSupplier(e.target.value)} className={`w-full border p-2.5 rounded text-sm ${inputBg}`}>
                 <option value="">-- Selecciona Proveedor --</option>
                 {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs opacity-75 block mb-1">No. de Factura / Documento</label>
-              <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} placeholder="Ej. F-98765" className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`} />
+              <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} placeholder="Ej. F-98765" className={`w-full border p-2.5 rounded text-sm ${inputBg}`} />
             </div>
 
             <div>
               <label className="text-xs opacity-75 block mb-1">Forma de Pago *</label>
               <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => setPurchasePaymentMethod('Contado')} className={`py-2 rounded text-xs font-bold transition-colors ${purchasePaymentMethod === 'Contado' ? 'bg-emerald-600 text-white shadow' : 'bg-slate-700 text-slate-300'}`}>💵 Contado</button>
-                <button type="button" onClick={() => setPurchasePaymentMethod('Crédito')} className={`py-2 rounded text-xs font-bold transition-colors ${purchasePaymentMethod === 'Crédito' ? 'bg-amber-600 text-white shadow' : 'bg-slate-700 text-slate-300'}`}>📋 Crédito</button>
+                <button type="button" onClick={() => setPurchasePaymentMethod('Contado')} className={`py-2 rounded text-xs font-bold ${purchasePaymentMethod === 'Contado' ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300'}`}>💵 Contado</button>
+                <button type="button" onClick={() => setPurchasePaymentMethod('Crédito')} className={`py-2 rounded text-xs font-bold ${purchasePaymentMethod === 'Crédito' ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-300'}`}>📋 Crédito</button>
               </div>
             </div>
 
             {purchasePaymentMethod === 'Crédito' && (
               <div>
                 <label className="text-xs opacity-75 block mb-1">Fecha Límite de Pago *</label>
-                <input 
-                  type="date" 
-                  min={new Date().toISOString().split('T')[0]} 
-                  value={purchaseDueDate} 
-                  onChange={e => setPurchaseDueDate(e.target.value)} 
-                  className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`} 
-                  required 
-                />
+                <input type="date" min={new Date().toISOString().split('T')[0]} value={purchaseDueDate} onChange={e => setPurchaseDueDate(e.target.value)} className={`w-full border p-2.5 rounded text-sm ${inputBg}`} required />
               </div>
             )}
 
             <div className="pt-4 border-t border-opacity-50">
               <div className="flex justify-between items-center mb-3">
-                <span className="text-sm font-bold opacity-80">Total Compra:</span>
+                <span className="text-sm font-bold">Total Compra:</span>
                 <span className="text-xl font-extrabold text-emerald-500" translate="no">Q {totalPurchaseAmount.toFixed(2)}</span>
               </div>
-              <button onClick={handleSavePurchase} disabled={savingPurchase} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 py-3 rounded-lg font-bold text-sm shadow text-white transition-colors">
-                {savingPurchase ? 'Registrando...' : '💾 Registrar Compra e Ingresar al Inventario'}
+              <button 
+                onClick={handleSavePurchase} 
+                disabled={savingPurchase || purchaseCart.length === 0} 
+                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed py-3 rounded-lg font-bold text-sm text-white shadow transition-all flex items-center justify-center gap-2"
+              >
+                {savingPurchase ? (
+                  <>
+                    <span className="animate-spin">⏳</span>
+                    <span>Registrando inventario y cuentas...</span>
+                  </>
+                ) : (
+                  '💾 Registrar Compra e Ingresar al Inventario'
+                )}
               </button>
             </div>
           </div>
@@ -723,8 +679,8 @@ export default function ComprasPage() {
             <h2 className="text-base font-bold text-emerald-500">Agregar Artículos a la Compra</h2>
             <div className={`grid grid-cols-1 sm:grid-cols-4 gap-2 items-end p-3 rounded border ${subPanelBg}`}>
               <div className="sm:col-span-2">
-                <label className="text-xs opacity-75 block mb-1">Producto (Catálogo Unificado)</label>
-                <select value={selectedProductToAdd} onChange={e => setSelectedProductToAdd(e.target.value)} className={`w-full border p-2 rounded text-sm outline-none ${inputBg}`}>
+                <label className="text-xs opacity-75 block mb-1">Producto</label>
+                <select value={selectedProductToAdd} onChange={e => setSelectedProductToAdd(e.target.value)} className={`w-full border p-2 rounded text-sm ${inputBg}`}>
                   <option value="">-- Seleccionar Producto --</option>
                   <option value="NEW">✨ [+ Crear Nuevo Producto]</option>
                   {products.map(p => <option key={p.id} value={p.id}>{p.name} (Stock: {p.stock})</option>)}
@@ -735,61 +691,74 @@ export default function ComprasPage() {
                 <>
                   <div className="sm:col-span-2">
                     <label className="text-xs opacity-75 block mb-1">Nombre Nuevo Producto *</label>
-                    <input type="text" value={newProdName} onChange={e => setNewProdName(e.target.value)} placeholder="Nombre del artículo" className={`w-full border p-2 rounded text-sm outline-none ${inputBg}`} />
+                    <input type="text" value={newProdName} onChange={e => setNewProdName(e.target.value)} placeholder="Nombre del artículo" className={`w-full border p-2 rounded text-sm ${inputBg}`} />
                   </div>
-                  <div className="sm:col-span-full flex items-center gap-2 py-1">
+                  
+                  <div className="sm:col-span-full flex items-center gap-2 p-3 rounded border bg-slate-900/40 border-slate-700">
                     <input type="checkbox" id="isCustomCheck" checked={isCustomProduct} onChange={e => setIsCustomProduct(e.target.checked)} className="w-4 h-4 accent-emerald-500 cursor-pointer" />
-                    <label htmlFor="isCustomCheck" className="text-xs font-semibold cursor-pointer select-none">Es un producto personalizado (No requiere precio de venta fijo)</label>
+                    <label htmlFor="isCustomCheck" className="text-xs font-semibold cursor-pointer select-none text-emerald-400">
+                      ¿Es un producto personalizable o de precio/medida abierta?
+                    </label>
                   </div>
+
                   {!isCustomProduct && (
                     <div>
                       <label className="text-xs opacity-75 block mb-1">Precio Venta (Q) *</label>
-                      <input type="number" step="0.01" value={newProdPrice} onChange={e => setNewProdPrice(e.target.value)} placeholder="0.00" className={`w-full border p-2 rounded text-sm outline-none ${inputBg}`} />
+                      <input type="number" step="0.01" value={newProdPrice} onChange={e => setNewProdPrice(e.target.value)} placeholder="0.00" className={`w-full border p-2 rounded text-sm ${inputBg}`} />
                     </div>
                   )}
+
                   <div className={isCustomProduct ? 'sm:col-span-2' : ''}>
                     <div className="flex justify-between items-center mb-1">
                       <label className="text-xs opacity-75">Categoría</label>
-                      <button type="button" onClick={() => setShowNewCategoryModal(true)} className="text-emerald-500 hover:opacity-75 font-bold text-[10px]">+ Crear Nueva</button>
+                      <button type="button" onClick={() => setShowNewCategoryModal(true)} className="text-emerald-500 font-bold text-[10px]">+ Crear Nueva</button>
                     </div>
-                    <select value={newProdCategory} onChange={e => setNewProdCategory(e.target.value)} className={`w-full border p-2 rounded text-sm outline-none ${inputBg}`}>
+                    <select value={newProdCategory} onChange={e => setNewProdCategory(e.target.value)} className={`w-full border p-2 rounded text-sm ${inputBg}`}>
                       <option value="">-- Sin Categoría --</option>
                       {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
+
                   <div className="sm:col-span-full">
                     <label className="text-xs opacity-75 block mb-1">Imagen del Producto</label>
                     <div className="flex items-center gap-3">
-                      <label className="cursor-pointer bg-slate-700 hover:bg-slate-600 text-emerald-300 border border-slate-500 px-4 py-2 rounded text-xs font-semibold transition-colors shadow flex items-center gap-2">
+                      <label className="cursor-pointer bg-slate-700 text-emerald-300 px-4 py-2 rounded text-xs font-semibold">
                         📷 Seleccionar Imagen
                         <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
                       </label>
-                      <span className="text-xs opacity-80 truncate max-w-xs">{imageFile ? imageFile.name : 'Ningún archivo seleccionado'}</span>
+                      <span className="text-xs opacity-80">{imageFile ? imageFile.name : 'Ningún archivo seleccionado'}</span>
                     </div>
-                    {imagePreview && <div className="mt-2 relative w-20 h-20 rounded border overflow-hidden shadow"><img src={imagePreview} alt="Vista previa" className="w-full h-full object-cover" /></div>}
+                    {imagePreview && <div className="mt-2 w-20 h-20 rounded border overflow-hidden"><img src={imagePreview} alt="Preview" className="w-full h-full object-cover" /></div>}
                   </div>
                 </>
               )}
 
               <div>
                 <label className="text-xs opacity-75 block mb-1">Cantidad</label>
-                <input type="number" min="1" value={purchaseQty} onChange={e => setPurchaseQty(Number(e.target.value))} className={`w-full border p-2 rounded text-sm outline-none ${inputBg}`} />
+                <input type="number" min="1" value={purchaseQty} onChange={e => setPurchaseQty(Number(e.target.value))} className={`w-full border p-2 rounded text-sm ${inputBg}`} />
               </div>
               <div>
                 <label className="text-xs opacity-75 block mb-1">Costo Unitario (Q)</label>
-                <input type="number" step="0.01" value={purchaseCost} onChange={e => setPurchaseCost(e.target.value)} placeholder="0.00" className={`w-full border p-2 rounded text-sm outline-none ${inputBg}`} />
+                <input type="number" step="0.01" value={purchaseCost} onChange={e => setPurchaseCost(e.target.value)} placeholder="0.00" className={`w-full border p-2 rounded text-sm ${inputBg}`} />
               </div>
-              <button onClick={addProductToPurchaseCart} disabled={uploadingImage} className="sm:col-span-full bg-blue-600 hover:bg-blue-500 py-2 rounded text-sm font-bold mt-1 text-white shadow">+ Agregar al Detalle</button>
+
+              <button 
+                onClick={addProductToPurchaseCart} 
+                disabled={uploadingImage || addingToCart} 
+                className="sm:col-span-full bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:cursor-not-allowed py-2 rounded text-sm font-bold text-white shadow transition-all"
+              >
+                {uploadingImage || addingToCart ? 'Procesando...' : '+ Agregar al Detalle'}
+              </button>
             </div>
 
-            <div className="space-y-2 overflow-y-auto max-h-[35vh] pr-1">
+            <div className="space-y-2 overflow-y-auto max-h-[35vh]">
               {purchaseCart.length === 0 ? (
-                <p className="opacity-75 text-sm text-center py-6">No hay artículos agregados a la orden.</p>
+                <p className="opacity-75 text-sm text-center py-6">No hay artículos agregados.</p>
               ) : (
                 purchaseCart.map(item => (
                   <div key={item.id} className={`p-3 rounded border flex justify-between items-center text-sm ${subPanelBg}`}>
                     <div>
-                      <p className="font-bold">{item.name}</p>
+                      <p className="font-bold">{item.name} {item.is_custom && <span className="text-[9px] bg-sky-500/20 text-sky-400 px-1.5 py-0.5 rounded ml-1">Personalizable</span>}</p>
                       <p className="text-xs opacity-85">Cant: <span className="text-emerald-500 font-bold">{item.quantity}</span> x Q {item.cost}</p>
                     </div>
                     <span className="font-bold text-emerald-500 text-base" translate="no">Q {(item.quantity * item.cost).toFixed(2)}</span>
@@ -801,14 +770,14 @@ export default function ComprasPage() {
         </div>
       )}
 
-      {/* HISTORIAL Y CUENTAS POR PAGAR */}
+      {/* TAB HISTORIAL Y CUENTAS POR PAGAR */}
       {activeTab === 'history' && (
         <div className={`p-5 rounded-lg border space-y-4 ${panelBg}`}>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-            <h2 className="text-base font-bold text-emerald-500">Historial de Compras y Cuentas por Pagar (Click para ver Detalle y Abonos)</h2>
+            <h2 className="text-base font-bold text-emerald-500">Historial de Compras y Cuentas por Pagar</h2>
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <span className="text-xs opacity-75 whitespace-nowrap">Filtrar Sucursal:</span>
-              <select value={historyBranchFilter} onChange={e => { setHistoryBranchFilter(e.target.value); loadPurchasesHistory(businessId, e.target.value); }} className={`border p-2 rounded text-xs outline-none ${inputBg} w-full sm:w-48`}>
+              <span className="text-xs opacity-75">Filtrar Sucursal:</span>
+              <select value={historyBranchFilter} onChange={e => { setHistoryBranchFilter(e.target.value); loadPurchasesHistory(businessId, e.target.value); }} className={`border p-2 rounded text-xs ${inputBg} w-full sm:w-48`}>
                 <option value="ALL">🏢 Todas las Sucursales</option>
                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
@@ -817,14 +786,13 @@ export default function ComprasPage() {
 
           <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
             {purchasesHistory.length === 0 ? (
-              <p className="opacity-75 text-sm text-center py-8">No hay compras registradas para esta selección.</p>
+              <p className="opacity-75 text-sm text-center py-8">No hay compras registradas.</p>
             ) : (
               purchasesHistory.map(p => (
                 <div 
                   key={p.id} 
                   onClick={() => openPurchaseDetailsModal(p)}
                   className={`p-4 rounded border flex flex-col md:flex-row justify-between items-start md:items-center gap-3 text-sm cursor-pointer transition-all hover:border-emerald-500 ${subPanelBg}`}
-                  title="Haz clic para ver productos y abonos de esta factura"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -837,17 +805,13 @@ export default function ComprasPage() {
                       </span>
                       <span className="text-[10px] bg-slate-700 px-2 py-0.5 rounded text-slate-300 font-semibold">📍 {p.branch_name}</span>
                     </div>
-                    <p className="text-xs opacity-80">
-                      Factura: <span className="text-amber-500 font-mono">{p.invoice_number}</span> | Fecha: {new Date(p.created_at).toLocaleString()}
-                    </p>
+                    <p className="text-xs opacity-80">Factura: <span className="text-amber-500 font-mono">{p.invoice_number}</span> | Fecha: {new Date(p.created_at).toLocaleString()}</p>
                     {p.payment_method === 'Crédito' ? (
                       <p className="text-xs font-semibold text-amber-400">
                         Crédito Vence: {p.due_date || 'N/A'} | Saldo Pendiente: <strong className="text-red-400">Q {p.balance ?? p.total_amount}</strong>
                       </p>
                     ) : (
-                      <p className="text-xs font-semibold text-emerald-400">
-                        Pago al Contado
-                      </p>
+                      <p className="text-xs font-semibold text-emerald-400">Pago al Contado</p>
                     )}
                   </div>
 
@@ -877,46 +841,91 @@ export default function ComprasPage() {
         </div>
       )}
 
-      {/* MODAL PARA VER PRODUCTOS DE LA COMPRA Y MOVIMIENTO DE ABONOS */}
+      {/* MENÚ LATERAL DESLIZANTE (☰) CON VALIDACIÓN DE ROL */}
+      {isDrawerOpen && (
+        <div className="fixed inset-0 bg-black/70 flex z-[9999]" onClick={() => setIsDrawerOpen(false)}>
+          <div 
+            className={`w-[380px] md:w-[420px] h-full p-6 flex flex-col shadow-2xl border-r ${panelBg}`}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4 pb-3 border-b border-opacity-50">
+              <h2 className="text-lg font-bold text-emerald-500">🛠️ Navegación General</h2>
+              <button onClick={() => setIsDrawerOpen(false)} className="text-xl font-bold opacity-75 hover:opacity-100 p-1">✕</button>
+            </div>
+
+            <div className="space-y-3 flex-1 overflow-y-auto pr-1 text-xs">
+              <div className="space-y-2">
+                <p className="font-bold text-emerald-500 text-sm">Módulos Permitidos</p>
+                
+                <button onClick={() => { setIsDrawerOpen(false); router.push('/inventario'); }} className="w-full bg-emerald-600 hover:bg-emerald-500 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
+                  <span>📋 Ir al Inventario</span>
+                  <span>➔</span>
+                </button>
+
+                {staffRole.toLowerCase() === 'dueño' || staffRole.toLowerCase() === 'admin' ? (
+                  <>
+                    <button onClick={() => { setIsDrawerOpen(false); router.push('/cajero'); }} className="w-full bg-blue-600 hover:bg-blue-500 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
+                      <span>💵 Módulo de Caja</span>
+                      <span>➔</span>
+                    </button>
+                    <button onClick={() => { setIsDrawerOpen(false); router.push('/compras'); }} className="w-full bg-amber-600 hover:bg-amber-500 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
+                      <span>📦 Módulo de Compras</span>
+                      <span>➔</span>
+                    </button>
+                  </>
+                ) : (
+                  <div className="p-3 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-400 text-[11px] italic">
+                    🔒 Las opciones de Caja y Administración general están restringidas para tu rol ({staffRole}).
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-3 border-t border-opacity-50 space-y-2">
+                <p className="font-bold text-emerald-500 text-sm">Sesión</p>
+                <button onClick={handleLogout} className="w-full bg-red-600 hover:bg-red-500 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left">
+                  🚪 Cerrar Sesión
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DETALLES DE COMPRA Y ABONOS */}
       {viewingPaymentsPurchase && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" style={{ zIndex: 99999 }}>
           <div className={`p-6 rounded-xl border border-emerald-500 w-full max-w-2xl shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto ${panelBg}`}>
             <div className="flex justify-between items-center border-b pb-2 border-opacity-50">
               <div>
                 <h3 className="text-base font-bold text-emerald-500">📦 Detalle de Compra y Abonos</h3>
-                <p className="text-xs opacity-75">Factura: <span className="text-amber-400 font-mono">{viewingPaymentsPurchase.invoice_number}</span> | Total: Q {viewingPaymentsPurchase.total_amount} | Saldo: <strong className="text-red-400">Q {viewingPaymentsPurchase.balance}</strong></p>
+                <p className="text-xs opacity-75">Factura: <span className="text-amber-400 font-mono">{viewingPaymentsPurchase.invoice_number}</span> | Saldo: <strong className="text-red-400">Q {viewingPaymentsPurchase.balance}</strong></p>
               </div>
-              <button onClick={() => setViewingPaymentsPurchase(null)} className="font-bold text-base opacity-75 hover:opacity-100">✕</button>
+              <button onClick={() => setViewingPaymentsPurchase(null)} className="font-bold text-base">✕</button>
             </div>
 
             {loadingModalData ? (
-              <p className="text-center py-8 text-xs opacity-75">Cargando información detallada...</p>
+              <p className="text-center py-8 text-xs opacity-75">Cargando...</p>
             ) : (
               <div className="space-y-5">
                 <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-2">🛒 Artículos en esta Factura</h4>
-                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                    {purchaseItemsList.length === 0 ? (
-                      <p className="text-xs opacity-75 italic">No hay productos registrados en el detalle.</p>
-                    ) : (
-                      purchaseItemsList.map((item: any, idx: number) => (
-                        <div key={item.id || idx} className={`p-2.5 rounded border text-xs flex justify-between items-center ${subPanelBg}`}>
-                          <div>
-                            <p className="font-bold">{item.product_name || 'Artículo de Compra'}</p>
-                            <p className="opacity-75">Cantidad: <span className="text-emerald-400 font-bold">{item.quantity}</span> x Costo Unitario: Q {item.cost_price}</p>
-                          </div>
-                          <span className="font-bold text-emerald-400" translate="no">Q {(item.quantity * item.cost_price).toFixed(2)}</span>
+                  <h4 className="text-xs font-bold uppercase text-emerald-400 mb-2">🛒 Artículos en esta Factura</h4>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {purchaseItemsList.map((item: any, idx: number) => (
+                      <div key={item.id || idx} className={`p-2.5 rounded border text-xs flex justify-between items-center ${subPanelBg}`}>
+                        <div>
+                          <p className="font-bold">{item.product_name}</p>
+                          <p className="opacity-75">Cant: {item.quantity} x Costo: Q {item.cost_price}</p>
                         </div>
-                      ))
-                    )}
+                        <span className="font-bold text-emerald-400" translate="no">Q {(item.quantity * item.cost_price).toFixed(2)}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-
                 <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400 mb-2">💳 Historial de Abonos Realizados</h4>
-                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  <h4 className="text-xs font-bold uppercase text-amber-400 mb-2">💳 Historial de Abonos</h4>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
                     {purchasePaymentsList.length === 0 ? (
-                      <p className="text-xs opacity-75 italic">No hay abonos registrados para esta factura (o fue pagada al contado).</p>
+                      <p className="text-xs opacity-75 italic">No hay abonos registrados.</p>
                     ) : (
                       purchasePaymentsList.map((pay: any, idx: number) => (
                         <div key={pay.id || idx} className={`p-2.5 rounded border text-xs space-y-1 ${subPanelBg}`}>
@@ -925,7 +934,6 @@ export default function ComprasPage() {
                             <span className="text-emerald-500">Q {pay.amount}</span>
                           </div>
                           <p className="opacity-80">Método: <strong>{pay.payment_method}</strong> | Ref: {pay.reference || 'N/A'}</p>
-                          {pay.notes && <p className="opacity-75 italic">Notas: {pay.notes}</p>}
                           <p className="text-[10px] opacity-60">Fecha: {new Date(pay.created_at).toLocaleString()}</p>
                         </div>
                       ))
@@ -934,39 +942,33 @@ export default function ComprasPage() {
                 </div>
               </div>
             )}
-
-            <div className="pt-2 border-t border-opacity-50 flex justify-end">
-              <button onClick={() => setViewingPaymentsPurchase(null)} className="bg-slate-600 hover:bg-slate-500 px-5 py-2 rounded text-xs font-bold text-white">
-                Cerrar Detalle
-              </button>
+            <div className="pt-2 flex justify-end">
+              <button onClick={() => setViewingPaymentsPurchase(null)} className="bg-slate-600 px-5 py-2 rounded text-xs font-bold text-white">Cerrar</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL PARA REGISTRAR ABONO A PROVEEDOR */}
+      {/* MODAL REGISTRAR ABONO */}
       {selectedPurchaseForPayment && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" style={{ zIndex: 99999 }}>
           <div className={`p-6 rounded-xl border border-emerald-500 w-full max-w-md shadow-2xl space-y-4 ${panelBg}`}>
-            <div className="flex justify-between items-center border-b pb-2 border-opacity-50">
+            <div className="flex justify-between items-center border-b pb-2">
               <h3 className="text-base font-bold text-emerald-500">💳 Registrar Abono a Proveedor</h3>
-              <button onClick={() => setSelectedPurchaseForPayment(null)} className="font-bold text-base opacity-75 hover:opacity-100">✕</button>
+              <button onClick={() => setSelectedPurchaseForPayment(null)} className="font-bold">✕</button>
             </div>
-
             <div className={`p-3 rounded border text-xs space-y-1 ${subPanelBg}`}>
               <p className="font-bold">Factura: {selectedPurchaseForPayment.invoice_number}</p>
-              <p>Total Factura: Q {selectedPurchaseForPayment.total_amount}</p>
-              <p className="text-amber-400 font-bold text-sm">Saldo Pendiente Actual: Q {selectedPurchaseForPayment.balance}</p>
+              <p className="text-amber-400 font-bold text-sm">Saldo Pendiente: Q {selectedPurchaseForPayment.balance}</p>
             </div>
-
             <form onSubmit={handleRegisterPayment} className="space-y-3 text-sm">
               <div>
                 <label className="block text-xs mb-1 opacity-75">Monto del Abono (Q) *</label>
-                <input type="number" step="0.01" max={selectedPurchaseForPayment.balance} value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} placeholder="0.00" className={`w-full border p-2.5 rounded text-sm outline-none focus:border-emerald-500 ${inputBg}`} required autoFocus />
+                <input type="number" step="0.01" max={selectedPurchaseForPayment.balance} value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} placeholder="0.00" className={`w-full border p-2.5 rounded text-sm ${inputBg}`} required autoFocus />
               </div>
               <div>
-                <label className="block text-xs mb-1 opacity-75">Forma de Pago del Abono</label>
-                <select value={paymentMethodType} onChange={e => setPaymentMethodType(e.target.value)} className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`}>
+                <label className="block text-xs mb-1 opacity-75">Forma de Pago</label>
+                <select value={paymentMethodType} onChange={e => setPaymentMethodType(e.target.value)} className={`w-full border p-2.5 rounded text-sm ${inputBg}`}>
                   <option value="Efectivo">Efectivo</option>
                   <option value="Transferencia">Transferencia Bancaria</option>
                   <option value="Tarjeta">Tarjeta</option>
@@ -974,70 +976,33 @@ export default function ComprasPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs mb-1 opacity-75">No. de Boleta / Referencia / Recibo</label>
-                <input type="text" value={paymentReference} onChange={e => setPaymentReference(e.target.value)} placeholder="Ej. REF-12345" className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`} />
+                <label className="block text-xs mb-1 opacity-75">Referencia / No. de Boleta</label>
+                <input type="text" value={paymentReference} onChange={e => setPaymentReference(e.target.value)} placeholder="Ej. REF-12345" className={`w-full border p-2.5 rounded text-sm ${inputBg}`} />
               </div>
-              <div>
-                <label className="block text-xs mb-1 opacity-75">Notas u Observaciones</label>
-                <input type="text" value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} placeholder="Ej. Segundo abono parcial..." className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`} />
-              </div>
-
               <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={submittingPayment} className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded text-sm font-bold text-white transition-colors disabled:opacity-50 shadow">
+                <button type="submit" disabled={submittingPayment} className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded text-sm font-bold text-white">
                   {submittingPayment ? 'Procesando...' : 'Confirmar Abono'}
                 </button>
-                <button type="button" onClick={() => setSelectedPurchaseForPayment(null)} className="bg-slate-600 hover:bg-slate-500 px-4 py-2.5 rounded text-sm text-white">
-                  Cancelar
-                </button>
+                <button type="button" onClick={() => setSelectedPurchaseForPayment(null)} className="bg-slate-600 px-4 py-2.5 rounded text-sm text-white">Cancelar</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* MENÚ LATERAL DESLIZANTE (☰) */}
-      {isDrawerOpen && (
-        <div className="fixed inset-0 bg-black/70 flex z-[9999]" onClick={() => setIsDrawerOpen(false)}>
-          <div className={`w-[380px] md:w-[420px] h-full p-6 flex flex-col shadow-2xl border-r ${panelBg}`} onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4 pb-3 border-b border-opacity-50">
-              <h2 className="text-lg font-bold text-emerald-500">🛠️ Navegación y Herramientas</h2>
-              <button onClick={() => setIsDrawerOpen(false)} className="text-xl font-bold opacity-75 hover:opacity-100 p-1">✕</button>
-            </div>
-            <div className="space-y-3 flex-1 overflow-y-auto pr-1 text-xs">
-              <div className="space-y-2">
-                <p className="font-bold text-emerald-500 text-sm">Módulos del Sistema</p>
-                <button onClick={() => { setIsDrawerOpen(false); router.push('/inventario'); }} className="w-full bg-emerald-700 hover:bg-emerald-600 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
-                  <span>📋 Ir a Inventario</span><span>➔</span>
-                </button>
-                <button onClick={() => { setIsDrawerOpen(false); router.push('/pos'); }} className="w-full bg-slate-700 hover:bg-slate-600 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
-                  <span>🛒 Volver al POS</span><span>➔</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL PARA CREAR NUEVA CATEGORÍA */}
+      {/* MODAL NUEVA CATEGORÍA */}
       {showNewCategoryModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" style={{ zIndex: 99999 }}>
           <div className={`p-6 rounded-xl border border-emerald-500 w-full max-w-sm shadow-2xl space-y-4 ${panelBg}`}>
-            <div className="flex justify-between items-center border-b pb-2 border-opacity-50">
+            <div className="flex justify-between items-center border-b pb-2">
               <h3 className="text-base font-bold text-emerald-500">✨ Nueva Categoría</h3>
-              <button onClick={() => setShowNewCategoryModal(false)} className="font-bold text-base opacity-75 hover:opacity-100">✕</button>
+              <button onClick={() => setShowNewCategoryModal(false)} className="font-bold">✕</button>
             </div>
             <form onSubmit={handleCreateCategory} className="space-y-3 text-sm">
-              <div>
-                <label className="block text-xs mb-1 opacity-75">Nombre (ej. Herramientas, Construcción)</label>
-                <input type="text" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder="Nombre de la categoría..." className={`w-full border p-2.5 rounded text-sm outline-none focus:border-emerald-500 ${inputBg}`} required autoFocus />
-              </div>
+              <input type="text" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder="Nombre de categoría..." className={`w-full border p-2.5 rounded text-sm ${inputBg}`} required autoFocus />
               <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={savingCategory} className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded text-sm font-bold text-white transition-colors disabled:opacity-50 shadow">
-                  {savingCategory ? 'Guardando...' : 'Guardar'}
-                </button>
-                <button type="button" onClick={() => setShowNewCategoryModal(false)} className="bg-slate-600 hover:bg-slate-500 px-4 py-2.5 rounded text-sm text-white">
-                  Cancelar
-                </button>
+                <button type="submit" disabled={savingCategory} className="flex-1 bg-emerald-600 py-2.5 rounded font-bold text-white">Guardar</button>
+                <button type="button" onClick={() => setShowNewCategoryModal(false)} className="bg-slate-600 px-4 py-2.5 rounded text-white">Cancelar</button>
               </div>
             </form>
           </div>
