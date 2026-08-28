@@ -659,9 +659,13 @@ export default function PosPage() {
     const isCustomByName = product.name && (
       product.name.toLowerCase().includes('vinil') || 
       product.name.toLowerCase().includes('personaliz') ||
-      product.name.toLowerCase().includes('manta') ||
-      product.name.toLowerCase().includes('arreglo') // Añade aquí más palabras clave si lo requieres
+      product.name.toLowerCase().includes('manta')
     );
+
+    if (!isCustomByName && product.stock <= 0) {
+      showToast("⚠️ Este producto no tiene existencias disponibles (Stock 0).", 'error')
+      return
+    }
     
     if (isCustomByName) {
       setPendingCustomProduct(product);
@@ -672,16 +676,11 @@ export default function PosPage() {
       return;
     }
 
-    if (product.stock <= 0) {
-      showToast("⚠️ Este producto no tiene existencias disponibles (Stock 0).", 'error')
-      return
-    }
-
     const staffData = JSON.parse(localStorage.getItem('currentStaff') || '{}')
     setCart(prevCart => {
       const existing = prevCart.find(item => item.id === product.id && !item.notes)
       if (existing) {
-        if (existing.quantity >= product.stock) {
+        if (!isCustomByName && existing.quantity >= product.stock) {
           showToast("No puedes agregar más de las existencias disponibles.", 'error')
           return prevCart
         }
@@ -691,7 +690,7 @@ export default function PosPage() {
       }
     })
   }
-  
+
   const handleConfirmCustomProduct = () => {
     if (!customNotesInput.trim()) return showToast("Ingresa las medidas, peso o características.", 'error');
     const customPrice = parseFloat(customPriceInput || '0');
@@ -987,7 +986,7 @@ export default function PosPage() {
 
       <div className="flex lg:hidden grid grid-cols-2 gap-2 mb-4">
         <button onClick={() => setMobileViewTab('catalog')} className={`py-2.5 rounded-xl font-bold text-xs shadow ${mobileViewTab === 'catalog' ? 'bg-emerald-600 text-white' : `${panelBg} opacity-85`}`}>🛍️ Catálogo</button>
-        <button onClick={() => setMobileViewTab('cart')} className={`py-2.5 rounded-xl font-bold text-xs shadow relative ${mobileViewTab === 'cart' ? 'bg-emerald-600 text-white' : `${panelBg} opacity-85`}`}>🛒 Ticket ({cart.reduce((a, c) => a + c.quantity, 0)})</button>
+        <button onClick={() => setMobileViewTab('cart')} className={`py-2.5 rounded-xl font-bold text-xs shadow relative ${mobileViewTab === 'cart' ? 'bg-emerald-600 text-white' : `${panelBg} opacity-85`}`}>🛒 Carrito ({cart.reduce((a, c) => a + c.quantity, 0)})</button>
       </div>
 
       {activeTab !== 'ticket' && (

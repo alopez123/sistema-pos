@@ -19,14 +19,11 @@ export default function CashierPage() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null)
   const [orderItems, setOrderItems] = useState<any[]>([])
   
-  // Estado para el Menú Lateral Deslizante (Hamburguesa ☰) y Modal Móvil
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isMobileOrderModalOpen, setIsMobileOrderModalOpen] = useState(false)
   
-  // Estado para el Tema (Modo Oscuro / Modo Claro Local)
   const [isDarkMode, setIsDarkMode] = useState(true)
 
-  // Estado para Notificaciones Flotantes (Toast) modernas
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -34,10 +31,7 @@ export default function CashierPage() {
     setTimeout(() => { setToast(null) }, 4500)
   }
 
-  // Estado para prevenir doble clic al cobrar orden
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false)
-
-  // Estado para Modal de Confirmación de Cancelación de Orden
   const [orderToCancel, setOrderToCancel] = useState<any | null>(null)
 
   useEffect(() => {
@@ -53,7 +47,6 @@ export default function CashierPage() {
     localStorage.setItem('cashier_theme', newMode ? 'dark' : 'light')
   }
   
-  // Estados para Cobro, Facturación, Vuelto y Pagos Mixtos
   const [paymentMethod, setPaymentMethod] = useState<'efectivo' | 'tarjeta' | 'mixto'>('efectivo')
   const [customerNit, setCustomerNit] = useState('CF')
   const [customerName, setCustomerName] = useState('Consumidor Final')
@@ -62,14 +55,12 @@ export default function CashierPage() {
   const [cardAmountMixed, setCardAmountMixed] = useState<string>('')
   const [loading, setLoading] = useState(false)
 
-  // Estados para Apertura y Cierre de Caja (Día)
   const [cashRegister, setCashRegister] = useState<any>(null)
   const [showOpenModal, setShowOpenModal] = useState(false)
   const [showCloseModal, setShowCloseModal] = useState(false)
   const [openingAmountInput, setOpeningAmountInput] = useState('')
   const [closingPhysicalCash, setClosingPhysicalCash] = useState('')
 
-  // Reportes del turno
   const [todaySales, setTodaySales] = useState<any[]>([])
   const [selectedSaleDetails, setSelectedSaleDetails] = useState<any[] | null>(null)
 
@@ -280,10 +271,49 @@ export default function CashierPage() {
     setCashGiven('')
     setCardAmountMixed('')
 
-    const { data, error } = await supabase.rpc('get_order_details_safe', { p_order_id: order.id })
+    const { data: itemsData, error: itemsError } = await supabase
+      .from('sale_items')
+      .select('*')
+      .eq('sale_id', order.id)
+
+    if (itemsError || !itemsData || itemsData.length === 0) {
+      setLoading(false)
+      setOrderItems([])
+      return
+    }
+
+    const productIds = itemsData.map((item: any) => item.product_id).filter(Boolean)
+    let productsMap: any = {}
+
+    if (productIds.length > 0) {
+      const { data: prodData } = await supabase
+        .from('products')
+        .select('id, name')
+        .in('id', productIds)
+
+      if (prodData) {
+        prodData.forEach((p: any) => {
+          productsMap[p.id] = p.name
+        })
+      }
+    }
+
     setLoading(false)
-    if (!error && data) setOrderItems(data)
-    else setOrderItems([])
+
+    const formattedItems = itemsData.map((item: any) => {
+      const rawPrice = item.price_at_sale ?? item.price ?? item.unit_price ?? 0
+      const itemPrice = Number(rawPrice) || 0
+      const quantity = Number(item.quantity) || 1
+
+      return {
+        product_name: productsMap[item.product_id] || item.name || 'Artículo Personalizado',
+        quantity: quantity,
+        price: itemPrice,
+        subtotal: quantity * itemPrice
+      }
+    })
+
+    setOrderItems(formattedItems)
   }
 
   async function handleNitChange(nitText: string) {
@@ -443,7 +473,6 @@ export default function CashierPage() {
   return (
     <div className={`min-h-screen p-2 md:p-4 flex flex-col w-full notranslate pb-20 lg:pb-4 relative ${themeBg}`} translate="no">
       
-      {/* TOAST FLOTANTE PROFESIONAL CON Z-INDEX SUPERIOR (999999) */}
       {toast && (
         <div className="fixed top-5 right-5 z-[999999] animate-bounce">
           <div className={`px-5 py-3 rounded-xl shadow-2xl border font-bold text-sm flex items-center gap-3 ${
@@ -455,7 +484,6 @@ export default function CashierPage() {
         </div>
       )}
 
-      {/* BARRA SUPERIOR CON TOTAL DE VENTAS Y BOTÓN MODO OSCURO/CLARO (ESTILO POS) */}
       <header className={`p-3 rounded-lg shadow mb-3 flex flex-wrap justify-between items-center gap-2 border w-full ${panelBg}`}>
         <div className="flex items-center gap-2.5">
           <button 
@@ -483,7 +511,6 @@ export default function CashierPage() {
           </div>
         </div>
 
-        {/* TOTAL DE VENTAS DEL TURNO EN LA VISTA PRINCIPAL */}
         <div className={`px-4 py-1.5 rounded-lg border flex items-center gap-3 ${subPanelBg}`}>
           <div>
             <span className="text-[10px] uppercase font-semibold opacity-70 block leading-tight">Ventas del Turno</span>
@@ -523,7 +550,6 @@ export default function CashierPage() {
             </div>
           )}
 
-          {/* ÚNICO BOTÓN DE TEMA (SOLO ICONO COMO EN EL POS) */}
           <button 
             onClick={toggleTheme} 
             className={`p-2 rounded-lg text-sm font-semibold border transition-colors ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}
@@ -534,10 +560,8 @@ export default function CashierPage() {
         </div>
       </header>
 
-      {/* DISEÑO PRINCIPAL: ÓRDENES EN ESPERA (IZQ) Y GESTIÓN/COBRO (DER) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 w-full">
         
-        {/* COLUMNA IZQUIERDA: ÓRDENES EN ESPERA */}
         <div className={`p-3 md:p-4 rounded-lg shadow border flex flex-col lg:col-span-7 order-2 lg:order-1 ${panelBg}`}>
           <div className="flex justify-between items-center mb-3 pb-2 border-b border-opacity-50 gap-2">
             <h2 className="text-sm md:text-base font-bold text-emerald-500">🎟️ Órdenes en Espera ({filteredOrders.length})</h2>
@@ -586,7 +610,6 @@ export default function CashierPage() {
           </div>
         </div>
 
-        {/* COLUMNA DERECHA: GESTIÓN Y COBRO (PC) */}
         <div className={`hidden lg:flex p-4 rounded-lg shadow border flex-col justify-between lg:col-span-5 order-1 lg:order-2 ${panelBg}`}>
           <div>
             <h2 className="text-base font-bold text-emerald-500 mb-3 pb-2 border-b border-opacity-50">💳 Detalle de Cobro</h2>
@@ -600,15 +623,19 @@ export default function CashierPage() {
                 <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
                   {loading ? (
                     <p className="text-center opacity-75 py-2">Cargando...</p>
-                  ) : orderItems.map((item, idx) => (
-                    <div key={idx} className={`p-2 rounded border flex justify-between items-center ${subPanelBg}`}>
-                      <div>
-                        <p className="font-semibold">{item.product_name}</p>
-                        <p className="opacity-75">{item.quantity} x Q {item.price}</p>
+                  ) : orderItems.length === 0 ? (
+                    <p className="text-center opacity-75 py-2">No hay items en esta orden.</p>
+                  ) : (
+                    orderItems.map((item, idx) => (
+                      <div key={idx} className={`p-2 rounded border flex justify-between items-center ${subPanelBg}`}>
+                        <div>
+                          <p className="font-semibold">{item.product_name}</p>
+                          <p className="opacity-75">{item.quantity} x Q {Number(item.price || 0).toFixed(2)}</p>
+                        </div>
+                        <span className="font-bold text-emerald-500" translate="no">Q {Number(item.subtotal || 0).toFixed(2)}</span>
                       </div>
-                      <span className="font-bold text-emerald-500" translate="no">Q {item.quantity * item.price}</span>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
 
                 <div className="space-y-2 pt-1 border-t border-opacity-50">
@@ -739,7 +766,6 @@ export default function CashierPage() {
                 <span className="text-emerald-500 text-lg" translate="no">Q {selectedOrder.total_amount}</span>
               </div>
 
-              {/* BOTÓN COBRAR CON BLOQUEO ANTI-DOBLE CLIC */}
               <button 
                 onClick={handlePayOrder}
                 disabled={isSubmittingPayment}
@@ -760,7 +786,6 @@ export default function CashierPage() {
 
       </div>
 
-      {/* MENÚ LATERAL DESLIZANTE (☰) */}
       {isDrawerOpen && (
         <div className="fixed inset-0 bg-black/70 flex z-[9999]" onClick={() => setIsDrawerOpen(false)}>
           <div 
@@ -835,7 +860,6 @@ export default function CashierPage() {
         </div>
       )}
 
-      {/* PANEL FLOTANTE MÓVIL AL SELECCIONAR ORDEN */}
       {isMobileOrderModalOpen && selectedOrder && (
         <div className="lg:hidden fixed inset-0 bg-black/85 flex items-end z-50 animate-fadeIn" onClick={() => setIsMobileOrderModalOpen(false)}>
           <div 
@@ -856,12 +880,16 @@ export default function CashierPage() {
 
                 <div className="space-y-1.5">
                   <p className="font-bold opacity-80">Productos:</p>
-                  {orderItems.map((item, idx) => (
-                    <div key={idx} className={`p-2 rounded border flex justify-between items-center ${subPanelBg}`}>
-                      <span>{item.quantity} x {item.product_name}</span>
-                      <span className="text-emerald-500 font-bold" translate="no">Q {item.quantity * item.price}</span>
-                    </div>
-                  ))}
+                  {orderItems.length === 0 ? (
+                    <p className="text-center opacity-75 py-2">No hay items en esta orden.</p>
+                  ) : (
+                    orderItems.map((item, idx) => (
+                      <div key={idx} className={`p-2 rounded border flex justify-between items-center ${subPanelBg}`}>
+                        <span>{item.quantity} x {item.product_name}</span>
+                        <span className="text-emerald-500 font-bold" translate="no">Q {Number(item.subtotal || 0).toFixed(2)}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 <div className="space-y-2 pt-1 border-t border-opacity-50">
@@ -986,7 +1014,6 @@ export default function CashierPage() {
                 <span className="text-emerald-500 text-lg" translate="no">Q {selectedOrder.total_amount}</span>
               </div>
 
-              {/* BOTÓN COBRAR MÓVIL CON BLOQUEO ANTI-DOBLE CLIC */}
               <button 
                 onClick={handlePayOrder}
                 disabled={isSubmittingPayment}
@@ -1006,7 +1033,6 @@ export default function CashierPage() {
         </div>
       )}
 
-      {/* MODAL DE CONFIRMACIÓN PARA CANCELAR ORDEN */}
       {orderToCancel && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[99999]">
           <div className={`p-6 rounded-xl border border-red-500 w-full max-w-sm shadow-2xl space-y-4 ${panelBg}`}>
