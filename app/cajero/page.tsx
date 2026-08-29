@@ -161,8 +161,40 @@ export default function CashierPage() {
 
   async function loadPendingOrders(branchId: string) {
     if (!branchId) return
-    const { data, error } = await supabase.rpc('get_pending_orders_safe', { p_branch_id: branchId })
-    if (!error && data) setPendingOrders(data)
+
+    const { data, error } = await supabase
+      .from('sales')
+      .select(`
+        id,
+        total_amount,
+        created_at,
+        status,
+        payment_method,
+        branch_id,
+        branches!inner (
+          business_id
+        )
+      `)
+      .eq('branch_id', branchId)
+      .ilike('status', 'Pendiente')
+      .ilike('payment_method', 'Contado')
+      .gt('total_amount', 10)
+      .order('created_at', { ascending: false })
+
+    if (!error && data) {
+      const formattedOrders = data.map((item: any, index: number) => ({
+        id: item.id,
+        order_number: (index + 1).toString(),
+        customer_name: item.client_name || item.customer_name || 'Consumidor Final',
+        customer_nit: item.nit || item.customer_nit || 'CF',
+        total_amount: item.total_amount,
+        created_at: item.created_at
+      }))
+      setPendingOrders(formattedOrders)
+    } else {
+      console.error('Error cargando órdenes:', error)
+      setPendingOrders([])
+    }
   }
 
   async function checkCashRegisterStatus(branchId: string, bId?: string) {
@@ -442,6 +474,11 @@ export default function CashierPage() {
   }
 
   const filteredOrders = pendingOrders.filter(order => {
+    const paymentMethodLower = (order.payment_method || '').toLowerCase()
+    if (paymentMethodLower.includes('crédito') || paymentMethodLower.includes('credito')) {
+      return false
+    }
+
     const term = searchTerm.toLowerCase().trim()
     if (!term) return true
     const orderNum = (order.order_number || '').toLowerCase()
