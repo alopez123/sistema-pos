@@ -684,7 +684,6 @@ export default function PosPage() {
         const numeroTurno = data[0].order_number;
         showToast(`✅ ¡Orden guardada! TURNO / ORDEN #${numeroTurno}`, 'success');
 
-        // SI ESTÁ ACTIVO EL SWITCH DE IMPRESIÓN, DISPARA EL PDF DEL TICKET
         if (enableTicketPrinting) {
           printTicketPdf(numeroTurno, cart, totalCart);
         }
@@ -904,7 +903,7 @@ export default function PosPage() {
   const inputBg = isDarkMode ? 'bg-[#0f172a] text-white border-slate-600' : 'bg-white text-slate-900 border-slate-300'
 
   return (
-    <div className={`min-h-screen p-3 sm:p-6 flex flex-col w-full max-w-full overflow-x-hidden notranslate ${themeBg}`} translate="no">
+    <div className={`min-h-screen p-3 sm:p-6 flex flex-col w-full max-w-full overflow-x-hidden notranslate pb-20 lg:pb-4 relative ${themeBg}`} translate="no">
       
       {toast && (
         <div className="fixed top-5 right-5 z-[9999999] animate-bounce">
@@ -1703,6 +1702,34 @@ export default function PosPage() {
         </div>
 
       </div>
+
+      {/* BARRA DE NAVEGACIÓN INFERIOR ESTILO MÓVIL (VISIBLE SOLO EN TELÉFONOS Y TABLETS) */}
+      <nav className={`lg:hidden fixed bottom-0 left-0 right-0 border-t px-2 py-2 flex justify-around items-center z-50 shadow-2xl ${panelBg}`}>
+        <button onClick={() => { setActiveTab('ticket'); setMobileViewTab('catalog'); }} className="flex flex-col items-center text-xs text-slate-400 hover:text-emerald-400">
+          <span className="text-lg">🛍️</span>
+          <span className="text-[10px] mt-0.5 font-semibold">POS</span>
+        </button>
+        
+        <button onClick={() => router.push('/cajero')} className="flex flex-col items-center text-xs text-slate-400 hover:text-emerald-400">
+          <span className="text-lg">💵</span>
+          <span className="text-[10px] mt-0.5 font-semibold">Caja</span>
+        </button>
+
+        <button onClick={() => { setActiveTab('salesReport'); loadSalesReport(businessIdState, selectedBranch); }} className="flex flex-col items-center text-xs text-slate-400 hover:text-emerald-400">
+          <span className="text-lg">📊</span>
+          <span className="text-[10px] mt-0.5 font-semibold">Reportes</span>
+        </button>
+
+        <button onClick={() => { setActiveTab('customOrders'); loadCustomOrders(businessIdState, selectedBranch); }} className="flex flex-col items-center text-xs text-slate-400 hover:text-emerald-400">
+          <span className="text-lg">🎨</span>
+          <span className="text-[10px] mt-0.5 font-semibold">Pedidos</span>
+        </button>
+
+        <button onClick={() => setShowOpsDropdown(true)} className="flex flex-col items-center text-xs text-slate-400 hover:text-emerald-400">
+          <span className="text-lg">≡</span>
+          <span className="text-[10px] mt-0.5 font-semibold">Menú</span>
+        </button>
+      </nav>
 
       {showCustomModal && pendingCustomProduct && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 999999 }}>
