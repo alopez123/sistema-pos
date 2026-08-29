@@ -182,9 +182,9 @@ export default function CashierPage() {
       .order('created_at', { ascending: false })
 
     if (!error && data) {
-      const formattedOrders = data.map((item: any, index: number) => ({
+      const formattedOrders = data.map((item: any) => ({
         id: item.id,
-        order_number: (index + 1).toString(),
+        order_number: item.id ? item.id.slice(-4).toUpperCase() : 'S/N',
         customer_name: item.client_name || item.customer_name || 'Consumidor Final',
         customer_nit: item.nit || item.customer_nit || 'CF',
         total_amount: item.total_amount,

@@ -530,6 +530,49 @@ export default function PosPage() {
 
   const totalCart = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0)
 
+  // FUNCIÓN PARA IMPRIMIR TICKET EN PDF/VENTANA SI ESTÁ ACTIVO EL SWITCH
+  const printTicketPdf = (orderNumber: string, itemsList: any[], totalAmt: number) => {
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    if (!printWindow) return;
+
+    const itemsHtml = itemsList.map(i => `
+      <tr>
+        <td style="padding: 4px 0; border-bottom: 1px dashed #ddd;">${i.quantity}x ${i.name} ${i.notes ? `<br><small>(${i.notes})</small>` : ''}</td>
+        <td style="padding: 4px 0; border-bottom: 1px dashed #ddd; text-align: right;">Q ${(i.price * i.quantity).toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Ticket #${orderNumber}</title>
+          <style>
+            body { font-family: monospace; font-size: 12px; width: 100%; margin: 0; padding: 10px; }
+            h2, p { text-align: center; margin: 5px 0; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            .total { font-size: 14px; font-weight: bold; text-align: right; margin-top: 10px; }
+          </style>
+        </head>
+        <body>
+          <h2>COMPROBANTE DE ORDEN</h2>
+          <p>Orden / Turno: <strong>#${orderNumber}</strong></p>
+          <p>Fecha: ${new Date().toLocaleString()}</p>
+          <hr style="border: dashed 1px #000;" />
+          <table>
+            ${itemsHtml}
+          </table>
+          <hr style="border: dashed 1px #000;" />
+          <p class="total">TOTAL: Q ${totalAmt.toFixed(2)}</p>
+          <p style="margin-top: 20px; font-size: 10px;">¡Gracias por su preferencia!</p>
+          <script>
+            window.onload = function() { window.print(); window.close(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   async function handleSavePendingOrder() {
     if (isSubmittingOrder) return
     if (cart.length === 0) return showToast("El carrito está vacío.", 'error')
@@ -640,6 +683,12 @@ export default function PosPage() {
       } else if (data && data.length > 0) {
         const numeroTurno = data[0].order_number;
         showToast(`✅ ¡Orden guardada! TURNO / ORDEN #${numeroTurno}`, 'success');
+
+        // SI ESTÁ ACTIVO EL SWITCH DE IMPRESIÓN, DISPARA EL PDF DEL TICKET
+        if (enableTicketPrinting) {
+          printTicketPdf(numeroTurno, cart, totalCart);
+        }
+
         setCart([]);
         setCustomerSearchQuery('');
         setCustomerFound(null);
