@@ -17,7 +17,7 @@ export default function ComprasPage() {
   const [branches, setBranches] = useState<any[]>([])
   const [staffRole, setStaffRole] = useState<string>('')
 
-  // Estado para Notificaciones Flotantes (Toast) modernas
+  // Estado para Notificaciones Flotantes (Toast) con Z-Index Máximo Absoluto
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -241,19 +241,25 @@ export default function ComprasPage() {
           const canvas = document.createElement('canvas')
           let width = img.width
           let height = img.height
+          
+          // Redimensionamiento optimizado a miniatura (máx 400px, igual que el POS)
+          const MAX_SIZE = 400
           if (width > height) {
-            if (width > 800) { height *= 800 / width; width = 800; }
+            if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
           } else {
-            if (height > 800) { width *= 800 / height; height = 800; }
+            if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
           }
+          
           canvas.width = width
           canvas.height = height
           const ctx = canvas.getContext('2d')
           ctx?.drawImage(img, 0, 0, width, height)
+          
+          // Compresión optimizada (0.65) para generar un archivo sumamente liviano
           canvas.toBlob((blob) => {
             if (blob) resolve(blob)
-            else reject(new Error('Falló compresión'))
-          }, 'image/jpeg', 0.7)
+            else reject(new Error('Falló compresión de imagen'))
+          }, 'image/jpeg', 0.65)
         }
       }
     })
@@ -328,13 +334,13 @@ export default function ComprasPage() {
         }
 
         const { data: rawNewProdId, error } = await supabase.rpc('add_product_safe', {
+          p_branch_id: branchId,
+          p_category_id: newProdCategory || null,
+          p_image_url: imageUrl,
+          p_is_custom: isCustomProduct,
           p_name: newProdName.trim(),
           p_price: isCustomProduct ? 0 : (parseFloat(newProdPrice) || 0),
-          p_stock: 0,
-          p_branch_id: branchId,
-          p_image_url: imageUrl,
-          p_category_id: newProdCategory || null,
-          p_is_custom: isCustomProduct
+          p_stock: 0
         })
 
         setUploadingImage(false)
@@ -514,9 +520,9 @@ export default function ComprasPage() {
   return (
     <div className={`min-h-screen p-2 md:p-4 flex flex-col notranslate pb-20 lg:pb-4 relative ${themeBg}`} translate="no">
       
-      {/* TOAST FLOTANTE PROFESIONAL */}
+      {/* TOAST FLOTANTE PROFESIONAL CON Z-INDEX MÁXIMO ABSOLUTO */}
       {toast && (
-        <div className="fixed top-5 right-5 z-[99999] animate-bounce">
+        <div className="fixed top-5 right-5 z-[9999999] animate-bounce">
           <div className={`px-5 py-3 rounded-xl shadow-2xl border font-bold text-sm flex items-center gap-3 ${
             toast.type === 'success' ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-red-600 text-white border-red-400'
           }`}>
@@ -841,9 +847,9 @@ export default function ComprasPage() {
         </div>
       )}
 
-      {/* MENÚ LATERAL DESLIZANTE (☰) CON VALIDACIÓN DE ROL */}
+      {/* MENÚ LATERAL DESLIZANTE (☰) CON Z-INDEX MÁXIMO ABSOLUTO */}
       {isDrawerOpen && (
-        <div className="fixed inset-0 bg-black/70 flex z-[9999]" onClick={() => setIsDrawerOpen(false)}>
+        <div className="fixed inset-0 bg-black/70 flex z-[999999]" style={{ zIndex: 999999 }} onClick={() => setIsDrawerOpen(false)}>
           <div 
             className={`w-[380px] md:w-[420px] h-full p-6 flex flex-col shadow-2xl border-r ${panelBg}`}
             onClick={e => e.stopPropagation()}
@@ -891,9 +897,9 @@ export default function ComprasPage() {
         </div>
       )}
 
-      {/* MODAL DETALLES DE COMPRA Y ABONOS */}
+      {/* MODAL DETALLES DE COMPRA Y ABONOS CON Z-INDEX MÁXIMO ABSOLUTO */}
       {viewingPaymentsPurchase && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" style={{ zIndex: 99999 }}>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[999999] p-4" style={{ zIndex: 999999 }}>
           <div className={`p-6 rounded-xl border border-emerald-500 w-full max-w-2xl shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto ${panelBg}`}>
             <div className="flex justify-between items-center border-b pb-2 border-opacity-50">
               <div>
@@ -949,9 +955,9 @@ export default function ComprasPage() {
         </div>
       )}
 
-      {/* MODAL REGISTRAR ABONO */}
+      {/* MODAL REGISTRAR ABONO CON Z-INDEX MÁXIMO ABSOLUTO */}
       {selectedPurchaseForPayment && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" style={{ zIndex: 99999 }}>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[999999] p-4" style={{ zIndex: 999999 }}>
           <div className={`p-6 rounded-xl border border-emerald-500 w-full max-w-md shadow-2xl space-y-4 ${panelBg}`}>
             <div className="flex justify-between items-center border-b pb-2">
               <h3 className="text-base font-bold text-emerald-500">💳 Registrar Abono a Proveedor</h3>
@@ -990,9 +996,9 @@ export default function ComprasPage() {
         </div>
       )}
 
-      {/* MODAL NUEVA CATEGORÍA */}
+      {/* MODAL NUEVA CATEGORÍA CON Z-INDEX MÁXIMO ABSOLUTO */}
       {showNewCategoryModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" style={{ zIndex: 99999 }}>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[999999] p-4" style={{ zIndex: 999999 }}>
           <div className={`p-6 rounded-xl border border-emerald-500 w-full max-w-sm shadow-2xl space-y-4 ${panelBg}`}>
             <div className="flex justify-between items-center border-b pb-2">
               <h3 className="text-base font-bold text-emerald-500">✨ Nueva Categoría</h3>

@@ -124,11 +124,14 @@ export default function CashierPage() {
       setBusinessId(resolvedBizId)
       setStaffId(resolvedStaffId)
       setStaffName(resolvedStaffName)
+
       if (resolvedBranchId) {
         setSelectedBranch(resolvedBranchId)
         setBranchName(resolvedBranchName)
         loadPendingOrders(resolvedBranchId)
         checkCashRegisterStatus(resolvedBranchId, resolvedBizId)
+      } else {
+        console.warn("⚠️ Advertencia: No se encontró un branch_id en la sesión actual.")
       }
       fetchBusinessInfo(resolvedBizId)
     }
@@ -159,44 +162,40 @@ export default function CashierPage() {
     }
   }
 
-  async function loadPendingOrders(branchId: string) {
+  async function loadPendingOrders(branchId: string) 
+  {
     if (!branchId) return
 
-    const { data, error } = await supabase
+    const { data: salesData, error: salesError } = await supabase
       .from('sales')
-      .select(`
-        id,
-        total_amount,
-        created_at,
-        status,
-        payment_method,
-        branch_id,
-        branches!inner (
-          business_id
-        )
-      `)
+      .select('*')
       .eq('branch_id', branchId)
       .ilike('status', 'Pendiente')
       .ilike('payment_method', 'Contado')
-      .gt('total_amount', 10)
       .order('created_at', { ascending: false })
 
-    if (!error && data) {
-      const formattedOrders = data.map((item: any) => ({
+    if (salesError || !salesData) {
+      console.error('Error cargando ventas:', salesError)
+      setPendingOrders([])
+      return
+    }
+
+    const formattedOrders = salesData.map((item: any) => {
+      const orderNum = item.order_number || item.ticket_number || (item.id ? item.id.slice(-4).toUpperCase() : 'S/N');
+
+      return {
         id: item.id,
-        order_number: item.id ? item.id.slice(-4).toUpperCase() : 'S/N',
+        order_number: orderNum.toString().startsWith('#') ? orderNum : `#${orderNum}`,
         customer_name: item.client_name || item.customer_name || 'Consumidor Final',
         customer_nit: item.nit || item.customer_nit || 'CF',
         total_amount: item.total_amount,
         created_at: item.created_at
-      }))
-      setPendingOrders(formattedOrders)
-    } else {
-      console.error('Error cargando órdenes:', error)
-      setPendingOrders([])
-    }
-  }
+      }
+    })
 
+    setPendingOrders(formattedOrders)
+  }
+  
   async function checkCashRegisterStatus(branchId: string, bId?: string) {
     const { data, error } = await supabase
       .from('cash_registers')
@@ -217,14 +216,34 @@ export default function CashierPage() {
 
   async function loadTodaySales(bId: string, branchId: string, openedAt: string) {
     if (!openedAt) return
-    const { data, error } = await supabase.rpc('get_today_sales_safe', {
-      p_business_id: bId || businessId,
-      p_branch_id: branchId,
-      p_since_timestamp: openedAt
-    })
+
+    // Consultamos todas las ventas de la sucursal desde la fecha de apertura de la caja
+    const { data, error } = await supabase
+      .from('sales')
+      .select('*')
+      .eq('branch_id', branchId)
+      .gte('created_at', openedAt)
+      .order('created_at', { ascending: false })
 
     if (!error && data) {
-      setTodaySales(data)
+      // Filtramos en memoria para excluir únicamente las que sigan estrictamente pendientes o canceladas
+      const validSales = data.filter((s: any) => {
+        const st = (s.status || '').toLowerCase()
+        return !st.includes('pend') && !st.includes('cancel')
+      })
+
+      const formattedSales = validSales.map((s: any) => ({
+        sale_id: s.id,
+        customer_nit: s.nit || s.customer_nit || 'CF',
+        customer_name: s.client_name || s.customer_name || 'Consumidor Final',
+        total_amount: s.total_amount,
+        payment_method: s.payment_method || 'efectivo'
+      }))
+
+      setTodaySales(formattedSales)
+    } else {
+      console.error('Error cargando ventas del turno:', error)
+      setTodaySales([])
     }
   }
 
@@ -238,7 +257,7 @@ export default function CashierPage() {
     const { error } = await supabase.from('cash_registers').insert({
       business_id: businessId,
       branch_id: selectedBranch,
-      opened_by: staffId || null,
+      opened_by: staffId && staffId.trim() !== '' ? staffId : null,
       opening_amount: amount,
       status: 'abierta'
     })
@@ -261,7 +280,7 @@ export default function CashierPage() {
       p_register_id: cashRegister.id,
       p_closing_amount: physicalCash,
       p_total_sales: totalSalesRecord,
-      p_staff_id: staffId || null
+      p_staff_id: staffId && staffId.trim() !== '' ? staffId : null
     })
 
     if (error) {
@@ -272,6 +291,7 @@ export default function CashierPage() {
       setClosingPhysicalCash('')
       setCashRegister(null)
       setTodaySales([])
+      loadPendingOrders(selectedBranch)
     }
   }
 

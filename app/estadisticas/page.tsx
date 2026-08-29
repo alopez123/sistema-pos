@@ -41,6 +41,8 @@ export default function EstadisticasPage() {
   const [grossMargin, setGrossMargin] = useState(0)
   const [avgTicket, setAvgTicket] = useState(0)
   const [lowStockCount, setLowStockCount] = useState(0)
+  const [accountsReceivable, setAccountsReceivable] = useState(0)
+  const [accountsPayable, setAccountsPayable] = useState(0)
   const [topProducts, setTopProducts] = useState<any[]>([])
   const [topProfitable, setTopProfitable] = useState<any[]>([])
   const [salesByDay, setSalesByDay] = useState<any[]>([])
@@ -107,6 +109,8 @@ export default function EstadisticasPage() {
         setGrossMargin(Number(data.gross_margin || 0))
         setAvgTicket(Number(data.avg_ticket || 0))
         setLowStockCount(Number(data.low_stock_count || 0))
+        setAccountsReceivable(Number(data.accounts_receivable || 0))
+        setAccountsPayable(Number(data.accounts_payable || 0))
         setTopProducts(data.top_products || [])
         setTopProfitable(data.top_profitable || [])
         setSalesByDay(data.sales_by_day || [])
@@ -197,7 +201,6 @@ export default function EstadisticasPage() {
           </div>
           
           <div className="flex items-center gap-2">
-            {/* BOTÓN INTERRUPTOR DE TEMA (SOLO ICONO) */}
             <button 
               onClick={toggleTheme}
               className={`p-2 rounded-lg text-sm font-semibold border transition-colors ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}
@@ -215,8 +218,8 @@ export default function EstadisticasPage() {
         ) : (
           <div className="space-y-4 w-full">
             
-            {/* TARJETAS KPI PRINCIPALES (6 MÉTRICAS CLAVE) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 w-full">
+            {/* TARJETAS KPI PRINCIPALES (8 MÉTRICAS CLAVE) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-3 w-full">
               <div className={`p-3.5 rounded-lg border shadow flex flex-col justify-between ${panelBg}`}>
                 <span className="text-[11px] opacity-75 uppercase font-bold">Ventas Totales</span>
                 <span className="text-lg sm:text-xl font-extrabold text-emerald-500 mt-2" translate="no">Q {totalSalesAmount.toFixed(2)}</span>
@@ -253,6 +256,18 @@ export default function EstadisticasPage() {
                   {lowStockCount} {lowStockCount === 1 ? 'item' : 'items'}
                 </span>
                 <span className="text-[10px] opacity-60 mt-1">Productos ≤ 3 en stock</span>
+              </div>
+
+              <div className={`p-3.5 rounded-lg border shadow flex flex-col justify-between ${panelBg}`}>
+                <span className="text-[11px] opacity-75 uppercase font-bold">Cuentas por Cobrar</span>
+                <span className="text-lg sm:text-xl font-extrabold text-amber-400 mt-2" translate="no">Q {accountsReceivable.toFixed(2)}</span>
+                <span className="text-[10px] opacity-60 mt-1">Créditos pendientes clientes</span>
+              </div>
+
+              <div className={`p-3.5 rounded-lg border shadow flex flex-col justify-between ${panelBg}`}>
+                <span className="text-[11px] opacity-75 uppercase font-bold">Cuentas por Pagar</span>
+                <span className="text-lg sm:text-xl font-extrabold text-red-400 mt-2" translate="no">Q {accountsPayable.toFixed(2)}</span>
+                <span className="text-[10px] opacity-60 mt-1">Saldos pendientes proveedores</span>
               </div>
             </div>
 

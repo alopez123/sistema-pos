@@ -704,18 +704,24 @@ export default function PosPage() {
   }
 
   const addToCart = (product: any) => {
-    const isCustomByName = product.name && (
-      product.name.toLowerCase().includes('vinil') || 
-      product.name.toLowerCase().includes('personaliz') ||
-      product.name.toLowerCase().includes('manta')
+    const isCustomProduct = Boolean(
+      product.is_custom || 
+      product.price === 0 || 
+      (product.name && (
+        product.name.toLowerCase().includes('vinil') || 
+        product.name.toLowerCase().includes('personaliz') ||
+        product.name.toLowerCase().includes('manta') ||
+        product.name.toLowerCase().includes('evento personalizado') ||
+        product.name.toLowerCase().includes('arreglo pequeño')
+      ))
     );
 
-    if (!isCustomByName && product.stock <= 0) {
+    if (!isCustomProduct && product.stock <= 0) {
       showToast("⚠️ Este producto no tiene existencias disponibles (Stock 0).", 'error')
       return
     }
     
-    if (isCustomByName) {
+    if (isCustomProduct) {
       setPendingCustomProduct(product);
       setCustomNotesInput('');
       setCustomPriceInput('');
@@ -728,7 +734,7 @@ export default function PosPage() {
     setCart(prevCart => {
       const existing = prevCart.find(item => item.id === product.id && !item.notes)
       if (existing) {
-        if (!isCustomByName && existing.quantity >= product.stock) {
+        if (!isCustomProduct && existing.quantity >= product.stock) {
           showToast("No puedes agregar más de las existencias disponibles.", 'error')
           return prevCart
         }
@@ -785,13 +791,19 @@ export default function PosPage() {
     const productInStock = products.find(p => p.id === productId);
     const maxStock = productInStock ? productInStock.stock : 9999;
 
-    const isCustomByName = productInStock?.name && (
-      productInStock.name.toLowerCase().includes('vinil') || 
-      productInStock.name.toLowerCase().includes('personaliz') ||
-      productInStock.name.toLowerCase().includes('manta')
+    const isCustomProduct = Boolean(
+      productInStock?.is_custom || 
+      productInStock?.price === 0 || 
+      (productInStock?.name && (
+        productInStock.name.toLowerCase().includes('vinil') || 
+        productInStock.name.toLowerCase().includes('personaliz') ||
+        productInStock.name.toLowerCase().includes('manta') ||
+        productInStock.name.toLowerCase().includes('evento personalizado') ||
+        productInStock.name.toLowerCase().includes('arreglo pequeño')
+      ))
     );
 
-    if (!isCustomByName && newQty > maxStock) {
+    if (!isCustomProduct && newQty > maxStock) {
       showToast(`⚠️ Stock máximo disponible: ${maxStock}`, 'error');
       setCart(prev => prev.map(item => item.id === productId ? { ...item, quantity: maxStock } : item));
       return;
@@ -953,14 +965,17 @@ export default function PosPage() {
                     <button onClick={() => { setShowOpsDropdown(false); setActiveTab('customOrders'); loadCustomOrders(businessIdState, selectedBranch); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
                       🎨 Pedidos Personalizados
                     </button>
+                    <button onClick={() => { setShowOpsDropdown(false); router.push('/cuentas'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      💰 Cuentas de la Sucursal
+                    </button>
                     <button onClick={() => { setShowOpsDropdown(false); router.push('/cotizaciones'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
                       📄 Cotizaciones / Proformas
                     </button>
-                    <button onClick={() => { setShowOpsDropdown(false); setActiveTab('customers'); loadCustomers(businessIdState); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
-                      👥 Directorio Clientes
-                    </button>
                     <button onClick={() => { setShowOpsDropdown(false); setActiveTab('customerLimits'); loadCustomers(businessIdState); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
                       🤝 Límite de Crédito Clientes
+                    </button>
+                    <button onClick={() => { setShowOpsDropdown(false); router.push('/clientes/reportes'); }} className="w-full text-left px-3 py-2 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                    👥 Directorio General y Expediente de Clientes
                     </button>
                   </div>
 
@@ -1011,6 +1026,7 @@ export default function PosPage() {
           </div>
 
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-thin w-full sm:w-auto justify-start sm:justify-end">
+             {/* SOLO ROL ENCARGADO O DUEÑO PUEDE VER EL BOTÓN DE CAJA */}
              {(userRole === 'encargado' || !isStaff) && (
                <button onClick={() => router.push('/cajero')} className="bg-sky-600 hover:bg-sky-500 px-3 py-2 rounded-lg font-semibold text-xs transition-colors shadow flex items-center gap-1 text-white whitespace-nowrap">💵 Caja</button>
              )}
@@ -1414,12 +1430,18 @@ export default function PosPage() {
             {showSuggestions && searchTerm.trim() !== '' && (
               <div className={`absolute left-0 right-0 mt-1 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto border ${subPanelBg}`}>
                 {filteredProducts.map(p => {
-                  const isCustomByName = p.name && (
-                    p.name.toLowerCase().includes('vinil') || 
-                    p.name.toLowerCase().includes('personaliz') ||
-                    p.name.toLowerCase().includes('manta')
+                  const isCustomProduct = Boolean(
+                    p.is_custom || 
+                    p.price === 0 || 
+                    (p.name && (
+                      p.name.toLowerCase().includes('vinil') || 
+                      p.name.toLowerCase().includes('personaliz') ||
+                      p.name.toLowerCase().includes('manta') ||
+                      p.name.toLowerCase().includes('evento personalizado') ||
+                      p.name.toLowerCase().includes('arreglo pequeño')
+                    ))
                   );
-                  const isOutOfStock = !isCustomByName && p.stock <= 0;
+                  const isOutOfStock = !isCustomProduct && p.stock <= 0;
 
                   return (
                     <button 
@@ -1437,9 +1459,9 @@ export default function PosPage() {
                     >
                       <div>
                         <span className="font-semibold">{p.name}</span>
-                        <span className={`ml-2 text-xs font-semibold ${isOutOfStock ? 'text-red-400 font-bold' : 'opacity-75'}`}>(Stock: {isCustomByName ? 'N/A' : p.stock})</span>
+                        <span className={`ml-2 text-xs font-semibold ${isOutOfStock ? 'text-red-400 font-bold' : 'opacity-75'}`}>(Stock: {isCustomProduct ? 'N/A' : p.stock})</span>
                       </div>
-                      <span className="text-emerald-500 font-bold">{isCustomByName ? 'A cotizar' : `Q ${p.price}`}</span>
+                      <span className="text-emerald-500 font-bold">{isCustomProduct ? 'A cotizar' : `Q ${p.price}`}</span>
                     </button>
                   );
                 })}
@@ -1461,12 +1483,18 @@ export default function PosPage() {
               <p className="col-span-full text-center py-10 text-sm sm:text-base opacity-75">No hay productos que coincidan con la búsqueda.</p>
             ) : (
               filteredProducts.map(p => {
-                const isCustomByName = p.name && (
-                  p.name.toLowerCase().includes('vinil') || 
-                  p.name.toLowerCase().includes('personaliz') ||
-                  p.name.toLowerCase().includes('manta')
+                const isCustomProduct = Boolean(
+                  p.is_custom || 
+                  p.price === 0 || 
+                  (p.name && (
+                    p.name.toLowerCase().includes('vinil') || 
+                    p.name.toLowerCase().includes('personaliz') ||
+                    p.name.toLowerCase().includes('manta') ||
+                    p.name.toLowerCase().includes('evento personalizado') ||
+                    p.name.toLowerCase().includes('arreglo pequeño')
+                  ))
                 );
-                const isOutOfStock = !isCustomByName && p.stock <= 0;
+                const isOutOfStock = !isCustomProduct && p.stock <= 0;
 
                 return (
                   <div 
@@ -1490,14 +1518,14 @@ export default function PosPage() {
                         <div className="w-full h-24 sm:h-28 rounded-lg mb-2 flex items-center justify-center text-xs opacity-50 border">Sin imagen</div>
                       )}
                       <span className={`text-[11px] sm:text-xs block mb-1 ${isOutOfStock ? 'text-red-400 font-bold' : 'font-semibold opacity-80'}`}>
-                        Stock: <strong className={isOutOfStock ? 'text-red-400' : 'text-emerald-500'}>{isCustomByName ? 'N/A' : p.stock}</strong> {isOutOfStock ? '(Agotado)' : ''}
+                        Stock: <strong className={isOutOfStock ? 'text-red-400' : 'text-emerald-500'}>{isCustomProduct ? 'N/A' : p.stock}</strong> {isOutOfStock ? '(Agotado)' : ''}
                       </span>
                       <h3 className={`font-bold line-clamp-2 text-xs sm:text-sm leading-snug ${isOutOfStock ? 'opacity-75' : 'group-hover:text-emerald-500'}`}>{p.name}</h3>
                     </div>
                     
                     <div className="mt-2 pt-2 border-t border-opacity-50 flex items-center justify-between">
-                      <span className="text-[10px] sm:text-xs uppercase opacity-70">{isCustomByName ? 'Variable' : 'Precio'}</span>
-                      <span className="text-emerald-500 font-extrabold text-sm sm:text-base" translate="no">{isCustomByName ? 'A cotizar' : `Q ${p.price}`}</span>
+                      <span className="text-[10px] sm:text-xs uppercase opacity-70">{isCustomProduct ? 'Variable' : 'Precio'}</span>
+                      <span className="text-emerald-500 font-extrabold text-sm sm:text-base" translate="no">{isCustomProduct ? 'A cotizar' : `Q ${p.price}`}</span>
                     </div>
                   </div>
                 );
@@ -1514,8 +1542,8 @@ export default function PosPage() {
               {cart.length === 0 ? (
                 <p className="text-center py-10 text-sm sm:text-base opacity-75">El carrito está vacío.</p>
               ) : (
-                cart.map(item => (
-                  <div key={item.id} className={`flex flex-col gap-2 p-3 rounded-xl border text-xs sm:text-sm ${subPanelBg}`}>
+                cart.map((item, index) => (
+                  <div key={`${item.id}-${index}`} className={`flex flex-col gap-2 p-3 rounded-xl border text-xs sm:text-sm ${subPanelBg}`}>
                     <div className="flex justify-between items-center">
                       <span className="font-bold">{item.name}</span>
                       <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-300 font-bold px-2 py-0.5 rounded text-xs">✕</button>
@@ -1710,10 +1738,13 @@ export default function PosPage() {
           <span className="text-[10px] mt-0.5 font-semibold">POS</span>
         </button>
         
-        <button onClick={() => router.push('/cajero')} className="flex flex-col items-center text-xs text-slate-400 hover:text-emerald-400">
-          <span className="text-lg">💵</span>
-          <span className="text-[10px] mt-0.5 font-semibold">Caja</span>
-        </button>
+        {/* SOLO ROL ENCARGADO O DUEÑO VE CAJA EN LA BARRA MÓVIL */}
+        {(userRole === 'encargado' || !isStaff) && (
+          <button onClick={() => router.push('/cajero')} className="flex flex-col items-center text-xs text-slate-400 hover:text-emerald-400">
+            <span className="text-lg">💵</span>
+            <span className="text-[10px] mt-0.5 font-semibold">Caja</span>
+          </button>
+        )}
 
         <button onClick={() => { setActiveTab('salesReport'); loadSalesReport(businessIdState, selectedBranch); }} className="flex flex-col items-center text-xs text-slate-400 hover:text-emerald-400">
           <span className="text-lg">📊</span>
