@@ -138,13 +138,17 @@ export default function QuotesPage() {
 
     const formatted = itemsData.map((item: any) => {
       const prodInfo = prodMap[item.product_id] || {};
+      const currentStock = prodInfo.stock ?? 99;
+      const requestedQty = Number(item.quantity || 1);
+      
       return {
         ...item,
         id: item.product_id,
         name: prodInfo.name || 'Artículo Personalizado',
         price: item.price_at_quote,
-        stock: prodInfo.stock ?? 99,
-        image_url: prodInfo.image_url || null
+        stock: currentStock,
+        image_url: prodInfo.image_url || null,
+        hasStockIssue: typeof currentStock === 'number' && requestedQty > currentStock
       };
     });
 
@@ -156,13 +160,11 @@ export default function QuotesPage() {
     if (!selectedQuote) return;
 
     try {
-      // 1. Actualizar el estado en la base de datos a 'Aceptada'
       await supabase
         .from('quotes')
         .update({ status: 'Aceptada' })
         .eq('id', selectedQuote.id);
 
-      // 2. Actualizar el estado de forma instantánea en la interfaz local
       setQuotes(prevQuotes =>
         prevQuotes.map(q =>
           q.id === selectedQuote.id ? { ...q, status: 'Aceptada' } : q
@@ -170,7 +172,6 @@ export default function QuotesPage() {
       );
       setSelectedQuote(prev => prev ? { ...prev, status: 'Aceptada' } : null);
 
-      // 3. Preparar datos para el POS
       const posPayload = {
         customer: {
           id: selectedQuote.customer_id || '',
@@ -187,7 +188,8 @@ export default function QuotesPage() {
           quantity: Number(item.quantity || 1),
           notes: item.notes || '',
           eventDate: item.event_date || null,
-          stock: item.stock ?? 99
+          stock: item.stock ?? 99,
+          hasStockIssue: item.hasStockIssue || false
         })),
         quoteReference: selectedQuote.id
       };
@@ -416,7 +418,7 @@ export default function QuotesPage() {
                 >
                   ← Volver
                 </button>
-                <h2 className="text-sm font-bold text-emerald-500">📄 Vista Previa y Acciones</h2>
+                <h2 className="text-sm font-bold text-emerald-500">📄 Vista Previa y Alertas de Stock</h2>
               </div>
 
               {selectedQuote && (
@@ -442,7 +444,7 @@ export default function QuotesPage() {
                 </div>
 
                 <div>
-                  <p className="font-bold text-slate-300 mb-2">Artículos Cotizados:</p>
+                  <p className="font-bold text-slate-300 mb-2">Artículos Cotizados y Validación de Stock:</p>
                   {loadingItems ? (
                     <p className="text-center py-6 text-slate-500">Cargando detalle...</p>
                   ) : quoteItems.length === 0 ? (
@@ -450,11 +452,16 @@ export default function QuotesPage() {
                   ) : (
                     <div className="space-y-2">
                       {quoteItems.map((item, idx) => (
-                        <div key={idx} className="bg-slate-950/40 p-2.5 rounded-lg border border-slate-800 flex justify-between items-start gap-2">
+                        <div key={idx} className={`p-2.5 rounded-lg border flex justify-between items-start gap-2 ${item.hasStockIssue ? 'bg-red-950/30 border-red-500/50' : 'bg-slate-950/40 border-slate-800'}`}>
                           <div>
                             <p className="font-bold text-slate-200">{item.quantity}x {item.product_name || item.name}</p>
+                            <p className="text-[10px] text-slate-400">Stock Actual en Inventario: <span className={item.hasStockIssue ? 'text-red-400 font-bold' : 'text-emerald-400'}>{item.stock}</span></p>
+                            {item.hasStockIssue && (
+                              <p className="text-[10px] text-red-400 font-bold mt-1 bg-red-950/80 px-2 py-0.5 rounded border border-red-800">
+                                ⚠️ Alerta: Stock insuficiente para cubrir esta cantidad.
+                              </p>
+                            )}
                             {item.notes && <p className="text-[10px] text-emerald-400 mt-0.5">📝 {item.notes}</p>}
-                            {item.event_date && <p className="text-[10px] text-amber-400">📅 {new Date(item.event_date).toLocaleString()}</p>}
                           </div>
                           <div className="text-right shrink-0">
                             <span className="font-bold text-emerald-400" translate="no">Q {(Number(item.price_at_quote || item.price || 0) * Number(item.quantity || 1)).toFixed(2)}</span>
