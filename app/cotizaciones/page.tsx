@@ -427,13 +427,16 @@ export default function NuevaCotizacionPage() {
         customerId = newCustomer?.id
       }
 
-      // 2. Registrar la cotización principal
+ // 2. Registrar la cotización principal incluyendo dirección, teléfono y correo
       const { data: quoteData, error: quoteError } = await supabase.from('quotes').insert([{
         business_id: businessId, 
         branch_id: branchId || branches[0]?.id, 
         customer_id: customerId, 
         nit: cleanNit, 
         customer_name: cleanName, 
+        address: direccion.trim(),
+        phone: telefono.trim(),
+        email: correo.trim(),
         total_amount: totalAmount
       }]).select('id').single()
 

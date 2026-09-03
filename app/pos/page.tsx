@@ -67,6 +67,51 @@ export default function PosPage() {
     setTimeout(() => { setToast(null) }, 4500)
   }
 
+  // EFECTO PARA CARGAR COTIZACIONES SELECCIONADAS DESDE EL MÓDULO DE COTIZACIONES
+  useEffect(() => {
+    const loadedQuoteStr = localStorage.getItem('pos_loaded_quote');
+    if (loadedQuoteStr) {
+      try {
+        const quoteData = JSON.parse(loadedQuoteStr);
+        
+        // Cargar datos del cliente en los campos de búsqueda / expreso del POS
+        if (quoteData.customer) {
+          setCustomerSearchQuery(quoteData.customer.name || '');
+          setCustomerFound(quoteData.customer);
+          setSelectedCustomerForCredit(quoteData.customer.id || '');
+          setExpressName(quoteData.customer.name || '');
+          setExpressNit(quoteData.customer.nit || 'CF');
+          setExpressPhone(quoteData.customer.phone || '');
+          setExpressAddress(quoteData.customer.address || '');
+          setExpressEmail(quoteData.customer.email || '');
+        }
+
+        // Cargar los productos al carrito de ventas del POS con validación de stock excedido
+        if (quoteData.cart && Array.isArray(quoteData.cart)) {
+          const formattedCartItems = quoteData.cart.map((item: any) => ({
+            id: item.id || item.product_id,
+            name: item.name || item.product_name,
+            price: Number(item.price || item.price_at_quote || 0),
+            originalPrice: Number(item.price || item.price_at_quote || 0),
+            quantity: Number(item.quantity || 1),
+            notes: item.notes || '',
+            eventDate: item.eventDate || item.event_date || null,
+            stock: item.stock ?? 999,
+            hasStockIssue: item.hasStockIssue || false,
+            isSpecial: false
+          }));
+          setCart(formattedCartItems);
+        }
+
+        // Limpiar el localStorage para evitar bucles al recargar la página
+        localStorage.removeItem('pos_loaded_quote');
+        showToast('✅ Cotización cargada con éxito en el POS', 'success');
+      } catch (e) {
+        console.error("Error al procesar la cotización en el POS:", e);
+      }
+    }
+  }, []);
+  
   useEffect(() => {
     const savedTheme = localStorage.getItem('pos_theme')
     if (savedTheme === 'light') {
@@ -577,6 +622,12 @@ export default function PosPage() {
     if (isSubmittingOrder) return
     if (cart.length === 0) return showToast("El carrito está vacío.", 'error')
 
+    // 🛑 Bloquear si algún producto excede el stock disponible
+    const hasStockError = cart.some(item => item.hasStockIssue || item.quantity > item.stock);
+    if (hasStockError) {
+      return showToast("⚠️ No se puede procesar la orden: hay productos que superan el stock disponible en inventario.", 'error');
+    }
+
     if (paymentMethod === 'Crédito') {
       if (!customerSearchQuery.trim() && !expressName.trim()) {
         return showToast("⚠️ Debes ingresar el nombre y datos del cliente para la venta al crédito.", 'error');
@@ -740,7 +791,7 @@ export default function PosPage() {
         }
         return prevCart.map(item => item.id === product.id && !item.notes ? { ...item, quantity: item.quantity + 1 } : item)
       } else {
-        return [...prevCart, { ...product, quantity: 1, originalPrice: product.price, isSpecial: false, staffId: staffData.id || null, notes: '', eventDate: null }]
+        return [...prevCart, { ...product, quantity: 1, originalPrice: product.price, isSpecial: false, staffId: staffData.id || null, notes: '', eventDate: null, hasStockIssue: false }]
       }
     })
   }
@@ -764,7 +815,8 @@ export default function PosPage() {
         quantity: 1,
         stock: 9999,
         isSpecial: false,
-        staffId: staffData.id || null
+        staffId: staffData.id || null,
+        hasStockIssue: false
       }
     ]);
 
@@ -970,6 +1022,9 @@ export default function PosPage() {
                     </button>
                     <button onClick={() => { setShowOpsDropdown(false); router.push('/cotizaciones'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
                       📄 Cotizaciones / Proformas
+                    </button>
+                    <button onClick={() => { setShowOpsDropdown(false); router.push('/orders'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      📋 Gestión de Órdenes y Cotizaciones
                     </button>
                     <button onClick={() => { setShowOpsDropdown(false); setActiveTab('customerLimits'); loadCustomers(businessIdState); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
                       🤝 Límite de Crédito Clientes
@@ -1543,11 +1598,18 @@ export default function PosPage() {
                 <p className="text-center py-10 text-sm sm:text-base opacity-75">El carrito está vacío.</p>
               ) : (
                 cart.map((item, index) => (
-                  <div key={`${item.id}-${index}`} className={`flex flex-col gap-2 p-3 rounded-xl border text-xs sm:text-sm ${subPanelBg}`}>
+                  <div key={`${item.id}-${index}`} className={`flex flex-col gap-2 p-3 rounded-xl border text-xs sm:text-sm ${item.hasStockIssue || item.quantity > item.stock ? 'bg-red-950/40 border-red-500' : subPanelBg}`}>
                     <div className="flex justify-between items-center">
                       <span className="font-bold">{item.name}</span>
                       <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-300 font-bold px-2 py-0.5 rounded text-xs">✕</button>
                     </div>
+
+                    {/* Alerta visual en el ticket del POS cuando el stock es insuficiente */}
+                    {(item.hasStockIssue || item.quantity > item.stock) && (
+                      <p className="text-[10px] text-red-400 font-bold mt-0.5 bg-red-950/80 px-2 py-1 rounded border border-red-800">
+                        ⚠️ Stock insuficiente (Disponible: {item.stock})
+                      </p>
+                    )}
 
                     {item.notes && (
                       <div className="bg-emerald-950/30 border border-emerald-500/30 p-2 rounded-lg text-[11px] text-emerald-300 space-y-0.5">
