@@ -60,6 +60,12 @@ export default function PosPage() {
 
   const [customOrdersSubTab, setCustomOrdersSubTab] = useState<'pendientes' | 'entregados'>('pendientes')
 
+  // ESTADOS PARA GESTIÓN DE MESAS Y ÓRDENES ABIERTAS
+  const [editingTableOrderId, setEditingTableOrderId] = useState<string | null>(null)
+  const [editingTableName, setEditingTableName] = useState<string | null>(null)
+  const [inputTableName, setInputTableName] = useState<string>('')
+  const [tablesOrdersList, setTablesOrdersList] = useState<any[]>([])
+
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -74,7 +80,6 @@ export default function PosPage() {
       try {
         const quoteData = JSON.parse(loadedQuoteStr);
         
-        // Cargar datos del cliente en los campos de búsqueda / expreso del POS
         if (quoteData.customer) {
           setCustomerSearchQuery(quoteData.customer.name || '');
           setCustomerFound(quoteData.customer);
@@ -86,7 +91,6 @@ export default function PosPage() {
           setExpressEmail(quoteData.customer.email || '');
         }
 
-        // Cargar los productos al carrito de ventas del POS con validación de stock excedido
         if (quoteData.cart && Array.isArray(quoteData.cart)) {
           const formattedCartItems = quoteData.cart.map((item: any) => ({
             id: item.id || item.product_id,
@@ -103,7 +107,6 @@ export default function PosPage() {
           setCart(formattedCartItems);
         }
 
-        // Limpiar el localStorage para evitar bucles al recargar la página
         localStorage.removeItem('pos_loaded_quote');
         showToast('✅ Cotización cargada con éxito en el POS', 'success');
       } catch (e) {
@@ -144,7 +147,7 @@ export default function PosPage() {
 
   const [showLowStockModal, setShowLowStockModal] = useState(false)
 
-  const [activeTab, setActiveTab] = useState<'ticket' | 'addProduct' | 'otherStores' | 'transfers' | 'movements' | 'salesReport' | 'customers' | 'customerLimits' | 'customOrders'>('ticket')
+  const [activeTab, setActiveTab] = useState<'ticket' | 'addProduct' | 'otherStores' | 'transfers' | 'movements' | 'salesReport' | 'customers' | 'customerLimits' | 'customOrders' | 'tables'>('ticket')
   const [allStoreProducts, setAllStoreProducts] = useState<any[]>([])
 
   const [businessIdState, setBusinessIdState] = useState<string>('')
@@ -218,6 +221,7 @@ export default function PosPage() {
             loadSalesReport(resolvedBizId, staff.branch_id)
             loadCustomers(resolvedBizId)
             loadCustomOrders(resolvedBizId, staff.branch_id)
+            loadTableOrders(resolvedBizId, staff.branch_id)
           }
 
           fetchLogoUsingRpc(staff.branch_id)
@@ -273,6 +277,7 @@ export default function PosPage() {
     loadSalesReport(bizId, branchId)
     loadCustomers(bizId)
     loadCustomOrders(bizId, branchId)
+    loadTableOrders(bizId, branchId)
     router.refresh()
   }
 
@@ -319,6 +324,101 @@ export default function PosPage() {
 
     if (!error && data) {
       setCustomOrdersList(data);
+    }
+  }
+
+  async function loadTableOrders(bId?: string, brId?: string) {
+    const currentBizId = bId || businessIdState;
+    const currentBranchId = brId || selectedBranch;
+    if (!currentBizId || !currentBranchId) return;
+
+    const { data, error } = await supabase.rpc('get_table_orders_active', {
+      p_business_id: currentBizId,
+      p_branch_id: currentBranchId
+    });
+
+    if (!error && data) {
+      setTablesOrdersList(data);
+    } else {
+      console.error("Error al cargar órdenes de mesa:", error?.message);
+    }
+  }
+
+  const handleSelectTableOrder = (order: any) => {
+    setEditingTableOrderId(order.id);
+    setEditingTableName(order.table_name);
+    setInputTableName(order.table_name);
+    
+    if (order.customer) {
+      setCustomerSearchQuery(order.customer.name || '');
+      setCustomerFound(order.customer);
+      setSelectedCustomerForCredit(order.customer.id || '');
+      setExpressName(order.customer.name || '');
+      setExpressNit(order.customer.nit || 'CF');
+    }
+
+    if (order.order_items && Array.isArray(order.order_items)) {
+      const formatted = order.order_items.map((i: any) => ({
+        id: i.product_id,
+        name: i.product?.name || i.name || 'Producto',
+        price: Number(i.price || 0),
+        originalPrice: Number(i.price || 0),
+        quantity: Number(i.quantity || 1),
+        notes: i.notes || '',
+        eventDate: i.event_date || null,
+        stock: i.product?.stock ?? 999,
+        hasStockIssue: false,
+        isSpecial: false
+      }));
+      setCart(formatted);
+    }
+
+    setActiveTab('ticket');
+    showToast(`✅ Orden de ${order.table_name} cargada para editar`, 'success');
+  };
+
+  // FUNCIÓN CORREGIDA: Carga los ítems al carrito del POS antes de mandar la orden a caja para que aparezcan en el ticket
+  async function handleSendTableToCheckout(order: any) {
+    if (order.order_items && Array.isArray(order.order_items)) {
+      const formatted = order.order_items.map((i: any) => ({
+        id: i.product_id,
+        name: i.product?.name || i.name || 'Producto',
+        price: Number(i.price || 0),
+        originalPrice: Number(i.price || 0),
+        quantity: Number(i.quantity || 1),
+        notes: i.notes || '',
+        eventDate: i.event_date || null,
+        stock: i.product?.stock ?? 999,
+        hasStockIssue: false,
+        isSpecial: false
+      }));
+      setCart(formatted);
+    }
+
+    if (order.customer) {
+      setCustomerSearchQuery(order.customer.name || '');
+      setCustomerFound(order.customer);
+      setSelectedCustomerForCredit(order.customer.id || '');
+      setExpressName(order.customer.name || '');
+      setExpressNit(order.customer.nit || 'CF');
+    }
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ 
+        status: 'pendiente', 
+        table_name: null 
+      })
+      .eq('id', order.id);
+
+    if (error) {
+      showToast("Error al pasar la orden a caja: " + error.message, 'error');
+    } else {
+      showToast(`✅ ¡Orden de ${order.table_name || 'Mesa'} enviada a caja con éxito!`, 'success');
+      
+      setActiveTab('ticket'); // Regresa al POS principal
+      loadTableOrders(businessIdState, selectedBranch);
+      refreshAllData(selectedBranch, businessIdState);
     }
   }
 
@@ -618,16 +718,15 @@ export default function PosPage() {
     printWindow.document.close();
   };
 
-  async function handleSavePendingOrder() {
+async function handleSavePendingOrder() {
     if (isSubmittingOrder) return
     if (cart.length === 0) return showToast("El carrito está vacío.", 'error')
 
-    // 🛑 Bloquear si algún producto excede el stock disponible
     const hasStockError = cart.some(item => item.hasStockIssue || item.quantity > item.stock);
     if (hasStockError) {
       return showToast("⚠️ No se puede procesar la orden: hay productos que superan el stock disponible en inventario.", 'error');
     }
-
+   
     if (paymentMethod === 'Crédito') {
       if (!customerSearchQuery.trim() && !expressName.trim()) {
         return showToast("⚠️ Debes ingresar el nombre y datos del cliente para la venta al crédito.", 'error');
@@ -710,43 +809,155 @@ export default function PosPage() {
         }
       }
 
+      // Si estamos editando una orden de mesa existente
+      if (editingTableOrderId) {
+        const standardCartJson = cart.map(item => ({
+          product_id: item.id,
+          quantity: item.quantity,
+          price: item.price,
+          notes: item.notes || null,
+          event_date: item.eventDate || null
+        }));
+
+        const { error: updateError } = await supabase.rpc('update_order_with_table', {
+          p_order_id: editingTableOrderId,
+          p_total_amount: totalCart,
+          p_customer_id: resolvedCustomerId,
+          p_table_name: editingTableName || inputTableName.trim(),
+          p_items: standardCartJson
+        });
+
+        setIsSubmittingOrder(false);
+
+        if (updateError) {
+          showToast("Error al actualizar la orden de mesa: " + updateError.message, 'error');
+          return;
+        }
+
+        showToast(`✅ ¡Orden de ${editingTableName || 'Mesa'} actualizada con éxito!`, 'success');
+        setCart([]);
+        setInputTableName('');
+        setEditingTableOrderId(null);
+        setEditingTableName(null);
+        setCustomerSearchQuery('');
+        setCustomerFound(null);
+        refreshAllData(selectedBranch, businessIdState);
+        return;
+      }
+
       const standardCartJson = cart.map(item => ({
         product_id: item.id,
         quantity: item.quantity,
         price: item.price,
-        name: item.name,
         notes: item.notes || null,
         event_date: item.eventDate || null
       }));
 
-      const { data, error } = await supabase.rpc('create_new_order_safe', {
-        p_business_id: businessIdState,
-        p_branch_id: selectedBranch,
-        p_customer_id: resolvedCustomerId, 
-        p_total_amount: totalCart,
-        p_items: standardCartJson
-      });
+      const tableNameValue = inputTableName.trim() !== '' ? inputTableName.trim() : null;
 
-      setIsSubmittingOrder(false)
+      if (tableNameValue) {
+        // Se mantiene intacto el flujo de mesas usando la función RPC existente
+        const { data, error } = await supabase.rpc('create_order_with_table', {
+          p_business_id: businessIdState,
+          p_branch_id: selectedBranch,
+          p_customer_id: resolvedCustomerId,
+          p_total_amount: totalCart,
+          p_items: standardCartJson,
+          p_table_name: tableNameValue
+        });
 
-      if (error) {
-        showToast("Error al guardar la orden: " + error.message, 'error')
-      } else if (data && data.length > 0) {
-        const numeroTurno = data[0].order_number;
-        showToast(`✅ ¡Orden guardada! TURNO / ORDEN #${numeroTurno}`, 'success');
+        setIsSubmittingOrder(false);
 
-        if (enableTicketPrinting) {
-          printTicketPdf(numeroTurno, cart, totalCart);
+        if (error) {
+          showToast("Error al guardar la orden de mesa: " + error.message, 'error');
+        } else {
+          showToast(`✅ ¡Orden guardada en Mesa: ${tableNameValue}!`, 'success');
+          if (enableTicketPrinting && data && data.length > 0) {
+            printTicketPdf(data[0].order_number || 'S/N', cart, totalCart);
+          }
+          setCart([]);
+          setInputTableName('');
+          setEditingTableOrderId(null);
+          setEditingTableName(null);
+          setCustomerSearchQuery('');
+          setCustomerFound(null);
+          refreshAllData(selectedBranch, businessIdState);
+        }
+} else {
+        // 1. Calcular el siguiente número consecutivo para la sucursal en la tabla sales
+        const { data: existingSales } = await supabase
+          .from('sales')
+          .select('order_number')
+          .eq('branch_id', selectedBranch);
+
+        let nextNum = 1;
+        if (existingSales && existingSales.length > 0) {
+          const numbers = existingSales.map(s => {
+            const clean = String(s.order_number || '').replace(/\D/g, '');
+            return clean ? parseInt(clean, 10) : 0;
+          });
+          nextNum = Math.max(...numbers, 0) + 1;
         }
 
-        setCart([]);
-        setCustomerSearchQuery('');
-        setCustomerFound(null);
-        refreshAllData(selectedBranch, businessIdState);
+        const correlativeOrderNumber = String(nextNum);
+
+        // 2. Venta normal directa con el número de orden consecutivo
+        const { data: newSaleData, error: saleError } = await supabase
+          .from('sales')
+          .insert({
+            business_id: businessIdState,
+            branch_id: selectedBranch,
+            customer_id: resolvedCustomerId,
+            total_amount: totalCart,
+            status: 'Pendiente',
+            payment_method: 'Contado',
+            order_number: correlativeOrderNumber
+          })
+          .select()
+          .single();
+
+        if (saleError) {
+          setIsSubmittingOrder(false);
+          showToast("Error al registrar la orden para caja: " + saleError.message, 'error');
+          return;
+        }
+
+        const itemsToInsert = cart.map(item => ({
+          sale_id: newSaleData.id,
+          product_id: item.id,
+          quantity: item.quantity,
+          price_at_sale: item.price,
+          notes: item.notes || null,
+          event_date: item.eventDate || null
+        }));
+
+        const { error: itemsError } = await supabase
+          .from('sale_items')
+          .insert(itemsToInsert);
+
+        setIsSubmittingOrder(false);
+
+        if (itemsError) {
+          showToast("Error al guardar los items de la venta: " + itemsError.message, 'error');
+        } else {
+          const numeroTurno = newSaleData.order_number || correlativeOrderNumber;
+          showToast(`✅ ¡Orden enviada a caja con éxito! Turno #${numeroTurno}`, 'success');
+
+          if (enableTicketPrinting) {
+            printTicketPdf(String(numeroTurno), cart, totalCart);
+          }
+
+          setCart([]);
+          setInputTableName('');
+          setEditingTableOrderId(null);
+          setEditingTableName(null);
+          setCustomerSearchQuery('');
+          setCustomerFound(null);
+          refreshAllData(selectedBranch, businessIdState);
+        }
       }
     }
   }
-  
   const handleBranchChange = (branchId: string) => {
     if (isStaff) return
     setSelectedBranch(branchId)
@@ -999,6 +1210,9 @@ export default function PosPage() {
                     <p className="text-[11px] font-bold text-emerald-500 px-2 py-1 uppercase tracking-wider border-b border-opacity-30 mb-1">
                       ⚙️ Opciones Operativas
                     </p>
+                    <button onClick={() => { setShowOpsDropdown(false); setActiveTab('tables'); loadTableOrders(businessIdState, selectedBranch); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                      🍽️ Control de Mesas y Órdenes
+                    </button>
                     <button onClick={() => { setShowOpsDropdown(false); setActiveTab('addProduct'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
                       ➕ Agregar Inventario
                     </button>
@@ -1113,6 +1327,7 @@ export default function PosPage() {
           <div className={`p-5 sm:p-6 rounded-2xl border border-emerald-500 w-full max-w-xl shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto ${panelBg}`}>
             <div className="flex justify-between items-center border-b pb-3 border-opacity-50">
               <h3 className="text-base font-bold text-emerald-500 uppercase tracking-wide">
+                {activeTab === 'tables' && '🍽️ Control de Mesas y Órdenes Activas'}
                 {activeTab === 'addProduct' && '➕ Crear Producto Personalizado / Reabastecer'}
                 {activeTab === 'otherStores' && '🏬 Inventario en Red (Otras Sucursales)'}
                 {activeTab === 'transfers' && '🔄 Módulo de Traslados'}
@@ -1124,6 +1339,56 @@ export default function PosPage() {
               </h3>
               <button onClick={() => setActiveTab('ticket')} className="font-bold text-lg opacity-75 hover:opacity-100">✕</button>
             </div>
+
+            {activeTab === 'tables' && (
+              <div className="space-y-3 text-xs">
+                <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-xl border border-slate-700">
+                  <span className="font-bold text-emerald-400">🍽️ Mesas y Órdenes en Curso</span>
+                  <button 
+                    onClick={() => loadTableOrders(businessIdState, selectedBranch)}
+                    className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-lg font-semibold text-xs"
+                  >
+                    🔄 Actualizar
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                  {tablesOrdersList.length === 0 ? (
+                    <p className="text-center py-8 opacity-75">No hay órdenes de mesa activas en este momento.</p>
+                  ) : (
+                    tablesOrdersList.map((order, idx) => (
+                      <div key={idx} className={`p-3 rounded-xl border space-y-2 ${subPanelBg}`}>
+                        <div className="flex justify-between items-center font-bold">
+                          <span className="text-emerald-400 text-sm">📍 {order.table_name}</span>
+                          <span className="bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded text-[10px]">Q {order.total_amount}</span>
+                        </div>
+
+                        <p className="text-slate-300"><strong>Cliente:</strong> {order.customer?.name || 'Consumidor Final'} (NIT: {order.customer?.nit || 'CF'})</p>
+                        <p className="text-slate-400 font-mono text-[11px]">Orden #{order.order_number || order.id.slice(0, 6)}</p>
+
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={() => {
+                              handleSelectTableOrder(order);
+                              setActiveTab('ticket');
+                            }}
+                            className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow transition-colors"
+                          >
+                            ✏️ Modificar
+                          </button>
+                          <button
+                            onClick={() => handleSendTableToCheckout(order)}
+                            className="flex-1 bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow transition-colors"
+                          >
+                            💰 Pasar a Caja
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
 
             {activeTab === 'addProduct' && (
               <form onSubmit={handleAddOrRestockProduct} className="space-y-3 text-sm">
@@ -1780,13 +2045,44 @@ export default function PosPage() {
               )}
             </div>
 
+            {/* INPUT DE MESA / ÁREA (OPCIONAL O ACTIVO SI SE ESTÁ EDITANDO UNA MESA) */}
+            <div className="space-y-1 bg-[#0f172a]/40 p-2.5 rounded-xl border border-slate-700">
+              <div className="flex justify-between items-center">
+                <label className="block text-[11px] font-semibold text-slate-400">
+                  {editingTableName ? `📍 Editando Orden de: ${editingTableName}` : '🍽️ Mesa / Área (Opcional):'}
+                </label>
+                {editingTableOrderId && (
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setEditingTableOrderId(null);
+                      setEditingTableName(null);
+                      setInputTableName('');
+                      setCart([]);
+                      showToast("Edición de mesa cancelada", 'info');
+                    }}
+                    className="text-[10px] text-red-400 hover:underline font-bold"
+                  >
+                    [Cancelar Edición]
+                  </button>
+                )}
+              </div>
+              <input 
+                type="text"
+                value={inputTableName}
+                onChange={e => setInputTableName(e.target.value)}
+                placeholder="Ej. Mesa 3, Barra 2..."
+                className={`w-full border p-2 rounded-lg text-xs ${inputBg}`}
+              />
+            </div>
+
             <div className="flex justify-between items-center mb-1 text-lg sm:text-xl font-bold">
               <span>Total:</span>
               <span className="text-emerald-500 text-xl sm:text-2xl" translate="no">Q {totalCart}</span>
             </div>
 
             <button onClick={handleSavePendingOrder} disabled={cart.length === 0 || isSubmittingOrder} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-3 rounded-xl font-bold shadow text-sm flex items-center justify-center gap-2">
-              {isSubmittingOrder ? 'Guardando...' : paymentMethod === 'Crédito' ? '📋 Registrar Venta al Crédito' : '📝 Guardar Orden (Pasar a Caja)'}
+              {isSubmittingOrder ? 'Guardando...' : paymentMethod === 'Crédito' ? '📋 Registrar Venta al Crédito' : editingTableOrderId ? `💾 Actualizar Orden (${editingTableName})` : '📝 Guardar Orden (Pasar a Caja)'}
             </button>
           </div>
         </div>
@@ -1800,6 +2096,11 @@ export default function PosPage() {
           <span className="text-[10px] mt-0.5 font-semibold">POS</span>
         </button>
         
+        <button onClick={() => { setActiveTab('tables'); loadTableOrders(businessIdState, selectedBranch); }} className="flex flex-col items-center text-xs text-slate-400 hover:text-emerald-400">
+          <span className="text-lg">🍽️</span>
+          <span className="text-[10px] mt-0.5 font-semibold">Mesas</span>
+        </button>
+
         {/* SOLO ROL ENCARGADO O DUEÑO VE CAJA EN LA BARRA MÓVIL */}
         {(userRole === 'encargado' || !isStaff) && (
           <button onClick={() => router.push('/cajero')} className="flex flex-col items-center text-xs text-slate-400 hover:text-emerald-400">
@@ -1811,11 +2112,6 @@ export default function PosPage() {
         <button onClick={() => { setActiveTab('salesReport'); loadSalesReport(businessIdState, selectedBranch); }} className="flex flex-col items-center text-xs text-slate-400 hover:text-emerald-400">
           <span className="text-lg">📊</span>
           <span className="text-[10px] mt-0.5 font-semibold">Reportes</span>
-        </button>
-
-        <button onClick={() => { setActiveTab('customOrders'); loadCustomOrders(businessIdState, selectedBranch); }} className="flex flex-col items-center text-xs text-slate-400 hover:text-emerald-400">
-          <span className="text-lg">🎨</span>
-          <span className="text-[10px] mt-0.5 font-semibold">Pedidos</span>
         </button>
 
         <button onClick={() => setShowOpsDropdown(true)} className="flex flex-col items-center text-xs text-slate-400 hover:text-emerald-400">
