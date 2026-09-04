@@ -386,7 +386,7 @@ export default function LoginPage() {
 
         <div className="text-center mt-8 space-y-1">
           <p className="text-slate-500 text-xs">© 2026 Quantika POS - Acceso Restringido</p>
-          <p className="text-emerald-400/80 text-[11px] font-semibold tracking-wider uppercase">Powered by CodeNexa Academy</p>
+          <p className="text-emerald-400/80 text-[11px] font-semibold tracking-wider uppercase">Powered by CodeNexa</p>
         </div>
       </div>
 
