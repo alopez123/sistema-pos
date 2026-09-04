@@ -1235,10 +1235,10 @@ async function handleSavePendingOrder() {
                       💰 Cuentas de la Sucursal
                     </button>
                     <button onClick={() => { setShowOpsDropdown(false); router.push('/cotizaciones'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
-                      📄 Cotizaciones / Proformas
+                      📄 Crear Cotizaciones / Proformas
                     </button>
                     <button onClick={() => { setShowOpsDropdown(false); router.push('/orders'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
-                      📋 Gestión de Órdenes y Cotizaciones
+                      📋 Buscar Cotizaciones
                     </button>
                     <button onClick={() => { setShowOpsDropdown(false); setActiveTab('customerLimits'); loadCustomers(businessIdState); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
                       🤝 Límite de Crédito Clientes
