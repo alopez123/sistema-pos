@@ -32,15 +32,10 @@ export default function CreditAccountsPage() {
     const bizStr = localStorage.getItem('currentBusiness')
 
     let resolvedBizId = ''
+    let isAuthorized = true
 
-    if (bizStr) {
-      try {
-        const biz = JSON.parse(bizStr)
-        resolvedBizId = biz.id || biz.business_id || biz.busines_id
-      } catch (e) {}
-    }
-
-    if (!resolvedBizId && staffStr) {
+    // Validación jerárquica: Si hay sesión de staff, validamos su rol estrictamente
+    if (staffStr) {
       try {
         const staff = JSON.parse(staffStr)
         const role = staff.role ? staff.role.toLowerCase() : ''
@@ -50,15 +45,28 @@ export default function CreditAccountsPage() {
           router.push('/pos')
           return
         }
-        resolvedBizId = staff.business_id || staff.busines_id
-      } catch (e) {}
+        resolvedBizId = staff.business_id || staff.busines_id || ''
+      } catch (e) {
+        isAuthorized = false
+      }
     }
 
-    if (!resolvedBizId) {
+    // Si no se obtuvo ID por staff o hay sesión de negocio (Admin/Dueño principal)
+    if (!resolvedBizId && bizStr) {
+      try {
+        const biz = JSON.parse(bizStr)
+        resolvedBizId = biz.id || biz.business_id || biz.busines_id || ''
+      } catch (e) {
+        isAuthorized = false
+      }
+    }
+
+    // Fallback controlado si no existe ID en almacenamiento local pero se permite una instancia por defecto
+    if (!resolvedBizId && isAuthorized) {
       resolvedBizId = 'a15d7206-589f-40d0-9ddc-2efea2b475ee'
     }
 
-    if (resolvedBizId) {
+    if (resolvedBizId && isAuthorized) {
       setBusinessId(resolvedBizId)
       loadBranches(resolvedBizId)
       loadCredits(resolvedBizId)
@@ -206,7 +214,10 @@ export default function CreditAccountsPage() {
     
     const searchMatch = custName.includes(query) || custNit.includes(query) || custDpi.includes(query)
 
-    return branchMatch && searchMatch
+    // Excluimos las cuentas que ya estén pagadas (status Pagado o balance <= 0)
+    const isPaid = (c.status || '').toLowerCase() === 'pagado' || Number(c.balance || 0) <= 0
+
+    return branchMatch && searchMatch && !isPaid
   })
 
   const totalDebt = filteredCredits.reduce((acc, c) => acc + Number(c.balance || 0), 0)
@@ -218,8 +229,8 @@ export default function CreditAccountsPage() {
         {/* Cabecera */}
         <div className="flex justify-between items-center border-b border-slate-700 pb-4">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-emerald-400">📋 Módulo de Acreedores / Cuentas por Cobrar[cite: 2]</h1>
-            <p className="text-xs sm:text-sm text-slate-400">Control de créditos independientes, detalle de compras y abonos[cite: 2]</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-emerald-400">📋 Módulo de Acreedores / Cuentas por Cobrar</h1>
+            <p className="text-xs sm:text-sm text-slate-400">Control de créditos independientes, detalle de compras y abonos</p>
           </div>
           <button 
             onClick={() => router.push('/dashboard')} 
@@ -281,7 +292,7 @@ export default function CreditAccountsPage() {
               <tbody className="divide-y divide-slate-800">
                 {filteredCredits.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-8 text-slate-500">No hay cuentas por cobrar registradas.</td>
+                    <td colSpan={7} className="text-center py-8 text-slate-500">No hay cuentas por cobrar pendientes.</td>
                   </tr>
                 ) : (
                   filteredCredits.map(c => {
@@ -311,7 +322,7 @@ export default function CreditAccountsPage() {
                           <span className={`block text-[11px] font-bold ${vencido ? 'text-red-500 animate-pulse' : 'text-amber-300'}`}>
                             {c.due_date}
                           </span>
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold mt-1 inline-block ${c.status === 'Pagado' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : vencido ? 'bg-red-950 text-red-400 border border-red-800' : 'bg-amber-950 text-amber-400 border border-amber-800'}`}>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold mt-1 inline-block ${vencido ? 'bg-red-950 text-red-400 border border-red-800' : 'bg-amber-950 text-amber-400 border border-amber-800'}`}>
                             {vencido ? '¡VENCIDO!' : (c.status || 'Pendiente')}
                           </span>
                         </td>

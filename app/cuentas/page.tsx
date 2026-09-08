@@ -61,52 +61,38 @@ export default function AccountsPage() {
       } catch (e) {}
     }
 
-    let query = supabase
-      .from('sales')
-      .select('id, total_amount, created_at, payment_method, status, branch_id, customer_id, customer:customers(name, nit, phone)')
-      .eq('business_id', bId)
-      .ilike('payment_method', 'Crédito');
-
-    if (currentBranchId) {
-      query = query.eq('branch_id', currentBranchId);
-    }
-
-    const { data: recData, error: recError } = await query.order('created_at', { ascending: false });
+    const { data: recData, error: recError } = await supabase.rpc('get_business_credit_accounts', {
+      p_business_id: bId
+    });
 
     if (!recError && recData) {
-      setReceivables(recData);
+      const filteredByBranch = currentBranchId 
+        ? recData.filter((item: any) => {
+            const branchIdCredito = item.sale?.branch_id || item.branch_id;
+            return branchIdCredito === currentBranchId;
+          })
+        : recData;
+
+      setReceivables(filteredByBranch);
+    } else {
+      console.error("Error al cargar cuentas de crédito:", recError?.message);
     }
   }
 
-  async function handleViewSaleDetails(saleId: string) {
-    const { data, error } = await supabase
-      .from('sale_items')
-      .select('*, product:products(name)')
-      .eq('sale_id', saleId)
+  async function handleViewSaleDetails(creditId: string) {
+    const { data, error } = await supabase.rpc('get_credit_sale_items', {
+      p_credit_account_id: creditId
+    })
 
     if (!error && data && data.length > 0) {
       const formatted = data.map((i: any) => ({
-        product_name: i.product?.name || i.name || 'Producto',
+        product_name: i.product_name || i.name || 'Producto',
         quantity: i.quantity,
-        price_at_sale: i.price || i.price_at_sale || 0
+        price_at_sale: i.price_at_sale || i.price || 0
       }))
       setSelectedSaleDetails(formatted)
     } else {
-      const { data: altData, error: altError } = await supabase
-        .from('order_items')
-        .select('*, product:products(name)')
-        .eq('order_id', saleId)
-
-      if (!altError && altData) {
-        const formatted = altData.map((i: any) => ({
-          product_name: i.product?.name || i.name || 'Producto',
-          quantity: i.quantity,
-          price_at_sale: i.price || i.price_at_sale || 0
-        }))
-        setSelectedSaleDetails(formatted)
-      } else {
-        showToast("No se encontraron los detalles de esta venta.", 'error')
-      }
+      showToast("No se encontraron los detalles de esta venta.", 'error')
     }
   }
 
@@ -114,10 +100,16 @@ export default function AccountsPage() {
     const custName = (item.customer?.name || '').toLowerCase()
     const custNit = (item.customer?.nit || '').toLowerCase()
     const term = searchTerm.toLowerCase()
-    return custName.includes(term) || custNit.includes(term)
+    
+    const searchMatch = custName.includes(term) || custNit.includes(term)
+    
+    // Excluimos las que ya están pagadas (balance <= 0 o status pagado)
+    const isPaid = (item.status || '').toLowerCase() === 'pagado' || Number(item.balance || 0) <= 0
+
+    return searchMatch && !isPaid
   })
 
-  const totalReceivableAmount = receivables.reduce((acc, item) => acc + Number(item.total_amount || 0), 0)
+  const totalReceivableAmount = filteredReceivables.reduce((acc, item) => acc + Number(item.balance || 0), 0)
 
   const themeBg = isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-slate-100 text-slate-900'
   const panelBg = isDarkMode ? 'bg-[#1e293b] border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900 shadow-md'
@@ -184,13 +176,15 @@ export default function AccountsPage() {
                   <div>
                     <p className="font-bold text-sm text-white">{item.customer?.name || 'Cliente General'}</p>
                     <p className="text-xs text-slate-400">NIT: {item.customer?.nit || 'CF'} | Tel: {item.customer?.phone || 'No registrado'}</p>
-                    <p className="text-[10px] text-slate-500 mt-1">Fecha de Emisión: {new Date(item.created_at).toLocaleString()}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">Fecha de Emisión: {new Date(item.created_at || item.sale?.created_at).toLocaleString()}</p>
                   </div>
                   
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <span className="text-emerald-400 font-extrabold text-base block" translate="no">Q {Number(item.total_amount).toFixed(2)}</span>
-                      <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-bold">Pendiente de Cobro</span>
+                      <span className="text-emerald-400 font-extrabold text-base block" translate="no">Q {Number(item.balance || 0).toFixed(2)}</span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold mt-1 inline-block bg-amber-500/20 text-amber-300">
+                        Pendiente
+                      </span>
                     </div>
 
                     <div className="flex gap-2">
@@ -223,9 +217,9 @@ export default function AccountsPage() {
                 <div key={idx} className={`p-2.5 rounded-xl border flex justify-between items-center ${subPanelBg}`}>
                   <div>
                     <p className="font-semibold text-slate-200">{item.product_name}</p>
-                    <p className="text-slate-400">{item.quantity} x Q {item.price_at_sale}</p>
+                    <p className="text-slate-400">{item.quantity} x Q {Number(item.price_at_sale).toFixed(2)}</p>
                   </div>
-                  <span className="font-bold text-emerald-400" translate="no">Q {item.quantity * item.price_at_sale}</span>
+                  <span className="font-bold text-emerald-400" translate="no">Q {(Number(item.quantity) * Number(item.price_at_sale)).toFixed(2)}</span>
                 </div>
               ))}
             </div>

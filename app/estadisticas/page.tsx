@@ -3,6 +3,20 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
+import { 
+  ResponsiveContainer, 
+  AreaChart, 
+  Area, 
+  BarChart, 
+  Bar, 
+  PieChart, 
+  Pie, 
+  Cell, 
+  XAxis, 
+  YAxis, 
+  Tooltip, 
+  CartesianGrid 
+} from 'recharts'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -32,7 +46,6 @@ export default function EstadisticasPage() {
     localStorage.setItem('stats_theme', newMode ? 'dark' : 'light')
   }
   
-  // Estados para métricas completas
   const [totalSalesAmount, setTotalSalesAmount] = useState(0)
   const [totalPurchasesAmount, setTotalPurchasesAmount] = useState(0)
   const [inventoryValue, setInventoryValue] = useState(0)
@@ -43,6 +56,7 @@ export default function EstadisticasPage() {
   const [accountsPayable, setAccountsPayable] = useState(0)
   const [topProducts, setTopProducts] = useState<any[]>([])
   const [topProfitable, setTopProfitable] = useState<any[]>([])
+  const [topCustomers, setTopCustomers] = useState<any[]>([])
   const [salesByDay, setSalesByDay] = useState<any[]>([])
   const [monthlySales, setMonthlySales] = useState<any[]>([])
   const [paymentMethods, setPaymentMethods] = useState<any[]>([])
@@ -66,12 +80,13 @@ export default function EstadisticasPage() {
         setIsAdmin(true)
       }
 
-      setBusinessId(bId)
+     setBusinessId(bId)
       if (bId) {
         loadBranches(bId).then((branchesList) => {
-          const initialBranch = brId || (branchesList && branchesList.length > 0 ? branchesList[0].id : 'ALL')
+          // Cambiamos para que por defecto sea 'ALL' en lugar de usar brId o la primera sucursal
+          const initialBranch = 'ALL' 
           setSelectedBranch(initialBranch)
-          loadAnalytics(bId, initialBranch === 'ALL' ? null : initialBranch, Number(selectedYear))
+          loadAnalytics(bId, null, Number(selectedYear))
         })
       }
     } catch (e) {
@@ -88,48 +103,85 @@ export default function EstadisticasPage() {
     return []
   }
   
-  const loadAnalytics = async (bId: string, branchId: string | null, year: number | null) => {
+ const loadAnalytics = async (bId: string, branchId: string | null, year: number | null) => {
     if (!bId) return
     setLoading(true)
     try {
+      // 1. Cargamos las analíticas generales del negocio vía RPC
       const { data, error } = await supabase.rpc('get_business_analytics', {
         p_business_id: bId,
         p_branch_id: branchId === 'ALL' || !branchId ? null : branchId,
         p_year: year
       })
 
-      if (error) {
-        console.error("Detalle del Error RPC:", error.message)
+      if (!error && data) {
+        const res = Array.isArray(data) ? data[0] : (typeof data === 'object' ? data : {})
+
+        if (res) {
+          setTotalSalesAmount(Number(res.total_sales ?? res.totalSales ?? 0))
+          setInventoryValue(Number(res.inventory_value ?? res.inventoryValue ?? 0))
+          setGrossMargin(Number(res.gross_margin ?? res.grossMargin ?? 0))
+          setAvgTicket(Number(res.avg_ticket ?? res.avgTicket ?? 0))
+          setLowStockCount(Number(res.low_stock_count ?? res.lowStockCount ?? 0))
+          setTopProducts(res.top_products ?? res.topProducts ?? [])
+          setTopProfitable(res.top_profitable ?? res.topProfitable ?? [])
+          setTopCustomers(res.top_customers ?? res.topCustomers ?? [])
+          setSalesByDay(res.sales_by_day ?? res.salesByDay ?? [])
+          setMonthlySales(res.monthly_sales ?? res.monthlySales ?? [])
+          setPaymentMethods(res.payment_methods ?? res.paymentMethods ?? [])
+          setAdjustmentsSummary(res.adjustments ?? [])
+        }
       }
 
-      if (!error && data) {
-        setTotalSalesAmount(Number(data.total_sales || 0))
-        setTotalPurchasesAmount(Number(data.total_purchases || 0))
-        setInventoryValue(Number(data.inventory_value || 0))
-        setGrossMargin(Number(data.gross_margin || 0))
-        setAvgTicket(Number(data.avg_ticket || 0))
-        setLowStockCount(Number(data.low_stock_count || 0))
-        setAccountsReceivable(Number(data.accounts_receivable || 0))
-        setAccountsPayable(Number(data.accounts_payable || 0))
-        setTopProducts(data.top_products || [])
-        setTopProfitable(data.top_profitable || [])
-        setSalesByDay(data.sales_by_day || [])
-        setMonthlySales(data.monthly_sales || [])
-        setPaymentMethods(data.payment_methods || [])
-        setAdjustmentsSummary(data.adjustments || [])
+      // 2. Cuentas por Cobrar (Sincronizado con acreedores)
+      const { data: creditsData } = await supabase.rpc('get_business_credit_accounts', {
+        p_business_id: bId
+      })
+
+      if (creditsData) {
+        const filteredCreds = creditsData.filter((c: any) => {
+          const branchMatch = branchId === 'ALL' || !branchId || c.sale?.branch_id === branchId || c.branch_id === branchId
+          const isPaid = (c.status || '').toLowerCase() === 'pagado' || Number(c.balance || 0) <= 0
+          return branchMatch && !isPaid
+        })
+        setAccountsReceivable(filteredCreds.reduce((acc: number, c: any) => acc + Number(c.balance || 0), 0))
+      } else {
+        setAccountsReceivable(0)
       }
+
+      // 3. Inversión Compras y Cuentas por Pagar (Sincronizado con el historial de compras)
+      const { data: purchasesData } = await supabase.rpc('get_purchases_history', {
+        p_business_id: bId,
+        p_branch_id: branchId === 'ALL' || !branchId ? 'ALL' : branchId
+      })
+
+      if (purchasesData) {
+        // Filtrar por año si se seleccionó uno específico
+        const filteredPurchases = purchasesData.filter((p: any) => {
+          if (!year || year.toString() === 'ALL') return true;
+          const purchaseYear = new Date(p.created_at).getFullYear();
+          return purchaseYear === Number(year);
+        });
+
+        // Inversión Compras: Suma total de contado y crédito sin exclusiones
+        const totalPurchasesSum = filteredPurchases.reduce((acc: number, p: any) => acc + Number(p.total_amount ?? 0), 0);
+        setTotalPurchasesAmount(totalPurchasesSum);
+
+        // Cuentas por Pagar: Solo crédito y pendientes
+        const creditPurchases = filteredPurchases.filter((p: any) => 
+          p.payment_method === 'Crédito' && p.status !== 'Pagado'
+        );
+        const exactPayableSum = creditPurchases.reduce((acc: number, p: any) => acc + Number(p.balance ?? p.total_amount ?? 0), 0);
+        setAccountsPayable(exactPayableSum);
+      } else {
+        setTotalPurchasesAmount(0);
+        setAccountsPayable(0);
+      }
+
     } catch (err) {
       console.error("Error al cargar analíticas:", err)
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleFilterChange = (branchId: string, yearStr: string) => {
-    setSelectedBranch(branchId)
-    setSelectedYear(yearStr)
-    if (businessId) {
-      loadAnalytics(businessId, branchId === 'ALL' ? null : branchId, yearStr === 'ALL' ? null : Number(yearStr))
     }
   }
 
@@ -150,28 +202,42 @@ export default function EstadisticasPage() {
     'Sunday': 'Domingo'
   }
 
-  const maxDaySales = salesByDay.reduce((max, d) => Math.max(max, Number(d.total_amount || 0)), 1)
-  const maxMonthSales = monthlySales.reduce((max, m) => Math.max(max, Number(m.total_amount || 0)), 1)
+  const formattedMonthlySales = monthlySales.map((m: any) => ({
+    name: (m.month_name || '').trim(),
+    monto: Number(m.total_amount || 0),
+    ordenes: Number(m.total_orders || 0)
+  }))
 
-  // Configuración de colores para métodos de pago actualizados
-  const totalPaymentSum = paymentMethods.reduce((sum, p) => sum + Number(p.total || 0), 0)
-  let currentAngle = 0
+  const formattedSalesByDay = salesByDay.map((d: any) => {
+    const rawDay = (d.day_name || '').trim()
+    return {
+      dia: dayNamesMap[rawDay] || rawDay,
+      monto: Number(d.total_amount || 0),
+      ordenes: Number(d.total_orders || 0)
+    }
+  })
+const handleFilterChange = (branchId: string, yearStr: string) => {
+    setSelectedBranch(branchId)
+    setSelectedYear(yearStr)
+    if (businessId) {
+      loadAnalytics(businessId, branchId === 'ALL' ? null : branchId, yearStr === 'ALL' ? null : Number(yearStr))
+    }
+  }
   const paymentColors: { [key: string]: string } = {
-    'efectivo': '#10b981',      // Esmeralda
-    'tarjeta': '#3b82f6',       // Azul
-    'transferencia': '#f59e0b', // Ámbar
-    'mixto': '#8b5cf6'          // Morado
+    'efectivo': '#10b981',
+    'contado': '#06b6d4',
+    'tarjeta': '#3b82f6',
+    'crédito': '#f59e0b',
+    'mixto': '#8b5cf6'
   }
 
-  const conicGradientParts = paymentMethods.map((p) => {
-    const percentage = totalPaymentSum > 0 ? (Number(p.total) / totalPaymentSum) * 100 : 0
-    const startAngle = currentAngle
-    currentAngle += percentage
-    const color = paymentColors[p.method.toLowerCase()] || '#8b5cf6'
-    return `${color} ${startAngle}% ${currentAngle}%`
-  })
+  const formattedPaymentMethods = paymentMethods.map((p: any) => ({
+    name: p.method.charAt(0).toUpperCase() + p.method.slice(1),
+    value: Number(p.total || 0),
+    color: paymentColors[p.method.toLowerCase()] || '#ec4899'
+  }))
 
-  const conicGradientStyle = conicGradientParts.length > 0 ? `conic-gradient(${conicGradientParts.join(', ')})` : '#334155'
+  const totalPaymentSum = formattedPaymentMethods.reduce((sum, p) => sum + p.value, 0)
 
   const themeBg = isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-slate-100 text-slate-900'
   const panelBg = isDarkMode ? 'bg-[#1e293b] border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900 shadow-md'
@@ -182,7 +248,6 @@ export default function EstadisticasPage() {
     <div className={`min-h-screen p-2 md:p-4 flex flex-col notranslate pb-20 lg:pb-4 ${themeBg}`} translate="no">
       <div className="max-w-[1600px] mx-auto w-full flex flex-col flex-1">
         
-        {/* BARRA SUPERIOR CON FILTROS Y TEMA */}
         <header className={`p-3 rounded-lg shadow mb-4 flex flex-wrap justify-between items-center gap-2 border w-full ${panelBg}`}>
           <div className="flex items-center gap-2.5 flex-wrap">
             <button 
@@ -233,7 +298,6 @@ export default function EstadisticasPage() {
         ) : (
           <div className="space-y-4 w-full">
             
-            {/* 8 TARJETAS KPI PRINCIPALES */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full">
               <div className={`p-3.5 rounded-lg border shadow flex flex-col justify-between ${panelBg}`}>
                 <span className="text-[11px] opacity-75 uppercase font-bold">Ventas Totales</span>
@@ -254,7 +318,7 @@ export default function EstadisticasPage() {
               </div>
 
               <div className={`p-3.5 rounded-lg border shadow flex flex-col justify-between ${panelBg}`}>
-                <span className="text-[11px] opacity-75 uppercase font-bold">Ticket Promedio</span>
+                <span className="text-[11px] opacity-75 uppercase font-bold">Venta Promedio</span>
                 <span className="text-lg sm:text-xl font-extrabold text-cyan-500 mt-2" translate="no">Q {avgTicket.toFixed(2)}</span>
                 <span className="text-[10px] opacity-60 mt-1">Valor medio por venta</span>
               </div>
@@ -286,7 +350,6 @@ export default function EstadisticasPage() {
               </div>
             </div>
 
-            {/* GRÁFICA DE LÍNEA DE TENDENCIA Y TIEMPO MENSUAL */}
             <div className={`p-4 rounded-lg border shadow flex flex-col justify-between ${panelBg}`}>
               <div>
                 <h2 className="text-sm font-bold text-emerald-500 mb-1 flex items-center gap-2">
@@ -298,82 +361,29 @@ export default function EstadisticasPage() {
               {monthlySales.length === 0 ? (
                 <p className="opacity-75 text-xs text-center py-12">No hay registros de ventas para el período seleccionado.</p>
               ) : (
-                <div className="relative h-72 w-full pt-8 pb-4 px-2 border-b border-slate-700 flex flex-col justify-end">
-                  <div className="absolute inset-x-0 top-2 border-b border-slate-700/40 text-[10px] opacity-60 px-2 flex justify-between">
-                    <span>Máx: Q {maxMonthSales.toFixed(2)}</span>
-                  </div>
-                  <div className="absolute inset-x-0 top-1/2 border-b border-slate-700/40 text-[10px] opacity-40 px-2 flex justify-between">
-                    <span>Med: Q {(maxMonthSales / 2).toFixed(2)}</span>
-                  </div>
-
-                  {/* SVG Container para la Línea de Tendencia corregida */}
-                  <div className="relative w-full h-48 flex items-end">
-                    <svg className="absolute inset-0 w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
+                <div className="h-72 w-full pt-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={formattedMonthlySales} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                       <defs>
-                        <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#10b981" stopOpacity="0.4" />
-                          <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                        <linearGradient id="colorMonto" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0.0}/>
                         </linearGradient>
                       </defs>
-                      
-                      {monthlySales.length > 1 && (() => {
-                        const totalPoints = monthlySales.length
-                        const pts = monthlySales.map((m, idx) => {
-                          const x = (idx / (totalPoints - 1)) * 100
-                          const y = 100 - Math.min(Math.max((Number(m.total_amount || 0) / maxMonthSales) * 85, 5), 90)
-                          return `${x},${y}`
-                        })
-
-                        const polylinePoints = pts.join(' ')
-                        const areaPoints = `0,100 ${polylinePoints} 100,100`
-
-                        return (
-                          <>
-                            <polygon points={areaPoints} fill="url(#trendGradient)" />
-                            <polyline 
-                              fill="none" 
-                              stroke="#10b981" 
-                              strokeWidth="2.5" 
-                              strokeLinecap="round" 
-                              strokeLinejoin="round" 
-                              points={polylinePoints}
-                            />
-                          </>
-                        )
-                      })()}
-                    </svg>
-
-                    {/* Puntos interactivos sobre la línea */}
-                    <div className="absolute inset-0 flex justify-between items-end pb-1 px-4">
-                      {monthlySales.map((m: any, idx: number) => {
-                        const amount = Number(m.total_amount || 0)
-                        const heightPct = Math.round((amount / maxMonthSales) * 75)
-
-                        return (
-                          <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group relative">
-                            <div className="absolute -top-10 bg-emerald-600 text-white text-[10px] font-bold px-2 py-1 rounded-md shadow-xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30 pointer-events-none">
-                              {m.month_name.trim()}: Q {amount.toFixed(2)} ({m.total_orders} tkts)
-                            </div>
-                            <div 
-                              className="w-3.5 h-3.5 bg-emerald-400 border-2 border-white rounded-full shadow-md z-10 group-hover:scale-125 transition-transform cursor-pointer mb-1"
-                              style={{ transform: `translateY(-${Math.max(heightPct, 8)}px)` }}
-                            ></div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between items-center pt-2 border-t border-slate-700/60">
-                    {monthlySales.map((m: any, idx: number) => (
-                      <span key={idx} className="text-[11px] font-bold text-slate-300 flex-1 text-center">{m.month_name.trim()}</span>
-                    ))}
-                  </div>
+                      <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#334155' : '#cbd5e1'} />
+                      <XAxis dataKey="name" stroke={isDarkMode ? '#94a3b8' : '#64748b'} fontSize={11} />
+                      <YAxis stroke={isDarkMode ? '#94a3b8' : '#64748b'} fontSize={11} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', borderColor: isDarkMode ? '#475569' : '#cbd5e1', borderRadius: '8px', color: isDarkMode ? '#fff' : '#000' }}
+                        formatter={(value: any) => [`Q ${Number(value).toFixed(2)}`, 'Ventas']}
+                      />
+                      <Area type="monotone" dataKey="monto" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorMonto)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
               )}
             </div>
 
-            {/* SECCIÓN DE GRÁFICAS: BARRAS POR DÍA Y PASTEL DE PAGOS */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full">
               
               <div className={`lg:col-span-2 p-4 rounded-lg border shadow flex flex-col justify-between ${panelBg}`}>
@@ -387,68 +397,71 @@ export default function EstadisticasPage() {
                 {salesByDay.length === 0 ? (
                   <p className="opacity-75 text-xs text-center py-12">No hay registros suficientes para graficar por día.</p>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 items-end pt-2 pb-1">
-                    {salesByDay.map((d: any, idx: number) => {
-                      const rawDay = (d.day_name || '').trim()
-                      const spanishDay = dayNamesMap[rawDay] || rawDay
-                      const amount = Number(d.total_amount || 0)
-                      const percentage = Math.round((amount / maxDaySales) * 100)
-
-                      return (
-                        <div key={idx} className={`p-2 rounded-lg border flex flex-col items-center justify-end h-44 ${subPanelBg}`}>
-                          <span className="text-[10px] font-extrabold text-emerald-500 mb-1" translate="no">Q {amount.toFixed(0)}</span>
-                          <div className="w-full bg-slate-700 rounded-t h-24 flex items-end p-1">
-                            <div 
-                              className="w-full bg-emerald-500 rounded-t transition-all duration-500" 
-                              style={{ height: `${Math.max(percentage, 8)}%` }}
-                            ></div>
-                          </div>
-                          <span className="text-xs font-bold mt-2">{spanishDay}</span>
-                          <span className="text-[9px] opacity-75">{d.total_orders} tkts</span>
-                        </div>
-                      )
-                    })}
+                  <div className="h-64 w-full pt-2">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={formattedSalesByDay} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#334155' : '#cbd5e1'} />
+                        <XAxis dataKey="dia" stroke={isDarkMode ? '#94a3b8' : '#64748b'} fontSize={11} />
+                        <YAxis stroke={isDarkMode ? '#94a3b8' : '#64748b'} fontSize={11} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', borderColor: isDarkMode ? '#475569' : '#cbd5e1', borderRadius: '8px', color: isDarkMode ? '#fff' : '#000' }}
+                          formatter={(value: any) => [`Q ${Number(value).toFixed(2)}`, 'Ingresos']}
+                        />
+                        <Bar dataKey="monto" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
                 )}
               </div>
 
-              {/* GRÁFICA DE PASTEL */}
               <div className={`p-4 rounded-lg border shadow flex flex-col justify-between ${panelBg}`}>
                 <div>
                   <h2 className="text-sm font-bold text-emerald-500 mb-1 flex items-center gap-2">
                     🥧 Ingresos por Método de Pago
                   </h2>
-                  <p className="text-xs opacity-75 mb-3">Proporción de efectivo, tarjeta, transferencia y mixto.</p>
+                  <p className="text-xs opacity-75 mb-3">Proporción de efectivo, contado, tarjeta, crédito y mixto.</p>
                 </div>
 
                 {paymentMethods.length === 0 ? (
                   <p className="opacity-75 text-xs text-center py-12">No hay datos de pago registrados.</p>
                 ) : (
-                  <div className="flex flex-col items-center justify-center my-auto space-y-3">
-                    <div 
-                      className="w-32 h-32 rounded-full relative flex items-center justify-center shadow-inner"
-                      style={{ background: conicGradientStyle }}
-                    >
-                      <div className={`w-20 h-20 rounded-full flex flex-col items-center justify-center shadow ${panelBg}`}>
-                        <span className="text-[9px] opacity-75 uppercase font-bold">Total</span>
-                        <span className="text-xs font-extrabold text-emerald-500" translate="no">Q {totalPaymentSum.toFixed(0)}</span>
-                      </div>
+                  <div className="flex flex-col items-center justify-center my-auto">
+                    <div className="h-48 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={formattedPaymentMethods}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={50}
+                            outerRadius={75}
+                            paddingAngle={4}
+                            dataKey="value"
+                          >
+                            {formattedPaymentMethods.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', borderColor: isDarkMode ? '#475569' : '#cbd5e1', borderRadius: '8px', color: isDarkMode ? '#fff' : '#000' }}
+                            formatter={(value: any) => [`Q ${Number(value).toFixed(2)}`, 'Monto']}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
                     </div>
 
-                    <div className="w-full space-y-1.5 pt-1">
-                      {paymentMethods.map((p: any, idx: number) => {
-                        const amount = Number(p.total || 0)
-                        const pct = totalPaymentSum > 0 ? ((amount / totalPaymentSum) * 100).toFixed(1) : '0'
-                        const colorClass = paymentColors[p.method.toLowerCase()] || 'bg-emerald-500'
+                    <div className="w-full space-y-1.5 pt-2">
+                      {formattedPaymentMethods.map((p: any, idx: number) => {
+                        const pct = totalPaymentSum > 0 ? ((p.value / totalPaymentSum) * 100).toFixed(1) : '0'
 
                         return (
                           <div key={idx} className={`p-2 rounded border flex justify-between items-center text-xs ${subPanelBg}`}>
                             <div className="flex items-center gap-2">
-                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: colorClass }}></span>
-                              <span className="font-semibold capitalize">{p.method}</span>
+                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p.color }}></span>
+                              <span className="font-semibold capitalize">{p.name}</span>
                             </div>
                             <div className="text-right">
-                              <span className="font-extrabold text-emerald-500 mr-1.5" translate="no">Q {amount.toFixed(2)}</span>
+                              <span className="font-extrabold text-emerald-500 mr-1.5" translate="no">Q {p.value.toFixed(2)}</span>
                               <span className="text-[10px] opacity-75 font-bold">({pct}%)</span>
                             </div>
                           </div>
@@ -461,7 +474,6 @@ export default function EstadisticasPage() {
 
             </div>
 
-            {/* SECCIÓN INFERIOR: TOP PRODUCTOS, RENTABILIDAD Y MERMAS */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full">
               
               <div className={`p-4 rounded-lg border shadow flex flex-col ${panelBg}`}>
@@ -513,14 +525,48 @@ export default function EstadisticasPage() {
               </div>
 
               <div className={`p-4 rounded-lg border shadow flex flex-col ${panelBg}`}>
-                <h2 className="text-sm font-bold text-emerald-500 mb-3 flex items-center gap-2">
-                  ⚠️ Historial de Ajustes y Mermas
+                <h2 className="text-sm font-bold text-amber-500 mb-3 flex items-center gap-2">
+                  🏆 Top 5 Mejores Compradores (Clientes)
                 </h2>
-                <div className="space-y-2.5 flex-1 overflow-y-auto max-h-[300px] pr-1">
-                  {adjustmentsSummary.length === 0 ? (
-                    <p className="opacity-75 text-xs text-center py-8">No hay ajustes manuales registrados.</p>
+                <div className="space-y-2.5 flex-1">
+                  {topCustomers.length === 0 ? (
+                    <p className="opacity-75 text-xs text-center py-8">No hay registros de clientes frecuentes aún.</p>
                   ) : (
-                    adjustmentsSummary.map((m: any, idx: number) => (
+                    topCustomers.map((c: any, idx: number) => (
+                      <div key={idx} className={`p-3 rounded border flex justify-between items-center text-xs ${subPanelBg}`}>
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-500 font-bold flex items-center justify-center text-[11px]">{idx + 1}</span>
+                          <div>
+                            <p className="font-bold">{c.name || 'Cliente General'}</p>
+                            <p className="text-[11px] opacity-75">Compras: <span className="text-amber-500 font-bold">{c.orders_count || 0} tkts</span></p>
+                          </div>
+                        </div>
+                        <span className="font-extrabold text-amber-500" translate="no">Q {Number(c.total || 0).toFixed(2)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            <div className={`p-4 rounded-lg border shadow flex flex-col ${panelBg} w-full`}>
+              <h2 className="text-sm font-bold text-red-400 mb-3 flex items-center gap-2">
+                ⚠️ Historial de Ajustes Manuales y Mermas
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[250px] overflow-y-auto pr-1">
+                {adjustmentsSummary.filter((m: any) => {
+                  const type = (m.movement_type || '').toLowerCase()
+                  return type.includes('ajuste') || type.includes('merma') || type.includes('manual')
+                }).length === 0 ? (
+                  <p className="opacity-75 text-xs text-center py-4 col-span-full">No hay ajustes manuales registrados.</p>
+                ) : (
+                  adjustmentsSummary
+                    .filter((m: any) => {
+                      const type = (m.movement_type || '').toLowerCase()
+                      return type.includes('ajuste') || type.includes('merma') || type.includes('manual')
+                    })
+                    .map((m: any, idx: number) => (
                       <div key={idx} className={`p-2.5 rounded border flex justify-between items-center text-xs ${subPanelBg}`}>
                         <div>
                           <p className="font-bold">{m.product_name || 'Producto'}</p>
@@ -532,10 +578,8 @@ export default function EstadisticasPage() {
                         </span>
                       </div>
                     ))
-                  )}
-                </div>
+                )}
               </div>
-
             </div>
 
           </div>
@@ -543,7 +587,6 @@ export default function EstadisticasPage() {
 
       </div>
 
-      {/* MENÚ LATERAL */}
       {isDrawerOpen && (
         <div className="fixed inset-0 bg-black/70 flex z-[9999]" onClick={() => setIsDrawerOpen(false)}>
           <div className={`w-[380px] md:w-[420px] h-full p-6 flex flex-col shadow-2xl border-r ${panelBg}`} onClick={e => e.stopPropagation()}>
