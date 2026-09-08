@@ -362,7 +362,7 @@ export default function AdminDashboard() {
         <header className="bg-[#1e293b] shadow rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row justify-between items-center gap-4 border border-slate-700 w-full">
           <div>
             <h1 className="text-base sm:text-xl font-bold text-white leading-tight">
-              Panel SaaS <span className="text-emerald-500">(Master Admin)</span>
+              Panel SaaS <span className="text-emerald-500">(Administrador General)</span>
             </h1>
             <p className="text-xs text-slate-400">Gestión centralizada de negocios y suscripciones</p>
           </div>
