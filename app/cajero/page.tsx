@@ -171,7 +171,6 @@ export default function CashierPage() {
       .select('*')
       .eq('branch_id', branchId)
       .ilike('status', 'Pendiente')
-      .ilike('payment_method', 'Contado')
       .order('created_at', { ascending: false })
 
     if (salesError || !salesData) {
@@ -194,8 +193,8 @@ export default function CashierPage() {
     })
 
     setPendingOrders(formattedOrders)
-  }
-  
+  }  
+
   async function checkCashRegisterStatus(branchId: string, bId?: string) {
     const { data, error } = await supabase
       .from('cash_registers')
@@ -214,10 +213,9 @@ export default function CashierPage() {
     }
   }
 
-  async function loadTodaySales(bId: string, branchId: string, openedAt: string) {
+ async function loadTodaySales(bId: string, branchId: string, openedAt: string) {
     if (!openedAt) return
 
-    // Consultamos todas las ventas de la sucursal desde la fecha de apertura de la caja
     const { data, error } = await supabase
       .from('sales')
       .select('*')
@@ -225,20 +223,54 @@ export default function CashierPage() {
       .gte('created_at', openedAt)
       .order('created_at', { ascending: false })
 
+    console.log("🔍 DATOS CRUDOS DESDE SUPABASE:", data);
+    console.log("❌ ERROR DE SUPABASE SI HAY:", error);
+    console.log("⏱️ HORA APERTURA CAJA (openedAt):", openedAt);
+
     if (!error && data) {
-      // Filtramos en memoria para excluir únicamente las que sigan estrictamente pendientes o canceladas
       const validSales = data.filter((s: any) => {
         const st = (s.status || '').toLowerCase()
-        return !st.includes('pend') && !st.includes('cancel')
+        return st !== 'pendiente' && st !== 'cancelada'
       })
 
-      const formattedSales = validSales.map((s: any) => ({
-        sale_id: s.id,
-        customer_nit: s.nit || s.customer_nit || 'CF',
-        customer_name: s.client_name || s.customer_name || 'Consumidor Final',
-        total_amount: s.total_amount,
-        payment_method: s.payment_method || 'efectivo'
-      }))
+      console.log("✅ VENTAS VÁLIDAS DESPUÉS DEL FILTRO:", validSales);
+
+      const formattedSales = validSales.map((s: any) => {
+        const total = Number(s.total_amount || 0);
+        const method = (s.payment_method || 'efectivo').toLowerCase();
+        
+        let cardAmt = 0;
+        let cashAmt = 0;
+
+        if (method.includes('tarjeta')) {
+          cardAmt = total;
+          cashAmt = 0;
+        } else if (method.includes('efectivo')) {
+          cardAmt = 0;
+          cashAmt = total;
+        } else if (method.includes('mixto')) {
+          if (s.voucher_number && typeof s.voucher_number === 'string' && s.voucher_number.includes('|')) {
+            const parts = s.voucher_number.split('|');
+            cardAmt = Number(parts[1] || 0);
+          } else {
+            cardAmt = Number(s.card_amount || 0);
+          }
+          cashAmt = Math.max(0, total - cardAmt);
+        } else {
+          cashAmt = total;
+        }
+
+        return {
+          sale_id: s.id,
+          customer_nit: s.nit || s.customer_nit || 'CF',
+          customer_name: s.client_name || s.customer_name || 'Consumidor Final',
+          total_amount: total,
+          payment_method: method,
+          card_amount: cardAmt,
+          cash_amount: cashAmt,
+          voucher_number: s.voucher_number
+        }
+      })
 
       setTodaySales(formattedSales)
     } else {
@@ -405,19 +437,25 @@ export default function CashierPage() {
     }
 
     const totalOrderAmount = Number(selectedOrder.total_amount)
+    let cardPart = 0
+    let cashPart = totalOrderAmount
 
     if (paymentMethod === 'tarjeta') {
       if (!voucherNumber.trim()) {
         return showToast("Por favor ingresa el número de voucher de la tarjeta de crédito.", 'error')
       }
+      cardPart = totalOrderAmount
+      cashPart = 0
     } else if (paymentMethod === 'efectivo') {
       const given = parseFloat(cashGiven)
       if (isNaN(given) || given < totalOrderAmount) {
         return showToast("El efectivo entregado por el cliente es menor al total a cobrar.", 'error')
       }
+      cardPart = 0
+      cashPart = totalOrderAmount
     } else if (paymentMethod === 'mixto') {
-      const cardPart = parseFloat(cardAmountMixed) || 0
-      const cashPart = parseFloat(cashGiven) || 0
+      cardPart = parseFloat(cardAmountMixed) || 0
+      const cashGivenVal = parseFloat(cashGiven) || 0
 
       if (isNaN(cardPart) || cardPart <= 0) {
         return showToast("Ingresa un monto válido a pagar con tarjeta en el pago mixto.", 'error')
@@ -430,20 +468,27 @@ export default function CashierPage() {
       }
 
       const remainingToCover = totalOrderAmount - cardPart
-      if (cashPart < remainingToCover) {
-        const missing = remainingToCover - cashPart
+      if (cashGivenVal < remainingToCover) {
+        const missing = remainingToCover - cashGivenVal
         return showToast(`El efectivo entregado es insuficiente. Falta Q ${missing.toFixed(2)}.`, 'error')
       }
+      cashPart = remainingToCover
     }
 
     setIsSubmittingPayment(true)
+
+    // Empaquetamos el voucher y el monto de tarjeta con | si es pago mixto
+    let finalVoucher = voucherNumber.trim();
+    if (paymentMethod === 'mixto') {
+      finalVoucher = `${voucherNumber.trim()}|${cardPart}`;
+    }
 
     const { error } = await supabase.rpc('pay_and_close_order', {
       p_order_id: selectedOrder.id,
       p_payment_method: paymentMethod,
       p_customer_nit: customerNit,
       p_customer_name: customerName,
-      p_voucher_number: (paymentMethod === 'tarjeta' || paymentMethod === 'mixto') ? voucherNumber.trim() : null
+      p_voucher_number: (paymentMethod === 'tarjeta' || paymentMethod === 'mixto') ? finalVoucher : null
     })
 
     setIsSubmittingPayment(false)
@@ -1167,15 +1212,15 @@ export default function CashierPage() {
       )}
 
       {showCloseModal && (() => {
-        const totalEfectivo = todaySales
-          .filter(s => s.payment_method === 'efectivo' || s.payment_method === 'mixto')
-          .reduce((acc, s) => acc + Number(s.total_amount || 0), 0);
-          
-        const totalTarjeta = todaySales
-          .filter(s => s.payment_method === 'tarjeta' || s.payment_method === 'mixto')
-          .reduce((acc, s) => acc + Number(s.total_amount || 0), 0);
-          
-        const totalVentasGeneral = todaySales.reduce((acc, s) => acc + Number(s.total_amount || 0), 0);
+        let totalEfectivo = 0;
+        let totalTarjeta = 0;
+
+        todaySales.forEach((s) => {
+          totalEfectivo += Number(s.cash_amount || 0);
+          totalTarjeta += Number(s.card_amount || 0);
+        });
+
+        const totalVentasGeneral = totalEfectivo + totalTarjeta;
         const expectedCash = Number(cashRegister?.opening_amount || 0) + totalEfectivo;
 
         return (
@@ -1201,6 +1246,9 @@ export default function CashierPage() {
               <form onSubmit={(e) => {
                  e.preventDefault();
                  const physicalCash = parseFloat(closingPhysicalCash);
+                 if (isNaN(physicalCash)) {
+                   return showToast("Ingresa un monto físico válido.", 'error');
+                 }
                  if (Math.abs(physicalCash - expectedCash) > 0.01) {
                    return showToast(`❌ Error: El efectivo físico (Q ${physicalCash.toFixed(2)}) no cuadra con el esperado (Q ${expectedCash.toFixed(2)}).`, 'error');
                  }
