@@ -232,6 +232,8 @@ export default function NuevaCotizacionPage() {
       }
       return [...prev, { ...product, quantity: 1, originalPrice: product.price, notes: '', eventDate: null }]
     })
+
+    showToast(`✅ ¡Agregado: ${product.name}!`, 'success');
   }
 
   const handleConfirmCustomProduct = () => {
@@ -257,6 +259,8 @@ export default function NuevaCotizacionPage() {
         quantity: 1
       }
     ]);
+
+    showToast(`✅ ¡Producto personalizado agregado a la cotización!`, 'success');
 
     setShowCustomModal(false);
     setPendingCustomProduct(null);
@@ -427,7 +431,7 @@ export default function NuevaCotizacionPage() {
         customerId = newCustomer?.id
       }
 
- // 2. Registrar la cotización principal incluyendo dirección, teléfono y correo
+      // 2. Registrar la cotización principal incluyendo dirección, teléfono y correo
       const { data: quoteData, error: quoteError } = await supabase.from('quotes').insert([{
         business_id: businessId, 
         branch_id: branchId || branches[0]?.id, 

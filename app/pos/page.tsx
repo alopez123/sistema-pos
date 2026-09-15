@@ -377,7 +377,6 @@ export default function PosPage() {
     showToast(`✅ Orden de ${order.table_name} cargada para editar`, 'success');
   };
 
-  // FUNCIÓN CORREGIDA: Carga los ítems al carrito del POS antes de mandar la orden a caja para que aparezcan en el ticket
   async function handleSendTableToCheckout(order: any) {
     if (order.order_items && Array.isArray(order.order_items)) {
       const formatted = order.order_items.map((i: any) => ({
@@ -416,7 +415,7 @@ export default function PosPage() {
     } else {
       showToast(`✅ ¡Orden de ${order.table_name || 'Mesa'} enviada a caja con éxito!`, 'success');
       
-      setActiveTab('ticket'); // Regresa al POS principal
+      setActiveTab('ticket');
       loadTableOrders(businessIdState, selectedBranch);
       refreshAllData(selectedBranch, businessIdState);
     }
@@ -675,7 +674,6 @@ export default function PosPage() {
 
   const totalCart = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0)
 
-  // FUNCIÓN PARA IMPRIMIR TICKET EN PDF/VENTANA SI ESTÁ ACTIVO EL SWITCH
   const printTicketPdf = (orderNumber: string, itemsList: any[], totalAmt: number) => {
     const printWindow = window.open('', '_blank', 'width=400,height=600');
     if (!printWindow) return;
@@ -718,7 +716,7 @@ export default function PosPage() {
     printWindow.document.close();
   };
 
-async function handleSavePendingOrder() {
+  async function handleSavePendingOrder() {
     if (isSubmittingOrder) return
     if (cart.length === 0) return showToast("El carrito está vacío.", 'error')
 
@@ -809,7 +807,6 @@ async function handleSavePendingOrder() {
         }
       }
 
-      // Si estamos editando una orden de mesa existente
       if (editingTableOrderId) {
         const standardCartJson = cart.map(item => ({
           product_id: item.id,
@@ -856,7 +853,6 @@ async function handleSavePendingOrder() {
       const tableNameValue = inputTableName.trim() !== '' ? inputTableName.trim() : null;
 
       if (tableNameValue) {
-        // Se mantiene intacto el flujo de mesas usando la función RPC existente
         const { data, error } = await supabase.rpc('create_order_with_table', {
           p_business_id: businessIdState,
           p_branch_id: selectedBranch,
@@ -883,8 +879,7 @@ async function handleSavePendingOrder() {
           setCustomerFound(null);
           refreshAllData(selectedBranch, businessIdState);
         }
-} else {
-        // 1. Calcular el siguiente número consecutivo para la sucursal en la tabla sales
+      } else {
         const { data: existingSales } = await supabase
           .from('sales')
           .select('order_number')
@@ -901,7 +896,6 @@ async function handleSavePendingOrder() {
 
         const correlativeOrderNumber = String(nextNum);
 
-        // 2. Venta normal directa con el número de orden consecutivo
         const { data: newSaleData, error: saleError } = await supabase
           .from('sales')
           .insert({
@@ -958,6 +952,7 @@ async function handleSavePendingOrder() {
       }
     }
   }
+
   const handleBranchChange = (branchId: string) => {
     if (isStaff) return
     setSelectedBranch(branchId)
@@ -1005,6 +1000,8 @@ async function handleSavePendingOrder() {
         return [...prevCart, { ...product, quantity: 1, originalPrice: product.price, isSpecial: false, staffId: staffData.id || null, notes: '', eventDate: null, hasStockIssue: false }]
       }
     })
+
+    showToast(`✅ ¡Agregado: ${product.name}!`, 'success');
   }
 
   const handleConfirmCustomProduct = () => {
@@ -1030,6 +1027,8 @@ async function handleSavePendingOrder() {
         hasStockIssue: false
       }
     ]);
+
+    showToast(`✅ ¡Producto personalizado agregado al carrito!`, 'success');
 
     setShowCustomModal(false);
     setPendingCustomProduct(null);
@@ -1295,7 +1294,6 @@ async function handleSavePendingOrder() {
           </div>
 
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-thin w-full sm:w-auto justify-start sm:justify-end">
-             {/* SOLO ROL ENCARGADO O DUEÑO PUEDE VER EL BOTÓN DE CAJA */}
              {(userRole === 'encargado' || !isStaff) && (
                <button onClick={() => router.push('/cajero')} className="bg-sky-600 hover:bg-sky-500 px-3 py-2 rounded-lg font-semibold text-xs transition-colors shadow flex items-center gap-1 text-white whitespace-nowrap">💵 Caja</button>
              )}
@@ -1481,7 +1479,7 @@ async function handleSavePendingOrder() {
                     <button type="submit" disabled={uploadingImage} className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-xl font-bold text-white text-sm">
                       {uploadingImage ? 'Guardando...' : 'Guardar y Registrar'}
                     </button>
-                    <button type="button" onClick={() => setSelectedExistingProduct('')} className="bg-slate-600 px-3 py-2.5 rounded-xl text-white text-sm">Cancelar</button>
+                    <button type="button" onClick={() => setSelectedExistingProduct('')} className="bg-slate-600 px-3 py-2.5 rounded-xl text-sm text-white">Cancelar</button>
                   </div>
                 )}
               </form>
@@ -1869,7 +1867,6 @@ async function handleSavePendingOrder() {
                       <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-300 font-bold px-2 py-0.5 rounded text-xs">✕</button>
                     </div>
 
-                    {/* Alerta visual en el ticket del POS cuando el stock es insuficiente */}
                     {(item.hasStockIssue || item.quantity > item.stock) && (
                       <p className="text-[10px] text-red-400 font-bold mt-0.5 bg-red-950/80 px-2 py-1 rounded border border-red-800">
                         ⚠️ Stock insuficiente (Disponible: {item.stock})
@@ -1908,7 +1905,6 @@ async function handleSavePendingOrder() {
 
           <div className="border-t border-opacity-50 pt-3 mt-3 space-y-3">
             
-            {/* SELECCIÓN DE MÉTODO DE PAGO (CONTADO VS CRÉDITO) */}
             <div className="space-y-2 bg-[#0f172a]/40 p-3 rounded-xl border border-slate-700">
               <label className="block text-xs font-semibold text-slate-400">Tipo de Transacción:</label>
               <div className="grid grid-cols-2 gap-2">
@@ -2045,7 +2041,6 @@ async function handleSavePendingOrder() {
               )}
             </div>
 
-            {/* INPUT DE MESA / ÁREA (OPCIONAL O ACTIVO SI SE ESTÁ EDITANDO UNA MESA) */}
             <div className="space-y-1 bg-[#0f172a]/40 p-2.5 rounded-xl border border-slate-700">
               <div className="flex justify-between items-center">
                 <label className="block text-[11px] font-semibold text-slate-400">
@@ -2089,7 +2084,6 @@ async function handleSavePendingOrder() {
 
       </div>
 
-      {/* BARRA DE NAVEGACIÓN INFERIOR ESTILO MÓVIL (VISIBLE SOLO EN TELÉFONOS Y TABLETS) */}
       <nav className={`lg:hidden fixed bottom-0 left-0 right-0 border-t px-2 py-2 flex justify-around items-center z-50 shadow-2xl ${panelBg}`}>
         <button onClick={() => { setActiveTab('ticket'); setMobileViewTab('catalog'); }} className="flex flex-col items-center text-xs text-slate-400 hover:text-emerald-400">
           <span className="text-lg">🛍️</span>
@@ -2101,7 +2095,6 @@ async function handleSavePendingOrder() {
           <span className="text-[10px] mt-0.5 font-semibold">Mesas</span>
         </button>
 
-        {/* SOLO ROL ENCARGADO O DUEÑO VE CAJA EN LA BARRA MÓVIL */}
         {(userRole === 'encargado' || !isStaff) && (
           <button onClick={() => router.push('/cajero')} className="flex flex-col items-center text-xs text-slate-400 hover:text-emerald-400">
             <span className="text-lg">💵</span>
