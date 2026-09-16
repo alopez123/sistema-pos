@@ -6,11 +6,12 @@ import { useRouter } from 'next/navigation'
 
 export default function AdminDashboard() {
   const [businesses, setBusinesses] = useState<any[]>([])
+  const [categoriesList, setCategoriesList] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   
-  // Estado para controlar qué sección está activa ('menu', 'create', 'view', 'metrics', 'billing')
-  const [activeSection, setActiveSection] = useState<'menu' | 'create' | 'view' | 'metrics' | 'billing'>('menu')
+  // Estado para controlar qué sección está activa ('menu', 'create', 'view', 'metrics', 'billing', 'categories')
+  const [activeSection, setActiveSection] = useState<'menu' | 'create' | 'view' | 'metrics' | 'billing' | 'categories'>('menu')
 
   // Estado para alternar la vista en tarjetas de los negocios ('cards' o 'table')
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
@@ -28,6 +29,8 @@ export default function AdminDashboard() {
   const [endDate, setEndDate] = useState('')
   const [paymentStatus, setPaymentStatus] = useState('Al día')
   const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [isPublic, setIsPublic] = useState(false) // <-- Bandera para promocionar en el Marketplace al crear
+  const [categoryBusinessId, setCategoryBusinessId] = useState('') // <-- Categoría del negocio al crear
 
   // Estados para el modal de gestión y edición
   const [selectedBusiness, setSelectedBusiness] = useState<any | null>(null)
@@ -43,7 +46,14 @@ export default function AdminDashboard() {
   const [editPassword, setEditPassword] = useState('')
   const [editPhone, setEditPhone] = useState('')
   const [editLogoFile, setEditLogoFile] = useState<File | null>(null)
+  const [editIsPublic, setEditIsPublic] = useState(false) // <-- Bandera para editar en gestión
+  const [editCategoryBusinessId, setEditCategoryBusinessId] = useState('') // <-- Categoría del negocio al editar
   const [uploadingLogo, setUploadingLogo] = useState(false)
+
+  // Estados para la gestión de categorías
+  const [newCatName, setNewCatName] = useState('')
+  const [editingCategory, setEditingCategory] = useState<any | null>(null)
+  const [editCatName, setEditCatName] = useState('')
 
   const router = useRouter()
 
@@ -68,6 +78,7 @@ export default function AdminDashboard() {
 
       setLoading(false)
       fetchBusinesses()
+      fetchCategories()
     }
 
     verifyAdminAndLoad()
@@ -83,6 +94,67 @@ export default function AdminDashboard() {
 
     if (data) {
       setBusinesses(data)
+    }
+  }
+
+  async function fetchCategories() {
+    const { data, error } = await supabase.rpc('get_categories_business_safe')
+    if (error) {
+      console.error("Error al cargar categorías de negocios:", error.message)
+    } else if (data) {
+      setCategoriesList(data)
+    }
+  }
+
+  async function handleCreateCategory(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newCatName.trim()) return
+
+    const { error } = await supabase.rpc('create_category_business_safe', {
+      p_name: newCatName.trim()
+    })
+
+    if (error) {
+      alert("Error al crear categoría: " + error.message)
+    } else {
+      alert("¡Categoría creada con éxito!")
+      setNewCatName('')
+      fetchCategories()
+    }
+  }
+
+  async function handleUpdateCategory(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingCategory || !editCatName.trim()) return
+
+    const { error } = await supabase.rpc('update_category_business_safe', {
+      p_id: editingCategory.id,
+      p_name: editCatName.trim()
+    })
+
+    if (error) {
+      alert("Error al actualizar categoría: " + error.message)
+    } else {
+      alert("¡Categoría actualizada con éxito!")
+      setEditingCategory(null)
+      setEditCatName('')
+      fetchCategories()
+      fetchBusinesses()
+    }
+  }
+
+  async function handleDeleteCategory(catId: string) {
+    if (!confirm("¿Deseas eliminar esta categoría? Los negocios asociados quedarán sin categoría.")) return
+
+    const { error } = await supabase.rpc('delete_category_business_safe', {
+      p_id: catId
+    })
+
+    if (error) {
+      alert("Error al eliminar: " + error.message)
+    } else {
+      fetchCategories()
+      fetchBusinesses()
     }
   }
 
@@ -111,20 +183,6 @@ export default function AdminDashboard() {
     } else {
       alert("¡Mantenimiento completado con éxito! Se han limpiado las tablas operativas y de bitácora antiguas, manteniendo intactas las ventas y compras.");
     }
-  };
-
-  const calculateNextBillingDate = (start: string, day: number, cycle: string) => {
-    const baseDate = start ? new Date(start) : new Date();
-    const targetDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), day);
-    
-    if (targetDate < new Date()) {
-      if (cycle === 'Anual') {
-        targetDate.setFullYear(targetDate.getFullYear() + 1);
-      } else {
-        targetDate.setMonth(targetDate.getMonth() + 1);
-      }
-    }
-    return targetDate.toISOString().split('T')[0];
   };
 
   const compressImage = (file: File): Promise<Blob> => {
@@ -201,6 +259,7 @@ export default function AdminDashboard() {
 
       const formattedPhone = phone ? `502${phone}` : null
 
+      // 1. Creamos el negocio de forma segura con la función RPC original del POS
       const { error } = await supabase.rpc('create_business_safe', {
         p_name: name,
         p_owner_email: ownerEmail,
@@ -218,7 +277,25 @@ export default function AdminDashboard() {
 
       if (error) throw error
 
-      alert("¡Negocio registrado con éxito con su logotipo!")
+      // 2. Buscamos el ID del negocio recién creado de forma exacta por su correo
+      const { data: createdBiz, error: findError } = await supabase
+        .from('businesses')
+        .select('id')
+        .eq('owner_email', ownerEmail.trim())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (createdBiz && !findError) {
+        // 3. Asignamos la categoría y el marketplace utilizando nuestra función RPC segura
+        await supabase.rpc('set_business_marketplace_info', {
+          p_business_id: createdBiz.id,
+          p_is_public: isPublic,
+          p_category_business_id: categoryBusinessId || null
+        })
+      }
+
+      alert("¡Negocio registrado con éxito con su logotipo, categoría y marketplace!")
       setName('')
       setOwnerEmail('')
       setPassword('')
@@ -230,15 +307,17 @@ export default function AdminDashboard() {
       setBillingCycle('Mensual')
       setPaymentStatus('Al día')
       setLogoFile(null)
+      setIsPublic(false)
+      setCategoryBusinessId('')
       fetchBusinesses()
       setActiveSection('view')
     } catch (err: any) {
       alert("Error al registrar negocio: " + err.message)
     } finally {
-      setUploadingLogo(false)
+      setUploadingLogo(false) // <-- Esto garantiza que el botón se reactive pase lo que pase
     }
   }
-
+  
   async function updateBusinessStatus(businessId: string, newStatus: string) {
     const { error } = await supabase.rpc('update_business_status_safe', {
       p_business_id: businessId,
@@ -254,7 +333,7 @@ export default function AdminDashboard() {
     }
   }
 
- async function handleSaveAndActivate() {
+  async function handleSaveAndActivate() {
     if (!selectedBusiness) return
 
     setUploadingLogo(true)
@@ -281,26 +360,37 @@ export default function AdminDashboard() {
 
       const formattedEditPhone = editPhone ? `502${editPhone.replace(/\D/g, '').slice(-8)}` : null
 
-      const { error } = await supabase.rpc('update_business_details_safe', {
+      // 1. Actualización directa de los campos principales en la tabla businesses
+      const { error: updateError } = await supabase
+        .from('businesses')
+        .update({
+          name: editName || selectedBusiness.name,
+          subscription_plan: editPlan || selectedBusiness.subscription_plan,
+          amount: parseFloat(editAmount !== '' ? editAmount : selectedBusiness.amount) || 0,
+          payment_day: editPaymentDay,
+          status: 'activo',
+          logo_url: updatedLogoUrl,
+          owner_email: editOwnerEmail || selectedBusiness.owner_email,
+          billing_cycle: editBillingCycle,
+          start_date: editStartDate || null,
+          end_date: editEndDate || null,
+          payment_status: editPaymentStatus,
+          phone: formattedEditPhone
+        })
+        .eq('id', selectedBusiness.id)
+
+      if (updateError) throw updateError
+
+      // 2. Actualizamos la categoría y el marketplace mediante la función RPC segura
+      const { error: marketError } = await supabase.rpc('set_business_marketplace_info', {
         p_business_id: selectedBusiness.id,
-        p_name: editName || selectedBusiness.name,
-        p_subscription_plan: editPlan || selectedBusiness.subscription_plan,
-        p_amount: parseFloat(editAmount !== '' ? editAmount : selectedBusiness.amount) || 0,
-        p_payment_day: editPaymentDay,
-        p_status: 'activo',
-        p_logo_url: updatedLogoUrl,
-        p_new_email: editOwnerEmail || null,
-        p_new_password: editPassword || null,
-        p_billing_cycle: editBillingCycle,
-        p_start_date: editStartDate || null,
-        p_end_date: editEndDate || null,
-        p_payment_status: editPaymentStatus,
-        p_phone: formattedEditPhone
+        p_is_public: editIsPublic,
+        p_category_business_id: editCategoryBusinessId || null
       })
 
-      if (error) throw error
+      if (marketError) throw marketError
 
-      // ── NUEVA LÓGICA: Actualiza la contraseña si el campo no está vacío ──
+      // 3. Actualiza la contraseña si el campo no está vacío
       if (editPassword && editPassword.trim() !== '') {
         const { error: passError } = await supabase.rpc('update_business_password_safe', {
           p_business_id: selectedBusiness.id,
@@ -309,9 +399,8 @@ export default function AdminDashboard() {
 
         if (passError) throw passError
       }
-      // ──────────────────────────────────────────────────────────────────
 
-      alert("¡Suscripción, nombre y detalles actualizados con éxito!")
+      alert("¡Suscripción, detalles, categoría y marketplace actualizados con éxito!")
       setSelectedBusiness(null)
       setEditLogoFile(null)
       setEditPassword('')
@@ -389,9 +478,9 @@ export default function AdminDashboard() {
           </div>
         </header>
 
-        {/* VISTA 1: MENÚ PRINCIPAL CON 4 TARJETAS */}
+        {/* VISTA 1: MENÚ PRINCIPAL CON TARJETAS */}
         {activeSection === 'menu' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 my-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 my-6">
             
             {/* TARJETA 1: DAR DE ALTA NUEVO NEGOCIO */}
             <div 
@@ -437,7 +526,29 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* TARJETA 3: DASHBOARD Y MÉTRICAS */}
+            {/* TARJETA 3: GESTIÓN DE CATEGORÍAS */}
+            <div 
+              onClick={() => setActiveSection('categories')}
+              className="bg-[#1e293b] hover:bg-[#253248] border-2 border-slate-700 hover:border-emerald-500 rounded-3xl p-6 sm:p-8 cursor-pointer transition-all duration-200 shadow-xl flex flex-col justify-between group select-none"
+            >
+              <div className="space-y-3">
+                <div className="w-14 h-14 rounded-2xl bg-cyan-600/20 border border-cyan-500/30 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                  🏷️
+                </div>
+                <h3 className="text-xl font-extrabold text-white group-hover:text-emerald-400 transition-colors">
+                  Gestión de Categorías ({categoriesList.length})
+                </h3>
+                <p className="text-sm text-slate-400 leading-relaxed">
+                  Crea, edita y administra los rubros o categorías comerciales para organizar la vitrina pública.
+                </p>
+              </div>
+              <div className="mt-6 pt-4 border-t border-slate-700 flex items-center justify-between text-emerald-400 font-bold text-sm">
+                <span>Administrar categorías</span>
+                <span className="group-hover:translate-x-1 transition-transform">→</span>
+              </div>
+            </div>
+
+            {/* TARJETA 4: DASHBOARD Y MÉTRICAS */}
             <div 
               onClick={() => setActiveSection('metrics')}
               className="bg-[#1e293b] hover:bg-[#253248] border-2 border-slate-700 hover:border-emerald-500 rounded-3xl p-6 sm:p-8 cursor-pointer transition-all duration-200 shadow-xl flex flex-col justify-between group select-none"
@@ -459,7 +570,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* TARJETA 4: HISTORIAL DE PAGOS */}
+            {/* TARJETA 5: HISTORIAL DE PAGOS */}
             <div 
               onClick={() => setActiveSection('billing')}
               className="bg-[#1e293b] hover:bg-[#253248] border-2 border-slate-700 hover:border-emerald-500 rounded-3xl p-6 sm:p-8 cursor-pointer transition-all duration-200 shadow-xl flex flex-col justify-between group select-none"
@@ -481,6 +592,81 @@ export default function AdminDashboard() {
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* VISTA NUEVA: GESTIÓN DE CATEGORÍAS */}
+        {activeSection === 'categories' && (
+          <div className="bg-[#1e293b] p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-700 space-y-6">
+            <div className="flex justify-between items-center border-b border-slate-700 pb-3">
+              <div>
+                <h2 className="text-base sm:text-lg font-bold text-emerald-400">🏷️ Gestión de Categorías de Negocios</h2>
+                <p className="text-xs text-slate-400">Agrega nuevas categorías o edita los nombres existentes.</p>
+              </div>
+              <button onClick={() => setActiveSection('menu')} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold">✕ Cerrar</button>
+            </div>
+
+            {/* Formulario para nueva categoría */}
+            <form onSubmit={handleCreateCategory} className="flex flex-col sm:flex-row gap-3 bg-[#0f172a] p-4 rounded-xl border border-slate-700">
+              <input 
+                type="text"
+                placeholder="Nombre de la nueva categoría (Ej. Ferreterías, Farmacias...)"
+                value={newCatName}
+                onChange={e => setNewCatName(e.target.value)}
+                className="flex-1 bg-[#1e293b] border border-slate-600 px-3.5 py-2.5 rounded-xl text-white text-xs sm:text-sm outline-none focus:border-emerald-500 placeholder-slate-500"
+                required
+              />
+              <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-colors shadow">
+                ➕ Agregar Categoría
+              </button>
+            </form>
+
+            {/* Listado de categorías */}
+            <div className="max-h-[450px] overflow-y-auto space-y-2">
+              {categoriesList.length === 0 ? (
+                <p className="text-center py-8 text-slate-400 text-xs">No hay categorías registradas.</p>
+              ) : (
+                categoriesList.map(cat => (
+                  <div key={cat.id} className="bg-[#0f172a] border border-slate-700 p-3.5 rounded-xl flex items-center justify-between gap-3">
+                    {editingCategory?.id === cat.id ? (
+                      <form onSubmit={handleUpdateCategory} className="flex-1 flex items-center gap-2">
+                        <input 
+                          type="text" 
+                          value={editCatName} 
+                          onChange={e => setEditCatName(e.target.value)}
+                          className="flex-1 bg-[#1e293b] border border-emerald-500 px-3 py-1.5 rounded-lg text-white text-xs outline-none"
+                          autoFocus
+                          required
+                        />
+                        <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold">Guardar</button>
+                        <button type="button" onClick={() => setEditingCategory(null)} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg text-xs">Cancelar</button>
+                      </form>
+                    ) : (
+                      <>
+                        <span className="text-sm font-semibold text-white">{cat.name}</span>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => {
+                              setEditingCategory(cat)
+                              setEditCatName(cat.name)
+                            }}
+                            className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                          >
+                            ✏️ Editar
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteCategory(cat.id)}
+                            className="bg-red-900/80 hover:bg-red-800 text-red-200 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                          >
+                            🗑️ Eliminar
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
 
@@ -551,6 +737,21 @@ export default function AdminDashboard() {
                     className="w-full bg-transparent p-3 text-white text-xs sm:text-sm placeholder:text-slate-500 outline-none" 
                   />
                 </div>
+              </div>
+
+              {/* Selector de Categoría */}
+              <div>
+                <label className="block text-[11px] text-slate-400 mb-1 font-semibold">Categoría Comercial</label>
+                <select 
+                  value={categoryBusinessId} 
+                  onChange={e => setCategoryBusinessId(e.target.value)} 
+                  className="bg-[#0f172a] border border-slate-600 p-3 rounded-xl text-white text-xs sm:text-sm outline-none focus:border-emerald-500 w-full"
+                >
+                  <option value="">Selecciona una categoría...</option>
+                  {categoriesList.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -646,6 +847,23 @@ export default function AdminDashboard() {
                 />
               </div>
 
+              {/* Toggle para promocionar en el Marketplace */}
+              <div className="sm:col-span-2 md:col-span-3 lg:col-span-4 bg-[#0f172a] border border-slate-600 p-4 rounded-xl flex items-center justify-between">
+                <div>
+                  <span className="block font-bold text-xs sm:text-sm text-white">🌐 Promocionar en el Marketplace</span>
+                  <span className="text-[11px] text-slate-400">Permite que este negocio sea visible públicamente en el directorio de clientes.</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={isPublic} 
+                    onChange={e => setIsPublic(e.target.checked)} 
+                    className="sr-only peer" 
+                  />
+                  <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
+              </div>
+
               <div className="sm:col-span-2 md:col-span-3 lg:col-span-4 flex justify-end gap-2 mt-2">
                 <button type="button" onClick={() => setActiveSection('menu')} className="bg-slate-700 text-white px-5 py-3 rounded-xl font-bold text-sm">Cancelar</button>
                 <button type="submit" disabled={uploadingLogo} className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-500 transition-colors shadow-lg text-sm disabled:opacity-50">
@@ -736,12 +954,16 @@ export default function AdminDashboard() {
                             <strong className="text-emerald-400" translate="no">Q {b.amount ?? 0}</strong>
                           </div>
                           <div>
-                            <span className="text-slate-400 block text-[10px]">Próximo Cobro</span>
-                            <strong className="text-emerald-400">Día {b.payment_day ?? 1}</strong>
+                            <span className="text-slate-400 block text-[10px]">Categoría</span>
+                            <strong className="text-cyan-400 truncate block">
+                              {categoriesList.find(c => c.id === b.category_business_id)?.name || 'Sin categoría'}
+                            </strong>
                           </div>
                           <div>
-                            <span className="text-slate-400 block text-[10px]">Sucursales</span>
-                            <strong className="text-white">{b.branches_count ?? 0} activas</strong>
+                            <span className="text-slate-400 block text-[10px]">Marketplace</span>
+                            <strong className={b.is_public ? "text-emerald-400" : "text-slate-500"}>
+                              {b.is_public ? '🌐 Promocionado' : 'Oculto'}
+                            </strong>
                           </div>
                         </div>
 
@@ -797,6 +1019,8 @@ export default function AdminDashboard() {
                             setEditPhone(b.phone ? b.phone.replace(/^502/, '') : '')
                             setEditPassword('')
                             setEditLogoFile(null)
+                            setEditIsPublic(b.is_public || false)
+                            setEditCategoryBusinessId(b.category_business_id || '')
                           }}
                           className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2 rounded-xl text-xs font-bold transition-colors border border-slate-600 shadow"
                         >
@@ -808,18 +1032,19 @@ export default function AdminDashboard() {
                 )}
               </div>
             ) : (
-              /* VISTA EN TABLA CLÁSICA */
               <div className="max-h-[600px] overflow-y-auto w-full rounded-xl border border-slate-700">
+                {/* VISTA EN TABLA CLÁSICA */}
                 <table className="w-full text-left min-w-[950px] relative">
                   <thead className="bg-slate-700 text-slate-300 border-b border-slate-600 font-bold text-xs sticky top-0 z-10">
                     <tr>
                       <th className="p-3.5 bg-slate-700">Logo</th>
                       <th className="p-3.5 bg-slate-700">Negocio / WhatsApp</th>
+                      <th className="p-3.5 bg-slate-700">Categoría</th>
                       <th className="p-3.5 bg-slate-700">Dueño</th>
                       <th className="p-3.5 bg-slate-700">Plan / Ciclo</th>
                       <th className="p-3.5 bg-slate-700">Monto</th>
-                      <th className="p-3.5 bg-slate-700">Día Cobro</th>
                       <th className="p-3.5 bg-slate-700">Token Activo</th>
+                      <th className="p-3.5 bg-slate-700">Marketplace</th>
                       <th className="p-3.5 bg-slate-700">Pago</th>
                       <th className="p-3.5 bg-slate-700 text-center">Sucursales</th>
                       <th className="p-3.5 bg-slate-700">Estado</th>
@@ -828,7 +1053,7 @@ export default function AdminDashboard() {
                   </thead>
                   <tbody className="text-slate-200 text-xs">
                     {filteredBusinesses.length === 0 ? (
-                      <tr><td colSpan={11} className="p-6 text-center text-slate-400">No se encontraron negocios.</td></tr>
+                      <tr><td colSpan={12} className="p-6 text-center text-slate-400">No se encontraron negocios.</td></tr>
                     ) : (
                       filteredBusinesses.map((b) => (
                         <tr key={b.id} className="border-b border-slate-700 hover:bg-slate-700/50">
@@ -843,17 +1068,24 @@ export default function AdminDashboard() {
                             <div className="font-semibold">{b.name}</div>
                             <div className="text-[10px] text-slate-400">{b.phone ? `📱 +${b.phone}` : 'Sin WhatsApp'}</div>
                           </td>
+                          <td className="p-3.5 font-semibold text-cyan-400">
+                            {categoriesList.find(c => c.id === b.category_business_id)?.name || 'Sin categoría'}
+                          </td>
                           <td className="p-3.5 text-slate-300">{b.owner_email}</td>
                           <td className="p-3.5">
                             <div>{b.subscription_plan}</div>
                             <span className="text-[10px] text-emerald-400 font-semibold">{b.billing_cycle || 'Mensual'}</span>
                           </td>
                           <td className="p-3.5" translate="no">Q {b.amount ?? 0}</td>
-                          <td className="p-3.5 font-bold">Día {b.payment_day ?? 1}</td>
                           <td className="p-3.5">
                             <code className="bg-black/40 text-emerald-400 px-2 py-1 rounded font-bold text-xs">
                               {b.activation_token || 'N/A'}
                             </code>
+                          </td>
+                          <td className="p-3.5">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${b.is_public ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-800 text-slate-400'}`}>
+                              {b.is_public ? '🌐 Sí' : 'No'}
+                            </span>
                           </td>
                           <td className="p-3.5">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -901,6 +1133,8 @@ export default function AdminDashboard() {
                                   setEditPhone(b.phone ? b.phone.replace(/^502/, '') : '')
                                   setEditPassword('')
                                   setEditLogoFile(null)
+                                  setEditIsPublic(b.is_public || false)
+                                  setEditCategoryBusinessId(b.category_business_id || '')
                                 }}
                                 className="bg-slate-700 hover:bg-slate-600 text-white px-2.5 py-1 rounded text-[11px] font-semibold transition-colors border border-slate-600 whitespace-nowrap"
                               >
@@ -1068,6 +1302,22 @@ export default function AdminDashboard() {
                     className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded-xl text-white text-xs sm:text-sm outline-none focus:border-emerald-500" 
                   />
                 </div>
+
+                {/* Selector de Categoría en Edición */}
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold text-xs">Categoría Comercial</label>
+                  <select 
+                    value={editCategoryBusinessId} 
+                    onChange={e => setEditCategoryBusinessId(e.target.value)} 
+                    className="w-full bg-[#0f172a] border border-slate-600 p-2.5 rounded-xl text-white text-xs sm:text-sm outline-none focus:border-emerald-500"
+                  >
+                    <option value="">Selecciona una categoría...</option>
+                    {categoriesList.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <div>
                   <label className="block text-slate-400 mb-1 font-semibold text-xs">Correo del Dueño</label>
                   <input 
@@ -1118,6 +1368,24 @@ export default function AdminDashboard() {
                     />
                   </div>
                 </div>
+
+                {/* Toggle de Marketplace en Edición */}
+                <div className="bg-[#0f172a] border border-slate-600 p-3 rounded-xl flex items-center justify-between mt-2">
+                  <div>
+                    <span className="block font-bold text-xs text-white">🌐 Promocionar en el Marketplace</span>
+                    <span className="text-[10px] text-slate-400">Activar o desactivar la visibilidad pública.</span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={editIsPublic} 
+                      onChange={e => setEditIsPublic(e.target.checked)} 
+                      className="sr-only peer" 
+                    />
+                    <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                  </label>
+                </div>
+
               </div>
 
               {/* PLAN Y FACTURACIÓN */}
