@@ -66,6 +66,9 @@ export default function PosPage() {
   const [inputTableName, setInputTableName] = useState<string>('')
   const [tablesOrdersList, setTablesOrdersList] = useState<any[]>([])
 
+  // ESTADO PARA PEDIDOS ONLINE DE MARKETGUATE
+  const [marketGuateOrdersList, setMarketGuateOrdersList] = useState<any[]>([])
+
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -1209,6 +1212,18 @@ export default function PosPage() {
                     <p className="text-[11px] font-bold text-emerald-500 px-2 py-1 uppercase tracking-wider border-b border-opacity-30 mb-1">
                       ⚙️ Opciones Operativas
                     </p>
+                    
+                    {/* ENLACE MODIFICADO PARA REDIRIGIR A LA NUEVA PÁGINA INDEPENDIENTE DE PEDIDOS ONLINE */}
+                    <button 
+                      onClick={() => { 
+                        setShowOpsDropdown(false); 
+                        router.push('/pedidos_online'); 
+                      }} 
+                      className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors"
+                    >
+                      🌐 Pedidos Online (MarketGuate)
+                    </button>
+
                     <button onClick={() => { setShowOpsDropdown(false); setActiveTab('tables'); loadTableOrders(businessIdState, selectedBranch); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
                       🍽️ Control de Mesas y Órdenes
                     </button>

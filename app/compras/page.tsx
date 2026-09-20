@@ -56,11 +56,12 @@ export default function ComprasPage() {
     localStorage.setItem('purchases_theme', newMode ? 'dark' : 'light')
   }
 
-  // Estados para Categorías, Nuevos Productos, Producto Personalizado e Imagen
+  // Estados para Categorías, Nuevos Productos, Producto Personalizado, Imagen y Visibilidad MarketGuate
   const [categories, setCategories] = useState<any[]>([])
   const [newProdName, setNewProdName] = useState('')
   const [newProdPrice, setNewProdPrice] = useState('')
   const [isCustomProduct, setIsCustomProduct] = useState(false) 
+  const [showInMarketGuate, setShowInMarketGuate] = useState(true) // Nuevo estado para visibilidad MarketGuate
   const [newProdCategory, setNewProdCategory] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -166,7 +167,7 @@ export default function ComprasPage() {
     }
   }
 
-  // 1. CARGA SEGURA DE PROVEEDORES MEDIANTE RPC[cite: 1]
+  // 1. CARGA SEGURA DE PROVEEDORES MEDIANTE RPC
   const loadSuppliers = async (bId: string) => {
     if (!bId) return
     const { data, error } = await supabase.rpc('get_suppliers_by_business', {
@@ -242,7 +243,6 @@ export default function ComprasPage() {
           let width = img.width
           let height = img.height
           
-          // Redimensionamiento optimizado a miniatura (máx 400px, igual que el POS)
           const MAX_SIZE = 400
           if (width > height) {
             if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
@@ -255,7 +255,6 @@ export default function ComprasPage() {
           const ctx = canvas.getContext('2d')
           ctx?.drawImage(img, 0, 0, width, height)
           
-          // Compresión optimizada (0.65) para generar un archivo sumamente liviano
           canvas.toBlob((blob) => {
             if (blob) resolve(blob)
             else reject(new Error('Falló compresión de imagen'))
@@ -340,7 +339,8 @@ export default function ComprasPage() {
           p_is_custom: isCustomProduct,
           p_name: newProdName.trim(),
           p_price: isCustomProduct ? 0 : (parseFloat(newProdPrice) || 0),
-          p_stock: 0
+          p_stock: 0,
+          p_show_in_marketguate: showInMarketGuate // <-- Enviando el switch al backend
         })
 
         setUploadingImage(false)
@@ -367,7 +367,8 @@ export default function ComprasPage() {
           price: isCustomProduct ? 0 : (parseFloat(newProdPrice) || 0),
           stock: 0,
           image_url: imageUrl,
-          is_custom: isCustomProduct
+          is_custom: isCustomProduct,
+          show_in_marketguate: showInMarketGuate
         }
 
         setPurchaseCart(prev => {
@@ -384,6 +385,7 @@ export default function ComprasPage() {
         setNewProdName('')
         setNewProdPrice('')
         setIsCustomProduct(false)
+        setShowInMarketGuate(true)
         setNewProdCategory('')
         setImageFile(null)
         setImagePreview(null)
@@ -707,6 +709,14 @@ export default function ComprasPage() {
                     </label>
                   </div>
 
+                  {/* NUEVO SWITCH PARA VISIBILIDAD EN MARKETGUATE */}
+                  <div className="sm:col-span-full flex items-center gap-2 p-3 rounded border bg-slate-900/40 border-slate-700">
+                    <input type="checkbox" id="marketGuateCheck" checked={showInMarketGuate} onChange={e => setShowInMarketGuate(e.target.checked)} className="w-4 h-4 accent-emerald-500 cursor-pointer" />
+                    <label htmlFor="marketGuateCheck" className="text-xs font-semibold cursor-pointer select-none text-emerald-400">
+                      🛒 Mostrar este producto en el catálogo online de MarketGuate
+                    </label>
+                  </div>
+
                   {!isCustomProduct && (
                     <div>
                       <label className="text-xs opacity-75 block mb-1">Precio Venta (Q) *</label>
@@ -764,7 +774,11 @@ export default function ComprasPage() {
                 purchaseCart.map(item => (
                   <div key={item.id} className={`p-3 rounded border flex justify-between items-center text-sm ${subPanelBg}`}>
                     <div>
-                      <p className="font-bold">{item.name} {item.is_custom && <span className="text-[9px] bg-sky-500/20 text-sky-400 px-1.5 py-0.5 rounded ml-1">Personalizable</span>}</p>
+                      <p className="font-bold">
+                        {item.name} 
+                        {item.is_custom && <span className="text-[9px] bg-sky-500/20 text-sky-400 px-1.5 py-0.5 rounded ml-1">Personalizable</span>}
+                        {item.show_in_marketguate === false && <span className="text-[9px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded ml-1">Oculto MarketGuate</span>}
+                      </p>
                       <p className="text-xs opacity-85">Cant: <span className="text-emerald-500 font-bold">{item.quantity}</span> x Q {item.cost}</p>
                     </div>
                     <span className="font-bold text-emerald-500 text-base" translate="no">Q {(item.quantity * item.cost).toFixed(2)}</span>
@@ -847,7 +861,7 @@ export default function ComprasPage() {
         </div>
       )}
 
-      {/* MENÚ LATERAL DESLIZANTE (☰) CON Z-INDEX MÁXIMO ABSOLUTO */}
+      {/* MENÚ LATERAL DESLIZANTE (☰) */}
       {isDrawerOpen && (
         <div className="fixed inset-0 bg-black/70 flex z-[999999]" style={{ zIndex: 999999 }} onClick={() => setIsDrawerOpen(false)}>
           <div 
@@ -897,7 +911,7 @@ export default function ComprasPage() {
         </div>
       )}
 
-      {/* MODAL DETALLES DE COMPRA Y ABONOS CON Z-INDEX MÁXIMO ABSOLUTO */}
+      {/* MODAL DETALLES DE COMPRA Y ABONOS */}
       {viewingPaymentsPurchase && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[999999] p-4" style={{ zIndex: 999999 }}>
           <div className={`p-6 rounded-xl border border-emerald-500 w-full max-w-2xl shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto ${panelBg}`}>
@@ -955,7 +969,7 @@ export default function ComprasPage() {
         </div>
       )}
 
-      {/* MODAL REGISTRAR ABONO CON Z-INDEX MÁXIMO ABSOLUTO */}
+      {/* MODAL REGISTRAR ABONO */}
       {selectedPurchaseForPayment && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[999999] p-4" style={{ zIndex: 999999 }}>
           <div className={`p-6 rounded-xl border border-emerald-500 w-full max-w-md shadow-2xl space-y-4 ${panelBg}`}>
@@ -996,7 +1010,7 @@ export default function ComprasPage() {
         </div>
       )}
 
-      {/* MODAL NUEVA CATEGORÍA CON Z-INDEX MÁXIMO ABSOLUTO */}
+      {/* MODAL NUEVA CATEGORÍA */}
       {showNewCategoryModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[999999] p-4" style={{ zIndex: 999999 }}>
           <div className={`p-6 rounded-xl border border-emerald-500 w-full max-w-sm shadow-2xl space-y-4 ${panelBg}`}>

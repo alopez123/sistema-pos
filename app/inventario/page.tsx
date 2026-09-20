@@ -194,12 +194,14 @@ export default function InventarioPage() {
     return matchesSearch && matchesCategory
   })
 
-  // Filtrado flexible de movimientos incluyendo 'compra' e 'ingreso'
-  const filteredMovements = branchMovements.filter(m => {
+  // Filtrado flexible de movimientos incluyendo 'venta_online' y demás categorías
+const filteredMovements = branchMovements.filter(m => {
     const type = (m.movement_type || '').toLowerCase().trim()
     
     if (movementTab === 'todos') return true
     if (movementTab === 'venta') return type === 'venta' || type === 'sales'
+    if (movementTab === 'venta_online') return type === 'venta_online' || type.includes('online')
+    if (movementTab === 'devolucion') return type === 'devolucion' || type.includes('devolucion')
     if (movementTab === 'ingreso') {
       return type === 'ingreso' || type === 'compra' || type === 'proveedor' || type.includes('ingreso') || type.includes('compra') || type.includes('proveedor')
     }
@@ -418,7 +420,8 @@ export default function InventarioPage() {
             <div className="flex gap-1.5 overflow-x-auto pb-2 border-b border-opacity-50 scrollbar-thin">
               {[
                 { id: 'todos', label: '✨ Todos' },
-                { id: 'venta', label: '🛒 Venta' },
+                { id: 'venta', label: '🛒 Venta POS' },
+                { id: 'venta_online', label: '🌐 Venta Online' },
                 { id: 'ingreso', label: '📦 Ingreso' },
                 { id: 'ajuste', label: '⚡ Ajuste Manual' },
                 { id: 'traslado_salida', label: '📤 Traslado Salida' },

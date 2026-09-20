@@ -8,6 +8,7 @@ export default function Dashboard() {
   const [branches, setBranches] = useState<any[]>([])
   const [selectedBranch, setSelectedBranch] = useState<string>('')
   const [isCustomProduct, setIsCustomProduct] = useState(false)
+  const [showInMarketGuate, setShowInMarketGuate] = useState(true) // Estado para el interruptor de MarketGuate
 
   // Estado para controlar la vista activa mediante las Cards del Menú Principal
   const [activeSection, setActiveSection] = useState<'menu' | 'branches' | 'staff' | 'categories' | 'add_product' | 'products_list'>('menu')
@@ -60,6 +61,7 @@ export default function Dashboard() {
   const [imageFile, setImageFile] = useState<File | null>(null)
   
   const [newBranchName, setNewBranchName] = useState('')
+  const [newBranchPhone, setNewBranchPhone] = useState('')
   const [branchLimits, setBranchLimits] = useState<{ [key: string]: string }>({})
   const [userEmail, setUserEmail] = useState<string>('')
   const [isAdmin, setIsAdmin] = useState(false)
@@ -177,6 +179,20 @@ export default function Dashboard() {
       showToast("Error al actualizar límite: " + error.message, "error")
     } else {
       showToast("¡Límite de compras al crédito actualizado con éxito!", "success")
+      fetchBranchesForBusiness(currentBusinessId)
+    }
+  }
+
+  async function updateBranchPhone(branchId: string, phoneVal: string) {
+    const { error } = await supabase
+      .from('branches')
+      .update({ phone: phoneVal })
+      .eq('id', branchId)
+
+    if (error) {
+      showToast("Error al actualizar teléfono de sucursal: " + error.message, "error")
+    } else {
+      showToast("¡Teléfono de sucursal actualizado con éxito!", "success")
       fetchBranchesForBusiness(currentBusinessId)
     }
   }
@@ -365,12 +381,15 @@ export default function Dashboard() {
 
     if (editingId) {
       const { error } = await supabase.rpc('update_product_safe', {
+        p_business_id: currentBusinessId,
         p_product_id: editingId,
         p_name: name,
         p_price: parseFloat(price) || 0,
         p_stock: parseInt(stock) || 0,
+        p_category_id: selectedCategoryId || null,
         p_image_url: imageUrl,
-        p_category_id: selectedCategoryId || null
+        p_is_custom: isCustomProduct,
+        p_show_in_marketguate: showInMarketGuate
       })
 
       if (error) showToast("Error al actualizar: " + error.message, "error")
@@ -381,13 +400,15 @@ export default function Dashboard() {
       }
     } else {
       const { error } = await supabase.rpc('add_product_safe', {
+        p_business_id: currentBusinessId,
+        p_branch_id: selectedBranch,
         p_name: name,
         p_price: parseFloat(price) || 0,
         p_stock: parseInt(stock) || 0,
-        p_branch_id: selectedBranch,
-        p_image_url: imageUrl,
         p_category_id: selectedCategoryId || null,
-        p_is_custom: isCustomProduct
+        p_image_url: imageUrl,
+        p_is_custom: isCustomProduct,
+        p_show_in_marketguate: showInMarketGuate
       })
 
       if (error) showToast("Error al agregar: " + error.message, "error")
@@ -406,6 +427,7 @@ export default function Dashboard() {
     setStock(product.stock)
     setSelectedCategoryId(product.category_id || '')
     setIsCustomProduct(product.is_custom || false)
+    setShowInMarketGuate(product.show_in_marketguate ?? true)
     setImageFile(null)
     setActiveSection('add_product')
   }
@@ -417,6 +439,7 @@ export default function Dashboard() {
     setStock('')
     setSelectedCategoryId('')
     setIsCustomProduct(false)
+    setShowInMarketGuate(true)
     setImageFile(null)
   }
 
@@ -436,7 +459,7 @@ export default function Dashboard() {
     const { data, error } = await supabase.rpc('create_branch_safe', {
       p_business_id: currentBusinessId,
       p_name: newBranchName.trim(),
-      p_address: 'Sin dirección'
+      p_phone: newBranchPhone.trim() || null
     })
 
     if (error) {
@@ -448,6 +471,7 @@ export default function Dashboard() {
 
     if (data.success) {
       setNewBranchName('')
+      setNewBranchPhone('')
       fetchBranchesForBusiness(currentBusinessId)
     }
   }
@@ -560,7 +584,7 @@ export default function Dashboard() {
                 <div>
                   <div className="text-2xl mb-2">📍</div>
                   <h3 className="font-bold text-base text-emerald-500">Gestión de Sucursales</h3>
-                  <p className="text-xs opacity-75 mt-1">Crea nuevas sucursales, selecciona la activa o da de baja las existentes.</p>
+                  <p className="text-xs opacity-75 mt-1">Crea nuevas sucursales, configura sus teléfonos y límites o da de baja.</p>
                 </div>
                 <span className="text-xs font-bold text-emerald-400">Administrar ➔</span>
               </div>
@@ -665,7 +689,7 @@ export default function Dashboard() {
           <div className={`p-4 sm:p-6 rounded-lg shadow mb-6 space-y-4 border ${panelBg}`}>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-emerald-500 mb-1">Creación y Mantenimiento de Sucursales</h2>
-              <p className="text-xs opacity-75">Selecciona tu sucursal activa, crea nuevas localidades o da de baja las que ya no utilices.</p>
+              <p className="text-xs opacity-75">Selecciona tu sucursal activa, crea nuevas localidades con su teléfono de atención o da de baja.</p>
             </div>
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
@@ -675,44 +699,83 @@ export default function Dashboard() {
               </select>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 border-t border-opacity-50 pt-4">
-              <label className="font-bold sm:w-36 text-xs sm:text-sm">Nueva Sucursal:</label>
-              <input placeholder="Ej. Comedor Zona 1" value={newBranchName} onChange={e => setNewBranchName(e.target.value)} className={`border p-2.5 rounded flex-1 text-sm outline-none ${inputBg}`} />
+            {/* FORMULARIO DE NUEVA SUCURSAL CON TELÉFONO */}
+            <div className={`p-4 rounded-xl border space-y-3 ${subPanelBg}`}>
+              <h3 className="text-xs font-bold text-emerald-500 uppercase">Registrar Nueva Sucursal</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] opacity-75 mb-1">Nombre de la Sucursal</label>
+                  <input placeholder="Ej. Comedor Zona 1" value={newBranchName} onChange={e => setNewBranchName(e.target.value)} className={`border p-2.5 rounded w-full text-sm outline-none ${inputBg}`} />
+                </div>
+                <div>
+                  <label className="block text-[11px] opacity-75 mb-1">Teléfono de Atención (MarketGuate)</label>
+                  <input placeholder="Ej. +502 2233-4455" value={newBranchPhone} onChange={e => setNewBranchPhone(e.target.value)} className={`border p-2.5 rounded w-full text-sm outline-none ${inputBg}`} />
+                </div>
+              </div>
               <button onClick={addBranch} className="bg-emerald-600 text-white px-4 py-2.5 rounded font-semibold hover:bg-emerald-500 text-sm shadow">Crear Sucursal</button>
             </div>
 
             {branches.length > 0 && (
               <div className="border-t border-opacity-50 pt-4 mt-4">
-                <h3 className="text-xs font-bold opacity-75 uppercase mb-3">Sucursales Registradas, Gestión y Límite de Compras al Crédito</h3>
-                <div className="space-y-3">
+                <h3 className="text-xs font-bold opacity-75 uppercase mb-3">Sucursales Registradas, Teléfono de Atención y Límite de Crédito</h3>
+                <div className="space-y-4">
                   {branches.map(b => (
-                    <div key={b.id} className={`flex flex-col sm:flex-row justify-between items-start sm:items-center p-3.5 rounded border gap-3 ${subPanelBg}`}>
-                      <div>
-                        <span className="text-sm font-bold text-emerald-500 block">{b.name}</span>
-                        <span className="text-[11px] opacity-75">Límite máx. de compras al crédito activas permitidas:</span>
-                      </div>
-                      
-                      <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-                        <input 
-                          type="number" 
-                          min="0"
-                          value={branchLimits[b.id] !== undefined ? branchLimits[b.id] : '5'}
-                          onChange={e => setBranchLimits({ ...branchLimits, [b.id]: e.target.value })}
-                          className={`border p-2 rounded text-sm w-24 text-center font-bold outline-none ${inputBg}`}
-                        />
-                        <button 
-                          onClick={() => updateBranchLimit(b.id)}
-                          className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded text-xs font-semibold shadow transition-colors"
-                        >
-                          Guardar Límite
-                        </button>
+                    <div key={b.id} className={`p-4 rounded-xl border space-y-3 ${subPanelBg}`}>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-bold text-emerald-500">{b.name}</span>
                         <button 
                           onClick={() => deleteBranch(b.id, b.name)}
-                          className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded text-xs font-semibold transition-colors shadow"
+                          className="bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded text-xs font-semibold transition-colors shadow"
                         >
                           Dar de Baja
                         </button>
                       </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-opacity-30">
+                        {/* EDICIÓN DE TELÉFONO DE SUCURSAL */}
+                        <div>
+                          <label className="text-[11px] opacity-75 block mb-1">Teléfono de Sucursal (MarketGuate):</label>
+                          <div className="flex gap-2">
+                            <input 
+                              type="text"
+                              defaultValue={b.phone || ''}
+                              id={`phone-input-${b.id}`}
+                              placeholder="+502 0000-0000"
+                              className={`border p-2 rounded text-sm w-full outline-none ${inputBg}`}
+                            />
+                            <button 
+                              onClick={() => {
+                                const inputEl = document.getElementById(`phone-input-${b.id}`) as HTMLInputElement;
+                                if (inputEl) updateBranchPhone(b.id, inputEl.value);
+                              }}
+                              className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded text-xs font-semibold shadow shrink-0"
+                            >
+                              Guardar Tel.
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* EDICIÓN DE LÍMITE DE CRÉDITO */}
+                        <div>
+                          <label className="text-[11px] opacity-75 block mb-1">Límite máx. compras al crédito:</label>
+                          <div className="flex gap-2">
+                            <input 
+                              type="number" 
+                              min="0"
+                              value={branchLimits[b.id] !== undefined ? branchLimits[b.id] : '5'}
+                              onChange={e => setBranchLimits({ ...branchLimits, [b.id]: e.target.value })}
+                              className={`border p-2 rounded text-sm w-24 text-center font-bold outline-none ${inputBg}`}
+                            />
+                            <button 
+                              onClick={() => updateBranchLimit(b.id)}
+                              className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded text-xs font-semibold shadow transition-colors shrink-0"
+                            >
+                              Guardar Límite
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
                     </div>
                   ))}
                 </div>
@@ -936,6 +999,20 @@ export default function Dashboard() {
               </label>
             </div>
 
+            {/* SWITCH PARA MOSTRAR / OCULTAR EN MARKETGUATE */}
+            <div className={`col-span-full flex items-center gap-2 pt-2 p-3 rounded border ${subPanelBg}`}>
+              <input 
+                type="checkbox" 
+                id="marketGuateCheck"
+                checked={showInMarketGuate} 
+                onChange={e => setShowInMarketGuate(e.target.checked)} 
+                className="w-4 h-4 accent-emerald-500 cursor-pointer"
+              />
+              <label htmlFor="marketGuateCheck" className="text-xs font-semibold cursor-pointer text-emerald-400">
+                🛒 Mostrar este producto en el catálogo online de MarketGuate
+              </label>
+            </div>
+
             <div className="col-span-full flex gap-2 w-full pt-2">
               <button onClick={handleSaveProduct} className={`flex-1 p-2.5 rounded font-semibold text-white shadow text-sm ${editingId ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}>
                 {editingId ? 'Actualizar Producto' : 'Guardar y Agregar Producto'}
@@ -987,7 +1064,9 @@ export default function Dashboard() {
                           )}
                         </td>
                         <td className="p-4 font-semibold">
-                          {p.name} {p.is_custom && <span className="text-[10px] bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded ml-2">Personalizable</span>}
+                          {p.name} 
+                          {p.is_custom && <span className="text-[10px] bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded ml-2">Personalizable</span>}
+                          {p.show_in_marketguate === false && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded ml-2">Oculto MarketGuate</span>}
                         </td>
                         <td className="p-4" translate="no">Q {p.price}</td>
                         <td className="p-4">{p.stock}</td>
