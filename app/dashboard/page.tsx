@@ -183,11 +183,12 @@ export default function Dashboard() {
     }
   }
 
+  // Corrección implementada mediante función RPC segura
   async function updateBranchPhone(branchId: string, phoneVal: string) {
-    const { error } = await supabase
-      .from('branches')
-      .update({ phone: phoneVal })
-      .eq('id', branchId)
+    const { error } = await supabase.rpc('update_branch_phone', {
+      p_branch_id: branchId,
+      p_phone: phoneVal.trim() || null
+    })
 
     if (error) {
       showToast("Error al actualizar teléfono de sucursal: " + error.message, "error")
