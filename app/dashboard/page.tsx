@@ -1068,6 +1068,7 @@ export default function Dashboard() {
                           {p.name} 
                           {p.is_custom && <span className="text-[10px] bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded ml-2">Personalizable</span>}
                           {p.show_in_marketguate === false && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded ml-2">Oculto MarketGuate</span>}
+                          {(!p.category_id || p.category_id === '') && <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded ml-2 font-bold animate-pulse">⚠️ Sin Categoría</span>}
                         </td>
                         <td className="p-4" translate="no">Q {p.price}</td>
                         <td className="p-4">{p.stock}</td>
