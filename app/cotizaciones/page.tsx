@@ -347,8 +347,7 @@ export default function NuevaCotizacionPage() {
                     <tr>
                       <td><b>${item.quantity}</b></td>
                       <td>
-                        <div>${item.name}</div>
-                        ${item.notes ? `<div class="notes">📝 <b>Notas:</b> ${item.notes}</div>` : ''}
+                        <div>${item.name}</div>${item.notes ? `<div class="notes">📝 <b>Notas:</b> ${item.notes}</div>` : ''}
                         ${item.eventDate ? `<div class="notes">📅 <b>Entrega/Evento:</b> ${new Date(item.eventDate).toLocaleString()}</div>` : ''}
                       </td>
                       <td class="text-right">Q ${item.price.toFixed(2)}</td>
@@ -377,7 +376,7 @@ export default function NuevaCotizacionPage() {
     }
   }
 
-  // GUARDADO INTELIGENTE: CREA O ACTUALIZA CLIENTE Y REGISTRA LA COTIZACIÓN
+  // GUARDADO SEGURO MEDIANTE LA FUNCIÓN RPC
   const handleGuardarYGenerarPDF = async () => {
     const cleanNit = nit.trim() || 'CF'
     const cleanName = nombre.trim()
@@ -405,7 +404,6 @@ export default function NuevaCotizacionPage() {
 
       if (existingCustomer) {
         customerId = existingCustomer.id
-        // Actualizar datos por si cambiaron
         await supabase.from('customers').update({
           name: cleanName,
           address: direccion.trim(),
@@ -413,7 +411,6 @@ export default function NuevaCotizacionPage() {
           email: correo.trim()
         }).eq('id', customerId)
       } else {
-        // Crear nuevo cliente automáticamente
         const { data: newCustomer, error: newCustErr } = await supabase
           .from('customers')
           .insert({
@@ -431,33 +428,30 @@ export default function NuevaCotizacionPage() {
         customerId = newCustomer?.id
       }
 
-      // 2. Registrar la cotización principal incluyendo dirección, teléfono y correo
-      const { data: quoteData, error: quoteError } = await supabase.from('quotes').insert([{
-        business_id: businessId, 
-        branch_id: branchId || branches[0]?.id, 
-        customer_id: customerId, 
-        nit: cleanNit, 
-        customer_name: cleanName, 
-        address: direccion.trim(),
-        phone: telefono.trim(),
-        email: correo.trim(),
-        total_amount: totalAmount
-      }]).select('id').single()
-
-      if (quoteError) throw quoteError
-
-      // 3. Registrar los ítems de la cotización con notas y fecha de evento
+      // 2. Preparar el payload de los ítems en formato JSON para la función RPC
       const quoteItemsPayload = cart.map(item => ({
-        quote_id: quoteData.id, 
-        product_id: item.id, 
+        id: item.id, 
         quantity: item.quantity, 
-        price_at_quote: item.price,
+        price: item.price,
         notes: item.notes || null,
-        event_date: item.eventDate || null
+        eventDate: item.eventDate || null
       }))
 
-      const { error: itemsError } = await supabase.from('quote_items').insert(quoteItemsPayload)
-      if (itemsError) throw itemsError
+      // 3. Llamar a la función RPC segura en Supabase (evita bloqueos de RLS)
+      const { error: rpcError } = await supabase.rpc('insert_quote_secure', {
+        p_business_id: businessId,
+        p_branch_id: branchId || branches[0]?.id,
+        p_customer_id: customerId,
+        p_nit: cleanNit,
+        p_customer_name: cleanName,
+        p_address: direccion.trim(),
+        p_phone: telefono.trim(),
+        p_email: correo.trim(),
+        p_total_amount: totalAmount,
+        p_items: quoteItemsPayload
+      })
+
+      if (rpcError) throw rpcError
 
       handlePrintQuoteMobile()
 

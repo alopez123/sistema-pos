@@ -64,11 +64,10 @@ export default function QuotesPage() {
           setBusinessLogo(logoData[0].logo_url);
         }
 
-        const { data, error } = await supabase
-          .from('quotes')
-          .select('*')
-          .eq('branch_id', branchId)
-          .order('created_at', { ascending: false });
+        // CONSUMO DE LA FUNCIÓN RPC SEGURA PARA EVITAR BLOQUEO DE RLS
+        const { data, error } = await supabase.rpc('get_quotes_secure', {
+          p_branch_id: branchId
+        });
 
         if (error) {
           console.error('Error al cargar cotizaciones:', error.message);
@@ -110,10 +109,10 @@ export default function QuotesPage() {
     setMobileView('detail');
     setLoadingItems(true);
 
-    const { data: itemsData, error: itemsError } = await supabase
-      .from('quote_items')
-      .select('*')
-      .eq('quote_id', quote.id);
+    // CONSUMO DE LA FUNCIÓN RPC SEGURA PARA LOS ÍTEMS
+    const { data: itemsData, error: itemsError } = await supabase.rpc('get_quote_items_secure', {
+      p_quote_id: quote.id
+    });
 
     if (itemsError || !itemsData) {
       setQuoteItems([]);
@@ -216,80 +215,53 @@ export default function QuotesPage() {
 
     const doc = iframe.contentWindow?.document;
     if (doc) {
-      doc.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Cotización #${selectedQuote.id.slice(0, 8)}</title>
-            <style>
-              body { font-family: Arial, sans-serif; padding: 20px; color: #000; display: flex; flex-direction: column; min-height: 90vh; }
-              .content { flex: 1; }
-              .header-container { text-align: center; margin-bottom: 15px; }
-              .logo { height: 50px; width: auto; object-fit: contain; margin-bottom: 5px; display: block; margin-left: auto; margin-right: auto; }
-              h1 { font-size: 16px; margin: 0 0 2px 0; text-transform: uppercase; }
-              h2 { font-size: 13px; margin: 0 0 12px 0; border-bottom: 2px solid #000; padding-bottom: 6px; text-align: center; }
-              .info { font-size: 11px; background: #f9f9f9; padding: 8px; border: 1px solid #ddd; margin-bottom: 15px; line-height: 1.4; }
-              table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-              th, td { border-bottom: 1px solid #ddd; padding: 6px 4px; text-align: left; font-size: 11px; vertical-align: top; }
-              th { border-bottom: 2px solid #000; font-weight: bold; }
-              .text-right { text-align: right; }
-              .notes { font-size: 10px; color: #444; margin-top: 2px; }
-              .total { text-align: right; font-weight: bold; margin-top: 15px; font-size: 14px; }
-              .footer { text-align: center; font-size: 11px; font-style: italic; color: #555; margin-top: 40px; border-top: 1px dashed #ccc; padding-top: 10px; }
-            </style>
-          </head>
-          <body>
-            <div class="content">
-              <div class="header-container">
-                ${logoToPrint ? `<img src="${logoToPrint}" class="logo" crossorigin="anonymous" />` : ''}
-                <h1>${branchName}</h1>
-              </div>
-              <h2>COTIZACIÓN / PROFORMA</h2>
-              
-              <div class="info">
-                <div><b>Ref:</b> #${selectedQuote.id}</div>
-                <div><b>NIT:</b> ${selectedQuote.nit || 'C/F'}</div>
-                <div><b>Nombre o Razón Social:</b> ${selectedQuote.customer_name || 'Consumidor Final'}</div>
-                ${selectedQuote.address ? `<div><b>Dirección:</b> ${selectedQuote.address}</div>` : ''}
-                ${selectedQuote.phone ? `<div><b>Teléfono:</b> ${selectedQuote.phone}</div>` : ''}
-                ${selectedQuote.email ? `<div><b>Correo:</b> ${selectedQuote.email}</div>` : ''}
-                <div><b>Fecha:</b> ${new Date(selectedQuote.created_at).toLocaleString()}</div>
-              </div>
+      let rowsHtml = '';
+      for (const item of quoteItems) {
+        const subtotal = Number(item.price_at_quote || item.price || 0) * Number(item.quantity || 1);
+        const priceU = Number(item.price_at_quote || item.price || 0);
+        rowsHtml += '<tr>';
+        rowsHtml += '<td><b>' + item.quantity + '</b></td>';
+        rowsHtml += '<td><div>' + (item.product_name || item.name) + '</div>';
+        if (item.notes) {
+          rowsHtml += '<div style="font-size:10px; color:#444;">📝 <b>Notas:</b> ' + item.notes + '</div>';
+        }
+        if (item.event_date) {
+          rowsHtml += '<div style="font-size:10px; color:#444;">📅 <b>Entrega:</b> ' + new Date(item.event_date).toLocaleString() + '</div>';
+        }
+        rowsHtml += '</td>';
+        rowsHtml += '<td style="text-align: right;">Q ' + priceU.toFixed(2) + '</td>';
+        rowsHtml += '<td style="text-align: right;"><b>Q ' + subtotal.toFixed(2) + '</b></td>';
+        rowsHtml += '</tr>';
+      }
 
-              <table>
-                <thead>
-                  <tr>
-                    <th>Cant.</th>
-                    <th>Descripción y Detalles</th>
-                    <th class="text-right">Precio U.</th>
-                    <th class="text-right">Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${quoteItems.map(item => `
-                    <tr>
-                      <td><b>${item.quantity}</b></td>
-                      <td>
-                        <div>${item.product_name || item.name}</div>
-                        ${item.notes ? `<div class="notes">📝 <b>Notas:</b> ${item.notes}</div>` : ''}
-                        ${item.event_date ? `<div class="notes">📅 <b>Entrega/Evento:</b> ${new Date(item.event_date).toLocaleString()}</div>` : ''}
-                      </td>
-                      <td class="text-right">Q ${Number(item.price_at_quote || item.price || 0).toFixed(2)}</td>
-                      <td class="text-right"><b>Q ${(Number(item.price_at_quote || item.price || 0) * Number(item.quantity || 1)).toFixed(2)}</b></td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-
-              <div class="total">Total Cotización: Q ${Number(selectedQuote.total_amount || 0).toFixed(2)}</div>
-            </div>
-
-            <div class="footer">
-              Esta cotización tiene validez durante 24 horas, luego de eso puede estar sujeta a cambios.
-            </div>
-          </body>
-        </html>
-      `);
+      doc.open();
+      doc.write('<!DOCTYPE html><html><head><title>Cotizacion</title><style>');
+      doc.write('body { font-family: Arial, sans-serif; padding: 20px; color: #000; }');
+      doc.write('table { width: 100%; border-collapse: collapse; margin-top: 10px; }');
+      doc.write('th, td { border-bottom: 1px solid #ddd; padding: 6px; font-size: 11px; text-align: left; }');
+      doc.write('th { border-bottom: 2px solid #000; }');
+      doc.write('.total { text-align: right; font-weight: bold; margin-top: 15px; font-size: 14px; }');
+      doc.write('</style></head><body>');
+      doc.write('<div style="text-align: center; margin-bottom: 15px;">');
+      if (logoToPrint) {
+        doc.write('<img src="' + logoToPrint + '" style="height: 50px; object-fit: contain;" crossorigin="anonymous" />');
+      }
+      doc.write('<h1 style="font-size: 16px; margin: 5px 0;">' + branchName + '</h1>');
+      doc.write('</div>');
+      doc.write('<h2 style="font-size: 13px; text-align: center; border-bottom: 2px solid #000; padding-bottom: 6px;">COTIZACIÓN / PROFORMA</h2>');
+      doc.write('<div style="font-size: 11px; background: #f9f9f9; padding: 8px; border: 1px solid #ddd; margin-bottom: 15px;">');
+      doc.write('<div><b>Ref:</b> #' + selectedQuote.id + '</div>');
+      doc.write('<div><b>NIT:</b> ' + (selectedQuote.nit || 'C/F') + '</div>');
+      doc.write('<div><b>Cliente:</b> ' + (selectedQuote.customer_name || 'Consumidor Final') + '</div>');
+      if (selectedQuote.address) doc.write('<div><b>Dirección:</b> ' + selectedQuote.address + '</div>');
+      if (selectedQuote.phone) doc.write('<div><b>Teléfono:</b> ' + selectedQuote.phone + '</div>');
+      doc.write('<div><b>Fecha:</b> ' + new Date(selectedQuote.created_at).toLocaleString() + '</div>');
+      doc.write('</div>');
+      doc.write('<table><thead><tr><th>Cant.</th><th>Descripción</th><th style="text-align: right;">Precio U.</th><th style="text-align: right;">Subtotal</th></tr></thead><tbody>');
+      doc.write(rowsHtml);
+      doc.write('</tbody></table>');
+      doc.write('<div class="total">Total Cotización: Q ' + Number(selectedQuote.total_amount || 0).toFixed(2) + '</div>');
+      doc.write('</body></html>');
       doc.close();
 
       setTimeout(() => {
