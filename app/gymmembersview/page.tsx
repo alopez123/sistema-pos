@@ -1391,15 +1391,15 @@ export default function GymMembersView({ currentBusiness, currentBranch, darkMod
                   </div>
 
                   <div>
-                    <label className="block font-semibold mb-1">Teléfono de Emergencia</label>
-                    <input 
-                      type="text" 
-                      value={editEmergencyPhone}
-                      onChange={e => editEmergencyPhone(e.target.value)}
-                      className={`w-full border p-2.5 rounded-xl outline-none text-sm ${inputBg}`}
-                      placeholder="Ej. 12345678"
-                    />
-                  </div>
+  <label className="block font-semibold mb-1">Teléfono de Emergencia</label>
+  <input 
+    type="text" 
+    value={editEmergencyPhone}
+    onChange={e => setEditEmergencyPhone(e.target.value)}
+    className={`w-full border p-2.5 rounded-xl outline-none text-sm ${inputBg}`}
+    placeholder="Ej. 12345678"
+  />
+</div>
                 </div>
               </div>
             </div>
