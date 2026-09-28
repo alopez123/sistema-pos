@@ -16,21 +16,40 @@ export default function GymCheckInViewPage() {
   const router = useRouter()
 
   useEffect(() => {
-    const savedBiz = localStorage.getItem('currentBusiness');
-    if (savedBiz) {
+    // 1. Primero verificamos si hay una sesión de empleado/staff activa (ej. Control de Accesos)
+    const savedStaff = localStorage.getItem('currentStaff');
+    if (savedStaff) {
       try {
-        const bizObj = JSON.parse(savedBiz);
-        if (bizObj?.id) setBusinessId(bizObj.id);
-        if (bizObj?.name) {
+        const staffObj = JSON.parse(savedStaff);
+        if (staffObj?.business_id) {
+          setBusinessId(staffObj.business_id);
           setBusinessData({
-            name: bizObj.name,
-            logo: bizObj.logo_url || bizObj.logo || bizObj.image_url || ''
+            name: staffObj.branch_name ? `Sucursal: ${staffObj.branch_name}` : 'Gimnasio Oficial',
+            logo: ''
           });
         }
       } catch (e) {
-        console.error("Error al leer currentBusiness:", e);
+        console.error("Error al leer currentStaff:", e);
+      }
+    } else {
+      // 2. Si no es staff, leemos como dueño de negocio (admin)
+      const savedBiz = localStorage.getItem('currentBusiness');
+      if (savedBiz) {
+        try {
+          const bizObj = JSON.parse(savedBiz);
+          if (bizObj?.id) setBusinessId(bizObj.id);
+          if (bizObj?.name) {
+            setBusinessData({
+              name: bizObj.name,
+              logo: bizObj.logo_url || bizObj.logo || bizObj.image_url || ''
+            });
+          }
+        } catch (e) {
+          console.error("Error al leer currentBusiness:", e);
+        }
       }
     }
+
     if (inputRef.current) {
       inputRef.current.focus();
     }

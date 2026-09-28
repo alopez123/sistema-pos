@@ -130,27 +130,32 @@ export default function CreditAccountsPage() {
   };
 
   const handleWhatsAppReminder = (credito: any) => {
-    const telefono = credito.customer?.phone || '';
+    let telefono = credito.customer?.phone || '';
     
+    // Limpiamos el teléfono para dejar solo dígitos
+    telefono = telefono.replace(/\D/g, '');
+
     // Buscamos el nombre de la sucursal
     const branchIdCredito = credito.sale?.branch_id || credito.branch_id;
     const sucursalEncontrada = branches.find(b => b.id === branchIdCredito);
     const nombreSucursal = sucursalEncontrada ? sucursalEncontrada.name : (credito.branch_name || 'Sucursal');
 
-    // Extraemos y formateamos la fecha de la compra (si viene en el objeto)
+    // Extraemos y formateamos la fecha de la compra
     const fechaCruda = credito.created_at || credito.sale?.created_at;
     const fechaCompra = fechaCruda ? new Date(fechaCruda).toLocaleDateString() : 'reciente';
 
-    // Mensaje incorporando la fecha de la compra
+    // Mensaje de recordatorio
     const mensaje = `Se le recuerda que tiene pendiente el pago de: Q ${Number(credito.balance).toFixed(2)} de la compra realizada el ${fechaCompra} en el comercial: ${nombreSucursal}.`;
     
     if (telefono) {
-      const url = `https://wa.me/502${telefono}?text=${encodeURIComponent(mensaje)}`;
+      // Validamos si ya incluye el código de país (ej. 502 para Guatemala y longitud mayor a 8)
+      const numeroFinal = telefono.startsWith('502') || telefono.length > 8 ? telefono : `502${telefono}`;
+      const url = `https://wa.me/${numeroFinal}?text=${encodeURIComponent(mensaje)}`;
       window.open(url, '_blank');
     } else {
       const telManual = prompt("El cliente no tiene teléfono registrado. Ingresa el número de WhatsApp (ej. 502XXXXXXXX):");
       if (telManual) {
-        const url = `https://wa.me/${telManual}?text=${encodeURIComponent(mensaje)}`;
+        const url = `https://wa.me/${telManual.replace(/\D/g, '')}?text=${encodeURIComponent(mensaje)}`;
         window.open(url, '_blank');
       }
     }

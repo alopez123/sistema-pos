@@ -1037,6 +1037,7 @@ export default function Dashboard() {
                   <option value="cajero">💵 Cajero</option>
                   <option value="bodega">📦 Bodega</option>
                   <option value="encargado">⭐ Encargado</option>
+                  <option value="control_accesos">🚪 Control de Accesos</option>
                 </select>
               </div>
 
