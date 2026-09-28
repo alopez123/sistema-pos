@@ -8,10 +8,15 @@ export default function Dashboard() {
   const [branches, setBranches] = useState<any[]>([])
   const [selectedBranch, setSelectedBranch] = useState<string>('')
   const [isCustomProduct, setIsCustomProduct] = useState(false)
-  const [showInMarketGuate, setShowInMarketGuate] = useState(true) // Estado para el interruptor de MarketGuate
+  const [showInMarketGuate, setShowInMarketGuate] = useState(true)
 
   // Estado para controlar la vista activa mediante las Cards del Menú Principal
   const [activeSection, setActiveSection] = useState<'menu' | 'branches' | 'staff' | 'categories' | 'add_product' | 'products_list'>('menu')
+  const [isGymBusiness, setIsGymBusiness] = useState(false)
+
+  // Estado para cumpleañeros del día (Exclusivo de Gimnasio)
+  const [birthdayMembers, setBirthdayMembers] = useState<any[]>([])
+  const [currentBusinessData, setCurrentBusinessData] = useState<any>(null)
 
   // Estado para el Menú Lateral Deslizante (☰)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -76,7 +81,14 @@ export default function Dashboard() {
         const biz = JSON.parse(currentBusinessStr)
         setUserEmail(biz.owner_email || 'Negocio')
         setCurrentBusinessId(biz.id)
+        setCurrentBusinessData(biz)
         
+        // --- DETECTAR SI ES GIMNASIO ---
+        if (biz.is_gym) {
+          setIsGymBusiness(true)
+          fetchBirthdayMembers(biz.id)
+        }
+
         const nemonico = biz.owner_email ? biz.owner_email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '') : 'negocio'
         setBusinessNemonico(nemonico)
 
@@ -96,6 +108,38 @@ export default function Dashboard() {
       })
     }
   }, [router])
+
+  async function fetchBirthdayMembers(bId: string) {
+    try {
+      const { data, error } = await supabase.rpc('get_gym_members_safe', { p_business_id: bId })
+      if (!error && data) {
+        const today = new Date()
+        const currentMonth = today.getMonth() + 1
+        const currentDay = today.getDate()
+
+        const birthdays = data.filter((m: any) => {
+          if (!m.birth_date) return false
+          const parts = m.birth_date.split('-') // formato YYYY-MM-DD
+          if (parts.length < 3) return false
+          const bMonth = parseInt(parts[1], 10)
+          const bDay = parseInt(parts[2], 10)
+          return bMonth === currentMonth && bDay === currentDay
+        })
+
+        setBirthdayMembers(birthdays)
+      }
+    } catch (err) {
+      console.error("Error al verificar cumpleaños:", err)
+    }
+  }
+
+  function handleSendBirthdayWhatsApp(m: any) {
+    if (!m.customer_phone) return showToast("El socio no tiene teléfono.", "error")
+    const cleanPhone = m.customer_phone.replace(/[^0-9]/g, '')
+    const bizName = currentBusinessData?.name || 'Gimnasio'
+    const message = `¡Feliz Cumpleaños, *${m.customer_name}*! 🎂🎉 De parte de todo el equipo de *${bizName}* te deseamos un día increíble. ¡Te esperamos en el gimnasio para celebrarlo con toda la energía! 💪🎁`
+    window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`, '_blank')
+  }
 
   useEffect(() => {
     if (selectedBranch) fetchProducts()
@@ -183,7 +227,6 @@ export default function Dashboard() {
     }
   }
 
-  // Corrección implementada mediante función RPC segura
   async function updateBranchPhone(branchId: string, phoneVal: string) {
     const { error } = await supabase.rpc('update_branch_phone', {
       p_branch_id: branchId,
@@ -504,7 +547,6 @@ export default function Dashboard() {
     router.push('/')
   }
 
-  // Clases dinámicas según el tema (Modo Oscuro vs Modo Claro)
   const themeBg = isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-slate-100 text-slate-900'
   const panelBg = isDarkMode ? 'bg-[#1e293b] border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900 shadow-md'
   const subPanelBg = isDarkMode ? 'bg-[#0f172a] border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
@@ -513,7 +555,6 @@ export default function Dashboard() {
   return (
     <div className={`min-h-screen p-2 md:p-4 flex flex-col notranslate pb-20 lg:pb-4 relative ${themeBg}`} translate="no">
       
-      {/* TOAST FLOTANTE PROFESIONAL */}
       {toast && (
         <div className="fixed top-5 right-5 z-[99999] animate-bounce">
           <div className={`px-5 py-3 rounded-xl shadow-2xl border font-bold text-sm flex items-center gap-3 ${
@@ -527,7 +568,6 @@ export default function Dashboard() {
 
       <div className="max-w-5xl mx-auto w-full">
         
-        {/* HEADER ADAPTABLE CON BOTÓN HAMBURGUESA (☰) Y TEMA */}
         <header className={`p-3 rounded-lg shadow mb-4 flex flex-wrap justify-between items-center gap-2 border w-full ${panelBg}`}>
           <div className="flex items-center gap-2.5">
             <button 
@@ -538,13 +578,14 @@ export default function Dashboard() {
               ☰
             </button>
             <div>
-              <h1 className="text-xs md:text-sm font-bold text-emerald-500">Panel de Control POS</h1>
+              <h1 className="text-xs md:text-sm font-bold text-emerald-500">
+                {isGymBusiness ? '🏋️‍♂️ Panel de Control - Gimnasio' : 'Panel de Control POS'}
+              </h1>
               <p className="text-[10px] opacity-75">Conectado como: {userEmail}</p>
             </div>
           </div>
           
           <div className="flex items-center gap-2">
-            {/* BOTÓN INTERRUPTOR DE TEMA (SOLO ICONO) */}
             <button 
               onClick={toggleTheme}
               className={`p-2 rounded-lg text-sm font-semibold border transition-colors ${isDarkMode ? 'bg-slate-700 text-amber-300 border-slate-600' : 'bg-slate-200 text-slate-800 border-slate-300'}`}
@@ -555,7 +596,32 @@ export default function Dashboard() {
           </div>
         </header>
 
-        {/* BOTÓN DE RETORNO SI ESTÁ DENTRO DE UNA SECCIÓN */}
+        {/* ALERTA DE CUMPLEAÑOS EXCLUSIVA PARA GIMNASIOS */}
+        {isGymBusiness && birthdayMembers.length > 0 && (
+          <div className="mb-4 p-4 rounded-xl border border-pink-500/50 bg-pink-950/20 shadow-lg space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🎂</span>
+              <h3 className="text-sm font-bold text-pink-400">¡Socios Cumpleañeros el Día de Hoy!</h3>
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {birthdayMembers.map(m => (
+                <div key={m.id} className="flex items-center justify-between gap-3 bg-slate-900/60 border border-pink-500/30 px-3 py-2 rounded-xl text-xs">
+                  <div>
+                    <span className="font-bold text-white">{m.customer_name}</span>
+                    <span className="opacity-75 block text-[10px]">Tel: {m.customer_phone || 'N/A'}</span>
+                  </div>
+                  <button 
+                    onClick={() => handleSendBirthdayWhatsApp(m)}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg font-bold text-[11px] shadow flex items-center gap-1"
+                  >
+                    <span>📱 Felicitar</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {activeSection !== 'menu' && (
           <div className="mb-4">
             <button 
@@ -571,12 +637,139 @@ export default function Dashboard() {
         {activeSection === 'menu' && (
           <div className="space-y-4">
             <div className="text-center py-4">
-              <h2 className="text-lg md:text-xl font-bold text-emerald-500">Panel de Administración del Negocio</h2>
-              <p className="text-xs opacity-75">Selecciona una tarjeta para configurar tu negocio, sucursales y catálogo.</p>
+              <h2 className="text-lg md:text-xl font-bold text-emerald-500">
+                {isGymBusiness ? 'Panel de Administración del Gimnasio' : 'Panel de Administración del Negocio'}
+              </h2>
+              <p className="text-xs opacity-75">Selecciona una tarjeta para configurar tu negocio, sucursales y operaciones.</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               
+              {isGymBusiness && (
+                <>
+                  <div 
+                    onClick={() => router.push('/gyminscriptions')}
+                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
+                  >
+                    <div>
+                      <div className="text-2xl mb-2">📝</div>
+                      <h3 className="font-bold text-base text-cyan-400">Inscripciones y Planes</h3>
+                      <p className="text-xs opacity-75 mt-1">Registra nuevos ingresos, cobra mensualidades y asigna vigencias.</p>
+                    </div>
+                    <span className="text-xs font-bold text-cyan-400">Inscribir ➔</span>
+                  </div>
+
+                  <div 
+                    onClick={() => router.push('/gymmembersview')}
+                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
+                  >
+                    <div>
+                      <div className="text-2xl mb-2">🏋️‍♂️</div>
+                      <h3 className="font-bold text-base text-cyan-400">Control de Socios y Membresías</h3>
+                      <p className="text-xs opacity-75 mt-1">Registra nuevos socios, planifica membresías y emite carnets QR.</p>
+                    </div>
+                    <span className="text-xs font-bold text-cyan-400">Administrar ➔</span>
+                  </div>
+
+                  {/* NUEVA TARJETA: CONTROL DE SEGUIMIENTO Y NUTRICIÓN */}
+                  <div 
+                    onClick={() => router.push('/gymmemberprogress')}
+                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
+                  >
+                    <div>
+                      <div className="text-2xl mb-2">🥗</div>
+                      <h3 className="font-bold text-base text-cyan-400">Control de Seguimiento y Nutrición</h3>
+                      <p className="text-xs opacity-75 mt-1">Evalúa antropometría, edad metabólica, genera guías nutricionales y rutinas de entrenamiento.</p>
+                    </div>
+                    <span className="text-xs font-bold text-cyan-400">Evaluar ➔</span>
+                  </div>
+
+                  <div 
+                    onClick={() => router.push('/gymcheckinview')}
+                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
+                  >
+                    <div>
+                      <div className="text-2xl mb-2">🚪</div>
+                      <h3 className="font-bold text-base text-cyan-400">Control de Acceso (Check-In)</h3>
+                      <p className="text-xs opacity-75 mt-1">Escanea códigos en la entrada para validar accesos o salidas de socios.</p>
+                    </div>
+                    <span className="text-xs font-bold text-cyan-400">Abrir Puerta ➔</span>
+                  </div>
+
+                  <div 
+                    onClick={() => router.push('/gymreports')}
+                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
+                  >
+                    <div>
+                      <div className="text-2xl mb-2">📊</div>
+                      <h3 className="font-bold text-base text-cyan-400">Reportes de Asistencia</h3>
+                      <p className="text-xs opacity-75 mt-1">Visualiza entradas, salidas, comportamiento y estadísticas de los socios.</p>
+                    </div>
+                    <span className="text-xs font-bold text-cyan-400">Ver Reportes ➔</span>
+                  </div>
+
+                  <div 
+                    onClick={() => router.push('/gymguests')}
+                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
+                  >
+                    <div>
+                      <div className="text-2xl mb-2">🎟️</div>
+                      <h3 className="font-bold text-base text-cyan-400">Registro de Invitados</h3>
+                      <p className="text-xs opacity-75 mt-1">Controla pases de cortesía mensuales y prospección de clientes.</p>
+                    </div>
+                    <span className="text-xs font-bold text-cyan-400">Registrar ➔</span>
+                  </div>
+
+                  <div 
+                    onClick={() => router.push('/gymspecialclasses')}
+                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
+                  >
+                    <div>
+                      <div className="text-2xl mb-2">🥊</div>
+                      <h3 className="font-bold text-base text-cyan-400">Clases Especiales Únicas</h3>
+                      <p className="text-xs opacity-75 mt-1">Programa eventos, talleres o seminarios de fecha única.</p>
+                    </div>
+                    <span className="text-xs font-bold text-cyan-400">Administrar ➔</span>
+                  </div>
+
+                  <div 
+                    onClick={() => router.push('/gymfixedclasses')}
+                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
+                  >
+                    <div>
+                      <div className="text-2xl mb-2">📅</div>
+                      <h3 className="font-bold text-base text-cyan-400">Clases Fijas Recurrentes</h3>
+                      <p className="text-xs opacity-75 mt-1">Programa disciplinas semanales con múltiples horarios y costos.</p>
+                    </div>
+                    <span className="text-xs font-bold text-cyan-400">Administrar ➔</span>
+                  </div>
+
+                  <div 
+                    onClick={() => router.push('/gymmemberclasses')}
+                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
+                  >
+                    <div>
+                      <div className="text-2xl mb-2">🏅</div>
+                      <h3 className="font-bold text-base text-cyan-400">Asignar Clases a Socios</h3>
+                      <p className="text-xs opacity-75 mt-1">Inscribe socios a disciplinas recurrentes con vigencias y costos extra.</p>
+                    </div>
+                    <span className="text-xs font-bold text-cyan-400">Asignar ➔</span>
+                  </div>
+
+                  <div 
+                    onClick={() => router.push('/gymsettingsview')}
+                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
+                  >
+                    <div>
+                      <div className="text-2xl mb-2">⚙️</div>
+                      <h3 className="font-bold text-base text-cyan-400">Configuración del Gimnasio</h3>
+                      <p className="text-xs opacity-75 mt-1">Establece límites de invitados mensuales y parámetros generales.</p>
+                    </div>
+                    <span className="text-xs font-bold text-cyan-400">Configurar ➔</span>
+                  </div>
+                </>
+              )}
+
               {/* CARD 1: SUCURSALES */}
               <div 
                 onClick={() => setActiveSection('branches')}
@@ -700,7 +893,6 @@ export default function Dashboard() {
               </select>
             </div>
 
-            {/* FORMULARIO DE NUEVA SUCURSAL CON TELÉFONO */}
             <div className={`p-4 rounded-xl border space-y-3 ${subPanelBg}`}>
               <h3 className="text-xs font-bold text-emerald-500 uppercase">Registrar Nueva Sucursal</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -733,7 +925,6 @@ export default function Dashboard() {
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-opacity-30">
-                        {/* EDICIÓN DE TELÉFONO DE SUCURSAL */}
                         <div>
                           <label className="text-[11px] opacity-75 block mb-1">Teléfono de Sucursal (MarketGuate):</label>
                           <div className="flex gap-2">
@@ -756,7 +947,6 @@ export default function Dashboard() {
                           </div>
                         </div>
 
-                        {/* EDICIÓN DE LÍMITE DE CRÉDITO */}
                         <div>
                           <label className="text-[11px] opacity-75 block mb-1">Límite máx. compras al crédito:</label>
                           <div className="flex gap-2">
@@ -1000,7 +1190,6 @@ export default function Dashboard() {
               </label>
             </div>
 
-            {/* SWITCH PARA MOSTRAR / OCULTAR EN MARKETGUATE */}
             <div className={`col-span-full flex items-center gap-2 pt-2 p-3 rounded border ${subPanelBg}`}>
               <input 
                 type="checkbox" 
@@ -1087,7 +1276,7 @@ export default function Dashboard() {
 
       </div>
 
-      {/* MENÚ LATERAL DESLIZANTE (☰) CON ACCESOS GENERALES LIMPIOS */}
+      {/* MENÚ LATERAL DESLIZANTE (☰) */}
       {isDrawerOpen && (
         <div className="fixed inset-0 bg-black/70 flex z-[9999]" onClick={() => setIsDrawerOpen(false)}>
           <div 
@@ -1106,6 +1295,53 @@ export default function Dashboard() {
                   <span>🏠 Ir al Menú de Tarjetas</span>
                   <span>➔</span>
                 </button>
+
+                {isGymBusiness && (
+                  <>
+                    <p className="font-bold text-cyan-400 text-sm pt-2">Módulos del Gimnasio</p>
+                    <button onClick={() => { setIsDrawerOpen(false); router.push('/gyminscriptions'); }} className="w-full bg-cyan-600 hover:bg-cyan-500 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
+                      <span>📝 Inscripciones y Planes</span>
+                      <span>➔</span>
+                    </button>
+                    <button onClick={() => { setIsDrawerOpen(false); router.push('/gymmembersview'); }} className="w-full bg-cyan-700 hover:bg-cyan-600 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
+                      <span>🏋️‍♂️ Control de Socios</span>
+                      <span>➔</span>
+                    </button>
+                    {/* NUEVO BOTÓN EN MENÚ LATERAL */}
+                    <button onClick={() => { setIsDrawerOpen(false); router.push('/gymmemberprogress'); }} className="w-full bg-cyan-800 hover:bg-cyan-700 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
+                      <span>🥗 Control de Seguimiento y Nutrición</span>
+                      <span>➔</span>
+                    </button>
+                    <button onClick={() => { setIsDrawerOpen(false); router.push('/gymcheckinview'); }} className="w-full bg-cyan-800 hover:bg-cyan-700 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
+                      <span>🚪 Control de Acceso (Check-In)</span>
+                      <span>➔</span>
+                    </button>
+                    <button onClick={() => { setIsDrawerOpen(false); router.push('/gymreports'); }} className="w-full bg-cyan-900 hover:bg-cyan-800 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
+                      <span>📊 Reportes de Asistencia</span>
+                      <span>➔</span>
+                    </button>
+                    <button onClick={() => { setIsDrawerOpen(false); router.push('/gymguests'); }} className="w-full bg-cyan-700 hover:bg-cyan-600 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
+                      <span>🎟️ Registro de Invitados</span>
+                      <span>➔</span>
+                    </button>
+                    <button onClick={() => { setIsDrawerOpen(false); router.push('/gymspecialclasses'); }} className="w-full bg-cyan-800 hover:bg-cyan-700 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
+                      <span>🥊 Clases Especiales Únicas</span>
+                      <span>➔</span>
+                    </button>
+                    <button onClick={() => { setIsDrawerOpen(false); router.push('/gymfixedclasses'); }} className="w-full bg-cyan-700 hover:bg-cyan-600 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
+                      <span>📅 Clases Fijas Recurrentes</span>
+                      <span>➔</span>
+                    </button>
+                    <button onClick={() => { setIsDrawerOpen(false); router.push('/gymmemberclasses'); }} className="w-full bg-cyan-900 hover:bg-cyan-800 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
+                      <span>🏅 Asignar Clases a Socios</span>
+                      <span>➔</span>
+                    </button>
+                    <button onClick={() => { setIsDrawerOpen(false); router.push('/gymsettingsview'); }} className="w-full bg-slate-700 hover:bg-slate-600 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
+                      <span>⚙️ Configuración del Gimnasio</span>
+                      <span>➔</span>
+                    </button>
+                  </>
+                )}
 
                 <p className="font-bold text-emerald-500 text-sm pt-2">Módulos del Sistema</p>
                 <button onClick={() => { setIsDrawerOpen(false); router.push('/pos'); }} className="w-full bg-sky-600 hover:bg-sky-500 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">

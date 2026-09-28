@@ -8,7 +8,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   
-  // Estado para Notificaciones Flotantes (Toast) profesional
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'error') => {
@@ -16,10 +15,8 @@ export default function LoginPage() {
     setTimeout(() => { setToast(null) }, 4500)
   }
   
-  // Estado para el número de WhatsApp del Admin consultado desde la base de datos
-  const [adminPhone, setAdminPhone] = useState('50248069299') // Valor por defecto de respaldo
+  const [adminPhone, setAdminPhone] = useState('50248069299')
 
-  // Estados renovación QR + Token
   const [showRenewalModal, setShowRenewalModal] = useState(false)
   const [pendingBusiness, setPendingBusiness] = useState<any>(null)
   const [selectedBank, setSelectedBank] = useState<'BI' | 'BANRURAL'>('BI')
@@ -29,7 +26,6 @@ export default function LoginPage() {
   const [inputToken, setInputToken] = useState('')
   const [validatingToken, setValidatingToken] = useState(false)
 
-  // Estados para Modal de Cambio Obligatorio de Contraseña (Primer Uso)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -38,7 +34,6 @@ export default function LoginPage() {
 
   const router = useRouter()
 
-  // Consultar el número de WhatsApp del administrador al cargar la página
   useEffect(() => {
     async function fetchAdminWhatsApp() {
       try {
@@ -88,8 +83,26 @@ export default function LoginPage() {
           return
         }
 
+       // --- DETECCIÓN SEGURA DE GIMNASIO SIN LLAMADAS EXTRA A SUPABASE ---
+        let isGym = false;
+        const bizName = userAccount.name ? userAccount.name.toLowerCase() : '';
+        const bizEmail = userAccount.owner_email ? userAccount.owner_email.toLowerCase() : '';
+        
+        if (bizName.includes('gym') || bizName.includes('gimnacio') || bizName.includes('gimnacios') || bizEmail.includes('gym')) {
+          isGym = true;
+        }
+
         localStorage.removeItem('currentStaff')
-        localStorage.setItem('currentBusiness', JSON.stringify(userAccount))
+        localStorage.setItem('currentBusiness', JSON.stringify({
+          ...userAccount,
+          is_gym: isGym
+        }))
+
+        localStorage.removeItem('currentStaff')
+        localStorage.setItem('currentBusiness', JSON.stringify({
+          ...userAccount,
+          is_gym: isGym
+        }))
 
         if (userAccount.owner_email === 'alopezadmin@admin.com') {
           router.push('/admin')
@@ -112,7 +125,6 @@ export default function LoginPage() {
       const staff = staffData[0]
       const targetBizId = staff.business_id || staff.busines_id
 
-      // Consultar el negocio usando la función RPC segura para saltar el RLS
       const { data: bizDataList, error: bizError } = await supabase
         .rpc('get_business_status_by_id', { p_business_id: targetBizId })
 
@@ -138,17 +150,34 @@ export default function LoginPage() {
         return
       }
 
+      let isGymStaff = false;
+      if (bizData.category_business_id) {
+        const { data: catData } = await supabase
+          .from('categories_bussiness')
+          .select('name')
+          .eq('id', bizData.category_business_id)
+          .single();
+        
+        const catName = catData?.name ? catData.name.toLowerCase() : '';
+        const bizName = bizData.name ? bizData.name.toLowerCase() : '';
+        
+        if (catName.includes('gimnacio') || catName.includes('gym') || bizName.includes('gym') || bizName.includes('gimnacio')) {
+          isGymStaff = true;
+        }
+      }
+
       const userRole = (staff.role || 'vendedor').trim().toLowerCase();
       const { data: branchData } = await supabase.from('branches').select('name').eq('id', staff.branch_id).single()
 
       localStorage.removeItem('currentBusiness')
       localStorage.setItem('currentStaff', JSON.stringify({
         id: staff.id, name: staff.name, username: staff.username || staff.email,
-        branch_id: staff.branch_id, business_id: targetBizId, branch_name: branchData?.name || 'Sucursal', role: userRole
+        branch_id: staff.branch_id, business_id: targetBizId, branch_name: branchData?.name || 'Sucursal', role: userRole, is_gym: isGymStaff
       }))
 
-      // Validación corregida y ordenada de roles para redirección correcta
-      if (userRole === 'cajero') {
+      if (isGymStaff) {
+        router.push('/dashboard')
+      } else if (userRole === 'cajero') {
         router.push('/cajero')
       } else if (userRole === 'bodega') {
         router.push('/inventario')
@@ -164,7 +193,6 @@ export default function LoginPage() {
     }
   }
 
-  // --- FUNCIÓN DE RECUPERACIÓN DE CONTRASEÑA POR WHATSAPP MEDIANTE RPC ---
   const handleForgotPassword = async () => {
     const inputVal = email.trim();
     if (!inputVal) {
@@ -319,7 +347,6 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0f172a] p-4 notranslate relative" translate="no">
       
-      {/* TOAST FLOTANTE PROFESIONAL */}
       {toast && (
         <div className="fixed top-5 right-5 z-[99999] animate-bounce">
           <div className={`px-5 py-3 rounded-xl shadow-2xl border font-bold text-sm flex items-center gap-3 ${
@@ -372,7 +399,6 @@ export default function LoginPage() {
             {loading ? 'Validando...' : 'Iniciar Sesión'}
           </button>
 
-          {/* BOTÓN O ENLACE DE OLVIDÉ MI CONTRASEÑA */}
           <div className="text-center pt-1">
             <button 
               type="button"
@@ -390,7 +416,6 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* --- MODAL CAMBIO OBLIGATORIO DE CONTRASEÑA --- */}
       {showPasswordModal && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
           <div className="bg-[#1e293b] p-6 rounded-xl border border-emerald-500 w-full max-w-sm text-white shadow-2xl space-y-4">
@@ -434,7 +459,6 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* --- MODAL DE RENOVACIÓN CON QR, COMPROBANTE Y TOKEN --- */}
       {showRenewalModal && pendingBusiness && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
           <div className="bg-[#1e293b] p-6 rounded-xl border border-emerald-500 w-full max-w-md text-white shadow-2xl space-y-4 max-h-[95vh] overflow-y-auto">
@@ -449,7 +473,6 @@ export default function LoginPage() {
               <p><span className="text-slate-400">Monto a Cancelar:</span> <strong className="text-emerald-400 text-sm">Q {pendingBusiness.amount || 300}</strong></p>
             </div>
 
-            {/* Selector de Banco */}
             <div className="space-y-2">
               <label className="block text-xs font-semibold text-slate-300">Selecciona el banco:</label>
               <div className="grid grid-cols-2 gap-2">
@@ -470,13 +493,11 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* QR */}
             <div className="flex flex-col items-center justify-center bg-white p-4 rounded-lg space-y-2 shadow-inner">
               <img src={selectedBank === 'BI' ? '/qr-bi.png' : '/qr-banrural.png'} alt={`QR ${selectedBank}`} className="w-40 h-40 object-contain" />
               <span className="text-[11px] font-bold text-slate-800">Transfiera a: {selectedBank === 'BI' ? 'Banco Industrial' : 'Banrural'}</span>
             </div>
 
-            {/* Subir comprobante y Referencia */}
             <div className="space-y-3 border-t border-slate-700 pt-3">
               <label className="block text-xs font-semibold text-slate-300">1. Datos del pago y comprobante:</label>
               <input 
@@ -505,7 +526,6 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {/* Ingresar Token de Activación */}
             <div className="space-y-2 border-t border-slate-700 pt-3">
               <label className="block text-xs font-semibold text-emerald-400">2. Ingresa el Token recibido por WhatsApp:</label>
               <div className="flex gap-2">
