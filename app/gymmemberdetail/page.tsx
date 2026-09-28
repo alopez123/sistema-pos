@@ -1,9 +1,9 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function GymMemberDetailPage({ currentBusiness, darkMode }: any) {
+function GymMemberDetailContent({ currentBusiness, darkMode }: any) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const memberId = searchParams.get('id')
@@ -73,7 +73,6 @@ export default function GymMemberDetailPage({ currentBusiness, darkMode }: any) 
 
   return (
     <div className={`min-h-screen p-4 md:p-6 flex flex-col notranslate relative ${themeBg}`} translate="no">
-      
       {toast && (
         <div className="fixed top-5 right-5 z-[99999] animate-bounce">
           <div className={`px-5 py-3 rounded-xl shadow-2xl border font-bold text-sm flex items-center gap-3 ${
@@ -86,8 +85,6 @@ export default function GymMemberDetailPage({ currentBusiness, darkMode }: any) 
       )}
 
       <div className="max-w-4xl mx-auto w-full space-y-6">
-        
-        {/* Header */}
         <div className={`p-4 rounded-xl shadow flex justify-between items-center gap-3 border ${panelBg}`}>
           <div className="flex items-center gap-3">
             <button 
@@ -103,9 +100,7 @@ export default function GymMemberDetailPage({ currentBusiness, darkMode }: any) 
           </div>
         </div>
 
-        {/* Tarjeta de Datos Personales y Clases */}
         <div className={`p-6 rounded-2xl border shadow-xl space-y-6 ${panelBg}`}>
-          
           <div className="flex flex-col sm:flex-row items-center gap-6 border-b border-slate-700 pb-6">
             {member.photo_url ? (
               <img src={member.photo_url} alt="" className="w-24 h-24 rounded-2xl object-cover border-2 border-cyan-500 shadow-md" />
@@ -129,10 +124,8 @@ export default function GymMemberDetailPage({ currentBusiness, darkMode }: any) 
             </div>
           </div>
 
-          {/* Clases Fijas / Recurrentes Contratadas */}
           <div className="space-y-3">
             <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-wider">🏅 Clases Fijas y Costos Extra Contratados</h3>
-            
             {assignedClasses.length === 0 ? (
               <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-700 text-xs text-center opacity-75">
                 Este socio no tiene clases fijas ni costos extra asignados actualmente.
@@ -159,10 +152,16 @@ export default function GymMemberDetailPage({ currentBusiness, darkMode }: any) 
               </div>
             )}
           </div>
-
         </div>
-
       </div>
     </div>
+  )
+}
+
+export default function GymMemberDetailPage(props: any) {
+  return (
+    <Suspense fallback={<div className="min-h-screen p-8 text-center text-white">Cargando...</div>}>
+      <GymMemberDetailContent {...props} />
+    </Suspense>
   )
 }
