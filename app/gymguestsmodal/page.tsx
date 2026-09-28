@@ -78,7 +78,7 @@ export default function GymGuestsModal({ membership, businessId, darkMode, onClo
         
         <div className="space-y-1">
           <h3 className="text-xl font-black">👥 Control de Invitados Mensuales</h3>
-          <p className="text-xs text-slate-400">Socio titular: <strong>{membership.customer_name}</strong></p>
+          <p className="text-xs text-slate-400">Socio titular: <strong>{membership?.customer_name || 'No seleccionado'}</strong></p>
         </div>
 
         {/* Resumen de cupos */}
