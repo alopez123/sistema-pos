@@ -53,7 +53,7 @@ export default function GymAddonsView({ membership, darkMode, onClose }: { membe
         
         <div className="space-y-1">
           <h3 className="text-xl font-black">🥊 Clases y Servicios Adicionales</h3>
-          <p className="text-xs text-slate-400">Socio: <strong>{membership.customer_name}</strong></p>
+          <p className="text-xs text-slate-400">Socio: <strong>{membership?.customer_name || 'No seleccionado'}</strong></p>
         </div>
 
         {/* Formulario para agregar servicio */}
