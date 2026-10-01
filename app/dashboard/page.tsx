@@ -10,21 +10,16 @@ export default function Dashboard() {
   const [isCustomProduct, setIsCustomProduct] = useState(false)
   const [showInMarketGuate, setShowInMarketGuate] = useState(true)
 
-  // Estado para controlar la vista activa mediante las Cards del Menú Principal
   const [activeSection, setActiveSection] = useState<'menu' | 'branches' | 'staff' | 'categories' | 'add_product' | 'products_list'>('menu')
   const [isGymBusiness, setIsGymBusiness] = useState(false)
 
-  // Estado para cumpleañeros del día (Exclusivo de Gimnasio)
   const [birthdayMembers, setBirthdayMembers] = useState<any[]>([])
   const [currentBusinessData, setCurrentBusinessData] = useState<any>(null)
-
-  // Estado para el Menú Lateral Deslizante (☰)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
-
-  // Estado para el Tema (Modo Oscuro / Modo Claro Local)
   const [isDarkMode, setIsDarkMode] = useState(true)
 
-  // Estado para Notificaciones Flotantes (Toast) profesionales
+  const [isSaving, setIsSaving] = useState(false)
+
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -45,7 +40,6 @@ export default function Dashboard() {
     localStorage.setItem('dashboard_theme', newMode ? 'dark' : 'light')
   }
 
-  // Estados para personal / cajeros
   const [username, setUsername] = useState('')
   const [accessCode, setAccessCode] = useState('')
   const [staffName, setStaffName] = useState('')
@@ -54,14 +48,16 @@ export default function Dashboard() {
   const [businessNemonico, setBusinessNemonico] = useState('')
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null)
   
-  // Estados para Categorías y Productos
   const [categories, setCategories] = useState<any[]>([])
   const [newCategoryName, setNewCategoryName] = useState('')
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null) 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [name, setName] = useState('')
-  const [price, setPrice] = useState('')
+  
+  const [costPrice, setCostPrice] = useState('')
+  const [sellingPrice, setSellingPrice] = useState('')
   const [stock, setStock] = useState('')
+
   const [selectedCategoryId, setSelectedCategoryId] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
   
@@ -83,7 +79,6 @@ export default function Dashboard() {
         setCurrentBusinessId(biz.id)
         setCurrentBusinessData(biz)
         
-        // --- DETECTAR SI ES GIMNASIO ---
         if (biz.is_gym) {
           setIsGymBusiness(true)
           fetchBirthdayMembers(biz.id)
@@ -119,7 +114,7 @@ export default function Dashboard() {
 
         const birthdays = data.filter((m: any) => {
           if (!m.birth_date) return false
-          const parts = m.birth_date.split('-') // formato YYYY-MM-DD
+          const parts = m.birth_date.split('-')
           if (parts.length < 3) return false
           const bMonth = parseInt(parts[1], 10)
           const bDay = parseInt(parts[2], 10)
@@ -407,67 +402,73 @@ export default function Dashboard() {
   }
 
   async function handleSaveProduct() {
+    if (isSaving) return
     if (!selectedBranch || !name.trim()) return showToast("Selecciona sucursal y nombre.", "error")
 
+    setIsSaving(true)
     let imageUrl = null
-    if (imageFile) {
-      try {
+
+    try {
+      if (imageFile) {
         const optimizedFile = await compressImage(imageFile)
         const fileName = `${Date.now()}.jpg`
         const { error: uploadError } = await supabase.storage.from('products').upload(fileName, optimizedFile)
         if (uploadError) throw uploadError
-        const { data } = supabase.storage.from('products').getPublicUrl(fileName)
+        const { data } = await supabase.storage.from('products').getPublicUrl(fileName)
         imageUrl = data.publicUrl
-      } catch (err) {
-        return showToast("Error al procesar/subir imagen.", "error")
       }
-    }
 
-    if (editingId) {
-      const { error } = await supabase.rpc('update_product_safe', {
-        p_business_id: currentBusinessId,
-        p_product_id: editingId,
-        p_name: name,
-        p_price: parseFloat(price) || 0,
-        p_stock: parseInt(stock) || 0,
-        p_category_id: selectedCategoryId || null,
-        p_image_url: imageUrl,
-        p_is_custom: isCustomProduct,
-        p_show_in_marketguate: showInMarketGuate
-      })
+      const sellVal = parseFloat(sellingPrice) || 0
+      const qtyVal = parseInt(stock) || 0
 
-      if (error) showToast("Error al actualizar: " + error.message, "error")
-      else {
+      if (editingId) {
+        const { error } = await supabase.rpc('update_product_safe', {
+          p_business_id: currentBusinessId,
+          p_product_id: editingId,
+          p_name: name,
+          p_price: sellVal,
+          p_stock: qtyVal,
+          p_category_id: selectedCategoryId || null,
+          p_image_url: imageUrl,
+          p_is_custom: isCustomProduct,
+          p_show_in_marketguate: showInMarketGuate
+        })
+
+        if (error) throw error
+
         showToast("¡Producto actualizado con éxito!", "success")
         cancelEdit()
         fetchProducts()
-      }
-    } else {
-      const { error } = await supabase.rpc('add_product_safe', {
-        p_business_id: currentBusinessId,
-        p_branch_id: selectedBranch,
-        p_name: name,
-        p_price: parseFloat(price) || 0,
-        p_stock: parseInt(stock) || 0,
-        p_category_id: selectedCategoryId || null,
-        p_image_url: imageUrl,
-        p_is_custom: isCustomProduct,
-        p_show_in_marketguate: showInMarketGuate
-      })
+      } else {
+        const { error: prodError } = await supabase.rpc('add_product_safe', {
+          p_branch_id: selectedBranch,
+          p_category_id: selectedCategoryId || null,
+          p_image_url: imageUrl,
+          p_is_custom: isCustomProduct,
+          p_name: name.trim(),
+          p_price: isCustomProduct ? 0 : sellVal,
+          p_stock: qtyVal,
+          p_show_in_marketguate: showInMarketGuate
+        })
 
-      if (error) showToast("Error al agregar: " + error.message, "error")
-      else {
+        if (prodError) throw prodError
+
         showToast("¡Producto agregado con éxito!", "success")
         cancelEdit()
         fetchProducts()
       }
+    } catch (err: any) {
+      showToast("Error al guardar: " + (err.message || err), "error")
+    } finally {
+      setIsSaving(false)
     }
   }
 
   function startEdit(product: any) {
     setEditingId(product.id)
     setName(product.name)
-    setPrice(product.price)
+    setSellingPrice(product.price)
+    setCostPrice(product.cost_price || '')
     setStock(product.stock)
     setSelectedCategoryId(product.category_id || '')
     setIsCustomProduct(product.is_custom || false)
@@ -479,7 +480,8 @@ export default function Dashboard() {
   function cancelEdit() {
     setEditingId(null)
     setName('')
-    setPrice('')
+    setCostPrice('')
+    setSellingPrice('')
     setStock('')
     setSelectedCategoryId('')
     setIsCustomProduct(false)
@@ -596,7 +598,6 @@ export default function Dashboard() {
           </div>
         </header>
 
-        {/* ALERTA DE CUMPLEAÑOS EXCLUSIVA PARA GIMNASIOS */}
         {isGymBusiness && birthdayMembers.length > 0 && (
           <div className="mb-4 p-4 rounded-xl border border-pink-500/50 bg-pink-950/20 shadow-lg space-y-2">
             <div className="flex items-center gap-2">
@@ -610,10 +611,7 @@ export default function Dashboard() {
                     <span className="font-bold text-white">{m.customer_name}</span>
                     <span className="opacity-75 block text-[10px]">Tel: {m.customer_phone || 'N/A'}</span>
                   </div>
-                  <button 
-                    onClick={() => handleSendBirthdayWhatsApp(m)}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg font-bold text-[11px] shadow flex items-center gap-1"
-                  >
+                  <button onClick={() => handleSendBirthdayWhatsApp(m)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg font-bold text-[11px] shadow flex items-center gap-1">
                     <span>📱 Felicitar</span>
                   </button>
                 </div>
@@ -624,16 +622,12 @@ export default function Dashboard() {
 
         {activeSection !== 'menu' && (
           <div className="mb-4">
-            <button 
-              onClick={() => { setActiveSection('menu'); cancelEdit(); cancelEditStaff(); cancelEditCategory(); }}
-              className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow flex items-center gap-1.5"
-            >
+            <button onClick={() => { setActiveSection('menu'); cancelEdit(); cancelEditStaff(); cancelEditCategory(); }} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow flex items-center gap-1.5">
               ← Volver al Menú Principal
             </button>
           </div>
         )}
 
-        {/* MENÚ PRINCIPAL DE TARJETAS (CARDS) */}
         {activeSection === 'menu' && (
           <div className="space-y-4">
             <div className="text-center py-4">
@@ -647,10 +641,7 @@ export default function Dashboard() {
               
               {isGymBusiness && (
                 <>
-                  <div 
-                    onClick={() => router.push('/gyminscriptions')}
-                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
-                  >
+                  <div onClick={() => router.push('/gyminscriptions')} className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}>
                     <div>
                       <div className="text-2xl mb-2">📝</div>
                       <h3 className="font-bold text-base text-cyan-400">Inscripciones y Planes</h3>
@@ -659,10 +650,7 @@ export default function Dashboard() {
                     <span className="text-xs font-bold text-cyan-400">Inscribir ➔</span>
                   </div>
 
-                  <div 
-                    onClick={() => router.push('/gymmembersview')}
-                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
-                  >
+                  <div onClick={() => router.push('/gymmembersview')} className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}>
                     <div>
                       <div className="text-2xl mb-2">🏋️‍♂️</div>
                       <h3 className="font-bold text-base text-cyan-400">Control de Socios y Membresías</h3>
@@ -671,11 +659,7 @@ export default function Dashboard() {
                     <span className="text-xs font-bold text-cyan-400">Administrar ➔</span>
                   </div>
 
-                  {/* NUEVA TARJETA: CONTROL DE SEGUIMIENTO Y NUTRICIÓN */}
-                  <div 
-                    onClick={() => router.push('/gymmemberprogress')}
-                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
-                  >
+                  <div onClick={() => router.push('/gymmemberprogress')} className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}>
                     <div>
                       <div className="text-2xl mb-2">🥗</div>
                       <h3 className="font-bold text-base text-cyan-400">Control de Seguimiento y Nutrición</h3>
@@ -684,10 +668,7 @@ export default function Dashboard() {
                     <span className="text-xs font-bold text-cyan-400">Evaluar ➔</span>
                   </div>
 
-                  <div 
-                    onClick={() => router.push('/gymcheckinview')}
-                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
-                  >
+                  <div onClick={() => router.push('/gymcheckinview')} className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}>
                     <div>
                       <div className="text-2xl mb-2">🚪</div>
                       <h3 className="font-bold text-base text-cyan-400">Control de Acceso (Check-In)</h3>
@@ -696,10 +677,7 @@ export default function Dashboard() {
                     <span className="text-xs font-bold text-cyan-400">Abrir Puerta ➔</span>
                   </div>
 
-                  <div 
-                    onClick={() => router.push('/gymreports')}
-                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
-                  >
+                  <div onClick={() => router.push('/gymreports')} className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}>
                     <div>
                       <div className="text-2xl mb-2">📊</div>
                       <h3 className="font-bold text-base text-cyan-400">Reportes de Asistencia</h3>
@@ -708,10 +686,7 @@ export default function Dashboard() {
                     <span className="text-xs font-bold text-cyan-400">Ver Reportes ➔</span>
                   </div>
 
-                  <div 
-                    onClick={() => router.push('/gymguests')}
-                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
-                  >
+                  <div onClick={() => router.push('/gymguests')} className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}>
                     <div>
                       <div className="text-2xl mb-2">🎟️</div>
                       <h3 className="font-bold text-base text-cyan-400">Registro de Invitados</h3>
@@ -720,10 +695,7 @@ export default function Dashboard() {
                     <span className="text-xs font-bold text-cyan-400">Registrar ➔</span>
                   </div>
 
-                  <div 
-                    onClick={() => router.push('/gymspecialclasses')}
-                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
-                  >
+                  <div onClick={() => router.push('/gymspecialclasses')} className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}>
                     <div>
                       <div className="text-2xl mb-2">🥊</div>
                       <h3 className="font-bold text-base text-cyan-400">Clases Especiales Únicas</h3>
@@ -732,10 +704,7 @@ export default function Dashboard() {
                     <span className="text-xs font-bold text-cyan-400">Administrar ➔</span>
                   </div>
 
-                  <div 
-                    onClick={() => router.push('/gymfixedclasses')}
-                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
-                  >
+                  <div onClick={() => router.push('/gymfixedclasses')} className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}>
                     <div>
                       <div className="text-2xl mb-2">📅</div>
                       <h3 className="font-bold text-base text-cyan-400">Clases Fijas Recurrentes</h3>
@@ -744,10 +713,7 @@ export default function Dashboard() {
                     <span className="text-xs font-bold text-cyan-400">Administrar ➔</span>
                   </div>
 
-                  <div 
-                    onClick={() => router.push('/gymmemberclasses')}
-                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
-                  >
+                  <div onClick={() => router.push('/gymmemberclasses')} className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}>
                     <div>
                       <div className="text-2xl mb-2">🏅</div>
                       <h3 className="font-bold text-base text-cyan-400">Asignar Clases a Socios</h3>
@@ -756,10 +722,7 @@ export default function Dashboard() {
                     <span className="text-xs font-bold text-cyan-400">Asignar ➔</span>
                   </div>
 
-                  <div 
-                    onClick={() => router.push('/gymsettingsview')}
-                    className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
-                  >
+                  <div onClick={() => router.push('/gymsettingsview')} className={`p-5 rounded-xl border cursor-pointer hover:border-cyan-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}>
                     <div>
                       <div className="text-2xl mb-2">⚙️</div>
                       <h3 className="font-bold text-base text-cyan-400">Configuración del Gimnasio</h3>
@@ -770,11 +733,7 @@ export default function Dashboard() {
                 </>
               )}
 
-              {/* CARD 1: SUCURSALES */}
-              <div 
-                onClick={() => setActiveSection('branches')}
-                className={`p-5 rounded-xl border cursor-pointer hover:border-emerald-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
-              >
+              <div onClick={() => setActiveSection('branches')} className={`p-5 rounded-xl border cursor-pointer hover:border-emerald-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}>
                 <div>
                   <div className="text-2xl mb-2">📍</div>
                   <h3 className="font-bold text-base text-emerald-500">Gestión de Sucursales</h3>
@@ -783,11 +742,7 @@ export default function Dashboard() {
                 <span className="text-xs font-bold text-emerald-400">Administrar ➔</span>
               </div>
 
-              {/* CARD 2: PERSONAL */}
-              <div 
-                onClick={() => setActiveSection('staff')}
-                className={`p-5 rounded-xl border cursor-pointer hover:border-emerald-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
-              >
+              <div onClick={() => setActiveSection('staff')} className={`p-5 rounded-xl border cursor-pointer hover:border-emerald-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}>
                 <div>
                   <div className="text-2xl mb-2">👥</div>
                   <h3 className="font-bold text-base text-emerald-500">Asignación de Personal</h3>
@@ -796,11 +751,7 @@ export default function Dashboard() {
                 <span className="text-xs font-bold text-emerald-400">Administrar ➔</span>
               </div>
 
-              {/* CARD 3: CATEGORÍAS */}
-              <div 
-                onClick={() => setActiveSection('categories')}
-                className={`p-5 rounded-xl border cursor-pointer hover:border-emerald-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
-              >
+              <div onClick={() => setActiveSection('categories')} className={`p-5 rounded-xl border cursor-pointer hover:border-emerald-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}>
                 <div>
                   <div className="text-2xl mb-2">🏷️</div>
                   <h3 className="font-bold text-base text-emerald-500">Gestión de Categorías</h3>
@@ -809,11 +760,7 @@ export default function Dashboard() {
                 <span className="text-xs font-bold text-emerald-400">Administrar ➔</span>
               </div>
 
-              {/* CARD 4: AGREGAR PRODUCTOS */}
-              <div 
-                onClick={() => setActiveSection('add_product')}
-                className={`p-5 rounded-xl border cursor-pointer hover:border-emerald-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
-              >
+              <div onClick={() => setActiveSection('add_product')} className={`p-5 rounded-xl border cursor-pointer hover:border-emerald-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}>
                 <div>
                   <div className="text-2xl mb-2">➕</div>
                   <h3 className="font-bold text-base text-emerald-500">Agregar Producto</h3>
@@ -822,11 +769,7 @@ export default function Dashboard() {
                 <span className="text-xs font-bold text-emerald-400">Administrar ➔</span>
               </div>
 
-              {/* CARD 5: LISTA DE PRODUCTOS */}
-              <div 
-                onClick={() => setActiveSection('products_list')}
-                className={`p-5 rounded-xl border cursor-pointer hover:border-emerald-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
-              >
+              <div onClick={() => setActiveSection('products_list')} className={`p-5 rounded-xl border cursor-pointer hover:border-emerald-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}>
                 <div>
                   <div className="text-2xl mb-2">📋</div>
                   <h3 className="font-bold text-base text-emerald-500">Catálogo de Productos</h3>
@@ -835,11 +778,7 @@ export default function Dashboard() {
                 <span className="text-xs font-bold text-emerald-400">Administrar ➔</span>
               </div>
 
-              {/* CARD 6: MÓDULO DE ACREEDORES / CUENTAS POR COBRAR */}
-              <div 
-                onClick={() => router.push('/acreedores')}
-                className={`p-5 rounded-xl border cursor-pointer hover:border-emerald-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
-              >
+              <div onClick={() => router.push('/acreedores')} className={`p-5 rounded-xl border cursor-pointer hover:border-emerald-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}>
                 <div>
                   <div className="text-2xl mb-2">📋</div>
                   <h3 className="font-bold text-base text-emerald-500">Acreedores / Cuentas por Cobrar</h3>
@@ -848,11 +787,7 @@ export default function Dashboard() {
                 <span className="text-xs font-bold text-emerald-400">Ver Módulo ➔</span>
               </div>
 
-              {/* CARD 7: PROVEEDORES Y MOVIMIENTOS */}
-              <div 
-                onClick={() => router.push('/proveedores/movimientos')}
-                className={`p-5 rounded-xl border cursor-pointer hover:border-emerald-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
-              >
+              <div onClick={() => router.push('/proveedores/movimientos')} className={`p-5 rounded-xl border cursor-pointer hover:border-emerald-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}>
                 <div>
                   <div className="text-2xl mb-2">📦</div>
                   <h3 className="font-bold text-base text-emerald-500">Proveedores / Cuentas por Pagar</h3>
@@ -861,11 +796,7 @@ export default function Dashboard() {
                 <span className="text-xs font-bold text-emerald-400">Ver Módulo ➔</span>
               </div>
 
-              {/* CARD 8: ESTADÍSTICAS Y REPORTES */}
-              <div 
-                onClick={() => router.push('/estadisticas')}
-                className={`p-5 rounded-xl border cursor-pointer hover:border-indigo-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}
-              >
+              <div onClick={() => router.push('/estadisticas')} className={`p-5 rounded-xl border cursor-pointer hover:border-indigo-500 transition-all shadow-md flex flex-col justify-between gap-3 ${panelBg}`}>
                 <div>
                   <div className="text-2xl mb-2">📈</div>
                   <h3 className="font-bold text-base text-indigo-400">Estadísticas y Reportes</h3>
@@ -878,7 +809,6 @@ export default function Dashboard() {
           </div>
         )}
         
-        {/* SECCIÓN 1: SUCURSALES */}
         {activeSection === 'branches' && (
           <div className={`p-4 sm:p-6 rounded-lg shadow mb-6 space-y-4 border ${panelBg}`}>
             <div>
@@ -916,53 +846,23 @@ export default function Dashboard() {
                     <div key={b.id} className={`p-4 rounded-xl border space-y-3 ${subPanelBg}`}>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-bold text-emerald-500">{b.name}</span>
-                        <button 
-                          onClick={() => deleteBranch(b.id, b.name)}
-                          className="bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded text-xs font-semibold transition-colors shadow"
-                        >
-                          Dar de Baja
-                        </button>
+                        <button onClick={() => deleteBranch(b.id, b.name)} className="bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded text-xs font-semibold transition-colors shadow">Dar de Baja</button>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-opacity-30">
                         <div>
                           <label className="text-[11px] opacity-75 block mb-1">Teléfono de Sucursal (MarketGuate):</label>
                           <div className="flex gap-2">
-                            <input 
-                              type="text"
-                              defaultValue={b.phone || ''}
-                              id={`phone-input-${b.id}`}
-                              placeholder="+502 0000-0000"
-                              className={`border p-2 rounded text-sm w-full outline-none ${inputBg}`}
-                            />
-                            <button 
-                              onClick={() => {
-                                const inputEl = document.getElementById(`phone-input-${b.id}`) as HTMLInputElement;
-                                if (inputEl) updateBranchPhone(b.id, inputEl.value);
-                              }}
-                              className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded text-xs font-semibold shadow shrink-0"
-                            >
-                              Guardar Tel.
-                            </button>
+                            <input type="text" defaultValue={b.phone || ''} id={`phone-input-${b.id}`} placeholder="+502 0000-0000" className={`border p-2 rounded text-sm w-full outline-none ${inputBg}`} />
+                            <button onClick={() => { const inputEl = document.getElementById(`phone-input-${b.id}`) as HTMLInputElement; if (inputEl) updateBranchPhone(b.id, inputEl.value); }} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded text-xs font-semibold shadow shrink-0">Guardar Tel.</button>
                           </div>
                         </div>
 
                         <div>
                           <label className="text-[11px] opacity-75 block mb-1">Límite máx. compras al crédito:</label>
                           <div className="flex gap-2">
-                            <input 
-                              type="number" 
-                              min="0"
-                              value={branchLimits[b.id] !== undefined ? branchLimits[b.id] : '5'}
-                              onChange={e => setBranchLimits({ ...branchLimits, [b.id]: e.target.value })}
-                              className={`border p-2 rounded text-sm w-24 text-center font-bold outline-none ${inputBg}`}
-                            />
-                            <button 
-                              onClick={() => updateBranchLimit(b.id)}
-                              className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded text-xs font-semibold shadow transition-colors shrink-0"
-                            >
-                              Guardar Límite
-                            </button>
+                            <input type="number" min="0" value={branchLimits[b.id] !== undefined ? branchLimits[b.id] : '5'} onChange={e => setBranchLimits({ ...branchLimits, [b.id]: e.target.value })} className={`border p-2 rounded text-sm w-24 text-center font-bold outline-none ${inputBg}`} />
+                            <button onClick={() => updateBranchLimit(b.id)} className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded text-xs font-semibold shadow transition-colors shrink-0">Guardar Límite</button>
                           </div>
                         </div>
                       </div>
@@ -975,7 +875,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* SECCIÓN 2: PERSONAL */}
         {activeSection === 'staff' && (
           <div className={`p-4 sm:p-6 rounded-lg shadow mb-6 border ${editingStaffId ? 'bg-amber-950/40 border-amber-500/50' : panelBg}`}>
             <div className="flex justify-between items-center mb-1">
@@ -983,9 +882,7 @@ export default function Dashboard() {
                 {editingStaffId ? '✏️ Editando Empleado' : 'Asignar Personal a Sucursal'}
               </h2>
               {editingStaffId && (
-                <button onClick={cancelEditStaff} className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded font-semibold text-white">
-                  Cancelar Edición
-                </button>
+                <button onClick={cancelEditStaff} className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded font-semibold text-white">Cancelar Edición</button>
               )}
             </div>
             <p className="text-xs opacity-75 mb-4">El sistema genera el usuario con el prefijo: <span className="text-amber-500 font-mono">{businessNemonico}-</span></p>
@@ -993,34 +890,17 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 sm:gap-4 items-end">
               <div>
                 <label className="block text-[11px] sm:text-[10px] opacity-75 mb-1 font-medium">Nombre</label>
-                <input 
-                  placeholder="Ej. pedro" 
-                  value={staffName} 
-                  onChange={handleNameChange} 
-                  className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`} 
-                />
+                <input placeholder="Ej. pedro" value={staffName} onChange={handleNameChange} className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`} />
               </div>
               
               <div>
                 <label className="block text-[11px] sm:text-[10px] opacity-75 mb-1 font-medium">Usuario</label>
-                <input 
-                  placeholder="usuario" 
-                  value={username} 
-                  onChange={e => setUsername(e.target.value.replace(/\s+/g, ''))}
-                  className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`} 
-                />
+                <input placeholder="usuario" value={username} onChange={e => setUsername(e.target.value.replace(/\s+/g, ''))} className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`} />
               </div>
 
               <div>
                 <label className="block text-[11px] sm:text-[10px] opacity-75 mb-1 font-medium">Contraseña</label>
-                <input 
-                  placeholder="Código de Acceso" 
-                  type="password" 
-                  value={accessCode} 
-                  onFocus={() => { if (accessCode === '••••••••') setAccessCode(''); }}
-                  onChange={e => setAccessCode(e.target.value)} 
-                  className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`} 
-                />
+                <input placeholder="Código de Acceso" type="password" value={accessCode} onFocus={() => { if (accessCode === '••••••••') setAccessCode(''); }} onChange={e => setAccessCode(e.target.value)} className={`w-full border p-2.5 rounded text-sm outline-none ${inputBg}`} />
               </div>
               
               <div>
@@ -1037,14 +917,13 @@ export default function Dashboard() {
                   <option value="cajero">💵 Cajero</option>
                   <option value="bodega">📦 Bodega</option>
                   <option value="encargado">⭐ Encargado</option>
-                  <option value="control_accesos">🚪 Control de Accesos</option>
+                  {isGymBusiness && (
+                    <option value="control_accesos">🚪 Control de Accesos</option>
+                  )}
                 </select>
               </div>
 
-              <button 
-                onClick={handleSaveStaff} 
-                className={`text-white p-2.5 rounded font-semibold text-sm shadow w-full ${editingStaffId ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}
-              >
+              <button onClick={handleSaveStaff} className={`text-white p-2.5 rounded font-semibold text-sm shadow w-full ${editingStaffId ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}>
                 {editingStaffId ? 'Actualizar' : 'Asignar'}
               </button>
             </div>
@@ -1070,9 +949,7 @@ export default function Dashboard() {
                           <td className="p-3 text-amber-500 font-mono">{s.username}</td>
                           <td className="p-3 text-emerald-500">{branchObj ? branchObj.name : 'Sucursal'}</td>
                           <td className="p-3">
-                            <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${s.role === 'cajero' ? 'bg-blue-500/20 text-blue-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
-                              {s.role || 'vendedor'}
-                            </span>
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${s.role === 'cajero' ? 'bg-blue-500/20 text-blue-400' : 'bg-emerald-500/20 text-emerald-400'}`}>{s.role || 'vendedor'}</span>
                           </td>
                           <td className="p-3 text-center space-x-2">
                             <button onClick={() => startEditStaff(s)} className="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1 rounded text-xs font-semibold shadow">Editar</button>
@@ -1088,7 +965,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* SECCIÓN 3: CATEGORÍAS */}
         {activeSection === 'categories' && (
           <div className={`p-4 sm:p-6 rounded-lg shadow mb-8 border ${editingCategoryId ? 'bg-amber-950/40 border-amber-500/50' : panelBg}`}>
             <div className="flex justify-between items-center mb-1">
@@ -1096,9 +972,7 @@ export default function Dashboard() {
                 {editingCategoryId ? '✏️ Editando Categoría' : 'Gestión de Categorías'}
               </h2>
               {editingCategoryId && (
-                <button onClick={cancelEditCategory} className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded font-semibold text-white">
-                  Cancelar Edición
-                </button>
+                <button onClick={cancelEditCategory} className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded font-semibold text-white">Cancelar Edición</button>
               )}
             </div>
             <p className="text-xs opacity-75 mb-4">Crea, renombra o da de baja tus categorías de forma segura considerando los productos asociados.</p>
@@ -1106,22 +980,14 @@ export default function Dashboard() {
             <form onSubmit={handleSaveCategory} className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-end mb-4">
               <div className="flex-1">
                 <label className="block text-xs opacity-75 mb-1">Nombre de la Categoría</label>
-                <input 
-                  placeholder="Ej. Refacciones" 
-                  value={newCategoryName} 
-                  onChange={e => setNewCategoryName(e.target.value)} 
-                  className={`w-full border p-2.5 rounded text-sm outline-none focus:border-emerald-500 ${inputBg}`} 
-                  required
-                />
+                <input placeholder="Ej. Refacciones" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} className={`w-full border p-2.5 rounded text-sm outline-none focus:border-emerald-500 ${inputBg}`} required />
               </div>
               <div className="flex gap-2">
                 <button type="submit" className={`px-5 py-2.5 rounded font-semibold text-white text-sm shadow ${editingCategoryId ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}>
                   {editingCategoryId ? 'Actualizar Categoría' : '+ Crear Categoría'}
                 </button>
                 {editingCategoryId && (
-                  <button type="button" onClick={cancelEditCategory} className="bg-slate-700 hover:bg-slate-600 px-3 py-2.5 rounded font-semibold text-white text-xs">
-                    Cancelar
-                  </button>
+                  <button type="button" onClick={cancelEditCategory} className="bg-slate-700 hover:bg-slate-600 px-3 py-2.5 rounded font-semibold text-white text-xs">Cancelar</button>
                 )}
               </div>
             </form>
@@ -1131,12 +997,8 @@ export default function Dashboard() {
                 {categories.map(cat => (
                   <div key={cat.id} className={`flex items-center border text-xs px-3 py-1.5 rounded-full font-semibold gap-2 ${subPanelBg}`}>
                     <span>🏷️ {cat.name}</span>
-                    <button onClick={() => startEditCategory(cat)} className="text-amber-500 hover:text-amber-400 font-bold" title="Renombrar">
-                      ✏️
-                    </button>
-                    <button onClick={() => deleteCategory(cat.id)} className="text-red-400 hover:text-red-300 font-bold" title="Dar de baja">
-                      ✕
-                    </button>
+                    <button onClick={() => startEditCategory(cat)} className="text-amber-500 hover:text-amber-400 font-bold" title="Renombrar">✏️</button>
+                    <button onClick={() => deleteCategory(cat.id)} className="text-red-400 hover:text-red-300 font-bold" title="Dar de baja">✕</button>
                   </div>
                 ))}
               </div>
@@ -1144,80 +1006,88 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Formulario Productos */}
         {activeSection === 'add_product' && (
-          <div className={`p-4 sm:p-6 rounded-lg shadow mb-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 sm:gap-4 items-end border ${editingId ? 'bg-amber-950/40 border-amber-500/50' : panelBg}`}>
-            <div className="col-span-full mb-2">
+          <div className={`p-4 sm:p-6 rounded-lg shadow mb-8 grid grid-cols-1 sm:grid-cols-3 md:grid-cols-6 gap-3 sm:gap-4 items-end border ${editingId ? 'bg-amber-950/40 border-amber-500/50' : panelBg}`}>
+            <div className="col-span-full mb-1">
               <h3 className={`font-bold text-base ${editingId ? 'text-amber-400' : 'text-emerald-500'}`}>
                 {editingId ? '✏️ Editando Producto Existente' : '➕ Agregar Nuevo Producto'}
               </h3>
-              <p className="text-xs opacity-75">Sucursal destino seleccionada actualmente.</p>
+              <p className="text-xs opacity-75">Selecciona la sucursal de destino y registra los precios y stock inicial.</p>
             </div>
 
             <div className="col-span-full">
-              <label className="block text-xs opacity-75 mb-1">Sucursal</label>
-              <select value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)} className={`border p-2.5 rounded text-sm outline-none w-full ${inputBg}`}>
-                {branches.length === 0 ? <option value="">No hay sucursales</option> : branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              <label className="block text-xs opacity-75 mb-1 font-bold">Sucursal Destino (Elegible)</label>
+              <select value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)} className={`border p-2.5 rounded text-sm outline-none w-full font-bold text-emerald-400 ${inputBg}`}>
+                {branches.length === 0 ? <option value="">No hay sucursales disponibles</option> : branches.map(b => <option key={b.id} value={b.id}>📍 {b.name}</option>)}
               </select>
             </div>
             
-            <input placeholder="Nombre" value={name} onChange={e => setName(e.target.value)} className={`border p-2.5 rounded text-sm outline-none ${inputBg}`} />
-            <input placeholder="Precio" type="number" value={price} onChange={e => setPrice(e.target.value)} className={`border p-2.5 rounded text-sm outline-none ${inputBg}`} />
-            <input placeholder="Stock" type="number" value={stock} onChange={e => setStock(e.target.value)} className={`border p-2.5 rounded text-sm outline-none ${inputBg}`} />
-            
-            <select 
-              value={selectedCategoryId} 
-              onChange={e => setSelectedCategoryId(e.target.value)} 
-              className={`border p-2.5 rounded text-sm outline-none ${inputBg}`}
-            >
-              <option value="">-- Sin Categoría --</option>
-              {categories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
+            <div className="sm:col-span-2">
+              <label className="block text-xs opacity-75 mb-1">Nombre del Producto *</label>
+              <input placeholder="Ej. Almuerzo Ejecutivo" value={name} onChange={e => setName(e.target.value)} className={`border p-2.5 rounded text-sm outline-none w-full ${inputBg}`} />
+            </div>
 
-            <input type="file" accept="image/*" onChange={e => setImageFile(e.target.files?.[0] || null)} className="text-xs opacity-75 file:bg-slate-700 file:text-white file:border-0 file:p-2 file:rounded w-full" />
+            <div>
+              <label className="block text-xs opacity-75 mb-1">Precio Unitario (Costo Q)</label>
+              <input placeholder="0.00" type="number" step="0.01" value={costPrice} onChange={e => setCostPrice(e.target.value)} className={`border p-2.5 rounded text-sm outline-none w-full ${inputBg}`} />
+            </div>
+
+            <div>
+              <label className="block text-xs opacity-75 mb-1">Precio de Venta (Q) *</label>
+              <input placeholder="0.00" type="number" step="0.01" value={sellingPrice} onChange={e => setSellingPrice(e.target.value)} className={`border p-2.5 rounded text-sm outline-none w-full ${inputBg}`} />
+            </div>
+
+            <div>
+              <label className="block text-xs opacity-75 mb-1">Stock Inicial</label>
+              <input placeholder="0" type="number" value={stock} onChange={e => setStock(e.target.value)} className={`border p-2.5 rounded text-sm outline-none w-full ${inputBg}`} />
+            </div>
+            
+            <div>
+              <label className="block text-xs opacity-75 mb-1">Categoría</label>
+              <select value={selectedCategoryId} onChange={e => setSelectedCategoryId(e.target.value)} className={`border p-2.5 rounded text-sm outline-none w-full ${inputBg}`}>
+                <option value="">-- Sin Categoría --</option>
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-span-full">
+              <label className="block text-xs opacity-75 mb-1">Imagen del Producto</label>
+              <input type="file" accept="image/*" onChange={e => setImageFile(e.target.files?.[0] || null)} className="text-xs opacity-75 file:bg-slate-700 file:text-white file:border-0 file:p-2 file:rounded w-full" />
+            </div>
             
             <div className={`col-span-full flex items-center gap-2 pt-2 p-3 rounded border ${subPanelBg}`}>
-              <input 
-                type="checkbox" 
-                id="customCheck"
-                checked={isCustomProduct} 
-                onChange={e => setIsCustomProduct(e.target.checked)} 
-                className="w-4 h-4 accent-emerald-500 cursor-pointer"
-              />
+              <input type="checkbox" id="customCheck" checked={isCustomProduct} onChange={e => setIsCustomProduct(e.target.checked)} className="w-4 h-4 accent-emerald-500 cursor-pointer" />
               <label htmlFor="customCheck" className="text-xs font-semibold cursor-pointer">
                 ¿Es un producto personalizable o de precio/medida abierta? (Ej. Mantas vinílicas)
               </label>
             </div>
 
             <div className={`col-span-full flex items-center gap-2 pt-2 p-3 rounded border ${subPanelBg}`}>
-              <input 
-                type="checkbox" 
-                id="marketGuateCheck"
-                checked={showInMarketGuate} 
-                onChange={e => setShowInMarketGuate(e.target.checked)} 
-                className="w-4 h-4 accent-emerald-500 cursor-pointer"
-              />
+              <input type="checkbox" id="marketGuateCheck" checked={showInMarketGuate} onChange={e => setShowInMarketGuate(e.target.checked)} className="w-4 h-4 accent-emerald-500 cursor-pointer" />
               <label htmlFor="marketGuateCheck" className="text-xs font-semibold cursor-pointer text-emerald-400">
                 🛒 Mostrar este producto en el catálogo online de MarketGuate
               </label>
             </div>
 
             <div className="col-span-full flex gap-2 w-full pt-2">
-              <button onClick={handleSaveProduct} className={`flex-1 p-2.5 rounded font-semibold text-white shadow text-sm ${editingId ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}>
-                {editingId ? 'Actualizar Producto' : 'Guardar y Agregar Producto'}
+              <button 
+                onClick={handleSaveProduct} 
+                disabled={isSaving}
+                className={`flex-1 p-2.5 rounded font-semibold text-white shadow text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                  editingId ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'
+                }`}
+              >
+                {isSaving ? '⏳ Guardando...' : (editingId ? 'Actualizar Producto' : 'Guardar y Agregar Producto')}
               </button>
               {editingId && (
-                <button onClick={cancelEdit} className="bg-slate-700 hover:bg-slate-600 px-3 py-2.5 rounded font-semibold text-white text-xs">
-                  Cancelar
-                </button>
+                <button onClick={cancelEdit} disabled={isSaving} className="bg-slate-700 hover:bg-slate-600 px-3 py-2.5 rounded font-semibold text-white text-xs disabled:opacity-50">Cancelar</button>
               )}
             </div>
           </div>
         )}
 
-        {/* Tabla de Productos */}
         {activeSection === 'products_list' && (
           <div className={`rounded-lg shadow overflow-hidden border ${panelBg}`}>
             <div className="p-4 border-b border-opacity-50 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
@@ -1236,7 +1106,7 @@ export default function Dashboard() {
                   <tr>
                     <th className="p-4">Foto</th>
                     <th className="p-4">Producto</th>
-                    <th className="p-4">Precio</th>
+                    <th className="p-4">Precio Venta</th>
                     <th className="p-4">Stock</th>
                     <th className="p-4 text-center">Acciones</th>
                   </tr>
@@ -1258,9 +1128,8 @@ export default function Dashboard() {
                           {p.name} 
                           {p.is_custom && <span className="text-[10px] bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded ml-2">Personalizable</span>}
                           {p.show_in_marketguate === false && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded ml-2">Oculto MarketGuate</span>}
-                          {(!p.category_id || p.category_id === '') && <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded ml-2 font-bold animate-pulse">⚠️ Sin Categoría</span>}
                         </td>
-                        <td className="p-4" translate="no">Q {p.price}</td>
+                        <td className="p-4 text-emerald-400 font-bold" translate="no">Q {p.price}</td>
                         <td className="p-4">{p.stock}</td>
                         <td className="p-4 text-center space-x-2">
                           <button onClick={() => startEdit(p)} className="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded text-xs font-semibold shadow">Editar / Foto</button>
@@ -1277,13 +1146,9 @@ export default function Dashboard() {
 
       </div>
 
-      {/* MENÚ LATERAL DESLIZANTE (☰) */}
       {isDrawerOpen && (
         <div className="fixed inset-0 bg-black/70 flex z-[9999]" onClick={() => setIsDrawerOpen(false)}>
-          <div 
-            className={`w-[380px] md:w-[420px] h-full p-6 flex flex-col shadow-2xl border-r ${panelBg}`}
-            onClick={e => e.stopPropagation()}
-          >
+          <div className={`w-[380px] md:w-[420px] h-full p-6 flex flex-col shadow-2xl border-r ${panelBg}`} onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4 pb-3 border-b border-opacity-50">
               <h2 className="text-lg font-bold text-emerald-500">🛠️ Navegación General</h2>
               <button onClick={() => setIsDrawerOpen(false)} className="text-xl font-bold opacity-75 hover:opacity-100 p-1">✕</button>
@@ -1308,7 +1173,6 @@ export default function Dashboard() {
                       <span>🏋️‍♂️ Control de Socios</span>
                       <span>➔</span>
                     </button>
-                    {/* NUEVO BOTÓN EN MENÚ LATERAL */}
                     <button onClick={() => { setIsDrawerOpen(false); router.push('/gymmemberprogress'); }} className="w-full bg-cyan-800 hover:bg-cyan-700 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left flex items-center justify-between">
                       <span>🥗 Control de Seguimiento y Nutrición</span>
                       <span>➔</span>
@@ -1383,9 +1247,7 @@ export default function Dashboard() {
 
               <div className="pt-3 border-t border-opacity-50 space-y-2">
                 <p className="font-bold text-emerald-500 text-sm">Sesión</p>
-                <button onClick={handleLogout} className="w-full bg-red-600 hover:bg-red-500 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left">
-                  🚪 Cerrar Sesión
-                </button>
+                <button onClick={handleLogout} className="w-full bg-red-600 hover:bg-red-500 py-2.5 px-3 rounded-lg font-semibold text-white shadow text-left">🚪 Cerrar Sesión</button>
               </div>
             </div>
           </div>

@@ -8,6 +8,7 @@ export default function GymCheckInViewPage() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [businessId, setBusinessId] = useState('')
+  const [isStaffRole, setIsStaffRole] = useState(false)
   const [businessData, setBusinessData] = useState<{ name: string; logo: string }>({
     name: 'Gimnasio Oficial',
     logo: ''
@@ -16,6 +17,9 @@ export default function GymCheckInViewPage() {
   const router = useRouter()
 
   useEffect(() => {
+    let resolvedLogo = '';
+    let resolvedName = 'Gimnasio Oficial';
+
     // 1. Primero verificamos si hay una sesión de empleado/staff activa (ej. Control de Accesos)
     const savedStaff = localStorage.getItem('currentStaff');
     if (savedStaff) {
@@ -23,37 +27,51 @@ export default function GymCheckInViewPage() {
         const staffObj = JSON.parse(savedStaff);
         if (staffObj?.business_id) {
           setBusinessId(staffObj.business_id);
-          setBusinessData({
-            name: staffObj.branch_name ? `Sucursal: ${staffObj.branch_name}` : 'Gimnasio Oficial',
-            logo: ''
-          });
+          setIsStaffRole(true);
+          resolvedName = staffObj.branch_name ? `Sucursal: ${staffObj.branch_name}` : 'Gimnasio Oficial';
+          resolvedLogo = staffObj.logo_url || staffObj.logo || staffObj.business_logo || '';
         }
       } catch (e) {
         console.error("Error al leer currentStaff:", e);
       }
-    } else {
-      // 2. Si no es staff, leemos como dueño de negocio (admin)
-      const savedBiz = localStorage.getItem('currentBusiness');
-      if (savedBiz) {
-        try {
-          const bizObj = JSON.parse(savedBiz);
-          if (bizObj?.id) setBusinessId(bizObj.id);
-          if (bizObj?.name) {
-            setBusinessData({
-              name: bizObj.name,
-              logo: bizObj.logo_url || bizObj.logo || bizObj.image_url || ''
-            });
-          }
-        } catch (e) {
-          console.error("Error al leer currentBusiness:", e);
+    }
+
+    // 2. Si no se encontró en staff, leemos como dueño de negocio (admin)
+    const savedBiz = localStorage.getItem('currentBusiness');
+    if (savedBiz) {
+      try {
+        const bizObj = JSON.parse(savedBiz);
+        if (bizObj?.id && !businessId) setBusinessId(bizObj.id);
+        if (bizObj?.name && !savedStaff) resolvedName = bizObj.name;
+        if (!resolvedLogo) {
+          resolvedLogo = bizObj.logo_url || bizObj.logo || bizObj.image_url || '';
         }
+      } catch (e) {
+        console.error("Error al leer currentBusiness:", e);
       }
     }
+
+    setBusinessData({
+      name: resolvedName,
+      logo: resolvedLogo
+    });
 
     if (inputRef.current) {
       inputRef.current.focus();
     }
   }, []);
+
+  const handleExitAction = () => {
+    if (isStaffRole) {
+      // Si es empleado de control de accesos, cerramos sesión limpiando el almacenamiento y vamos al login
+      localStorage.removeItem('currentStaff');
+      localStorage.removeItem('currentBusiness');
+      router.push('/');
+    } else {
+      // Si es dueño/admin, puede regresar al dashboard
+      router.push('/dashboard');
+    }
+  };
 
   async function handleCheckIn(e?: React.FormEvent) {
     if (e) e.preventDefault();
@@ -95,17 +113,17 @@ export default function GymCheckInViewPage() {
   return (
     <div className="min-h-screen bg-[#090d16] text-white flex flex-col items-center justify-between p-4 md:p-8 notranslate relative" translate="no">
       
-      {/* Botón de Salir / Regresar al Dashboard en la esquina superior */}
+      {/* Botón dinámico de Salir / Dashboard en la esquina superior */}
       <div className="w-full max-w-2xl flex justify-between items-center">
         <div>
           <h1 className="text-sm font-bold text-cyan-400 tracking-wider">🏋️‍♂️ CONTROL DE ACCESO</h1>
           <p className="text-[11px] opacity-60">Recepción y Garita del Gimnasio</p>
         </div>
         <button 
-          onClick={() => router.push('/dashboard')}
+          onClick={handleExitAction}
           className="bg-red-600/25 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/40 px-4 py-2 rounded-xl text-xs font-extrabold shadow transition-all flex items-center gap-2 cursor-pointer"
         >
-          🚪 Salir / Dashboard
+          {isStaffRole ? '🚪 Salir / Cerrar Sesión' : '🚪 Salir / Dashboard'}
         </button>
       </div>
 
@@ -114,7 +132,7 @@ export default function GymCheckInViewPage() {
         
         <div className="bg-[#131b2e] border border-slate-700/80 p-6 md:p-8 rounded-3xl shadow-2xl space-y-6 text-center">
           
-          {/* Icono Grande del Gimnasio (Al doble de tamaño: w-48 h-48) */}
+          {/* Icono Grande del Gimnasio */}
           <div className="flex flex-col items-center justify-center space-y-3">
             <div className="w-44 h-44 rounded-3xl bg-gradient-to-tr from-cyan-600 to-blue-500 p-1.5 shadow-2xl flex items-center justify-center border-2 border-cyan-400/40">
               {businessData.logo ? (

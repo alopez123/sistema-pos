@@ -10,13 +10,9 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   
-  // Estado para controlar qué sección está activa ('menu', 'create', 'view', 'metrics', 'billing', 'categories')
   const [activeSection, setActiveSection] = useState<'menu' | 'create' | 'view' | 'metrics' | 'billing' | 'categories'>('menu')
-
-  // Estado para alternar la vista en tarjetas de los negocios ('cards' o 'table')
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
 
-  // Estados para el formulario de nuevo negocio
   const [name, setName] = useState('')
   const [ownerEmail, setOwnerEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -29,10 +25,9 @@ export default function AdminDashboard() {
   const [endDate, setEndDate] = useState('')
   const [paymentStatus, setPaymentStatus] = useState('Al día')
   const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [isPublic, setIsPublic] = useState(false) // <-- Bandera para promocionar en el Marketplace al crear
-  const [categoryBusinessId, setCategoryBusinessId] = useState('') // <-- Categoría del negocio al crear
+  const [isPublic, setIsPublic] = useState(false)
+  const [categoryBusinessId, setCategoryBusinessId] = useState('')
 
-  // Estados para el modal de gestión y edición
   const [selectedBusiness, setSelectedBusiness] = useState<any | null>(null)
   const [editName, setEditName] = useState('')
   const [editPlan, setEditPlan] = useState('')
@@ -46,11 +41,10 @@ export default function AdminDashboard() {
   const [editPassword, setEditPassword] = useState('')
   const [editPhone, setEditPhone] = useState('')
   const [editLogoFile, setEditLogoFile] = useState<File | null>(null)
-  const [editIsPublic, setEditIsPublic] = useState(false) // <-- Bandera para editar en gestión
-  const [editCategoryBusinessId, setEditCategoryBusinessId] = useState('') // <-- Categoría del negocio al editar
+  const [editIsPublic, setEditIsPublic] = useState(false)
+  const [editCategoryBusinessId, setEditCategoryBusinessId] = useState('')
   const [uploadingLogo, setUploadingLogo] = useState(false)
 
-  // Estados para la gestión de categorías
   const [newCatName, setNewCatName] = useState('')
   const [editingCategory, setEditingCategory] = useState<any | null>(null)
   const [editCatName, setEditCatName] = useState('')
@@ -259,7 +253,6 @@ export default function AdminDashboard() {
 
       const formattedPhone = phone ? `502${phone}` : null
 
-      // 1. Creamos el negocio de forma segura con la función RPC original del POS
       const { error } = await supabase.rpc('create_business_safe', {
         p_name: name,
         p_owner_email: ownerEmail,
@@ -277,7 +270,6 @@ export default function AdminDashboard() {
 
       if (error) throw error
 
-      // 2. Buscamos el ID del negocio recién creado de forma exacta por su correo
       const { data: createdBiz, error: findError } = await supabase
         .from('businesses')
         .select('id')
@@ -287,7 +279,6 @@ export default function AdminDashboard() {
         .single()
 
       if (createdBiz && !findError) {
-        // 3. Asignamos la categoría y el marketplace utilizando nuestra función RPC segura
         await supabase.rpc('set_business_marketplace_info', {
           p_business_id: createdBiz.id,
           p_is_public: isPublic,
@@ -314,7 +305,7 @@ export default function AdminDashboard() {
     } catch (err: any) {
       alert("Error al registrar negocio: " + err.message)
     } finally {
-      setUploadingLogo(false) // <-- Esto garantiza que el botón se reactive pase lo que pase
+      setUploadingLogo(false)
     }
   }
   
@@ -360,7 +351,6 @@ export default function AdminDashboard() {
 
       const formattedEditPhone = editPhone ? `502${editPhone.replace(/\D/g, '').slice(-8)}` : null
 
-      // 1. Actualización directa de los campos principales en la tabla businesses
       const { error: updateError } = await supabase
         .from('businesses')
         .update({
@@ -368,20 +358,17 @@ export default function AdminDashboard() {
           subscription_plan: editPlan || selectedBusiness.subscription_plan,
           amount: parseFloat(editAmount !== '' ? editAmount : selectedBusiness.amount) || 0,
           payment_day: editPaymentDay,
-          status: 'activo',
-          logo_url: updatedLogoUrl,
-          owner_email: editOwnerEmail || selectedBusiness.owner_email,
           billing_cycle: editBillingCycle,
           start_date: editStartDate || null,
           end_date: editEndDate || null,
           payment_status: editPaymentStatus,
-          phone: formattedEditPhone
+          phone: formattedEditPhone,
+          logo_url: updatedLogoUrl
         })
         .eq('id', selectedBusiness.id)
 
       if (updateError) throw updateError
 
-      // 2. Actualizamos la categoría y el marketplace mediante la función RPC segura
       const { error: marketError } = await supabase.rpc('set_business_marketplace_info', {
         p_business_id: selectedBusiness.id,
         p_is_public: editIsPublic,
@@ -390,7 +377,6 @@ export default function AdminDashboard() {
 
       if (marketError) throw marketError
 
-      // 3. Actualiza la contraseña si el campo no está vacío
       if (editPassword && editPassword.trim() !== '') {
         const { error: passError } = await supabase.rpc('update_business_password_safe', {
           p_business_id: selectedBusiness.id,
@@ -427,7 +413,6 @@ export default function AdminDashboard() {
     return nameMatch || emailMatch || phoneMatch
   })
 
-  // Cálculos para el Dashboard de Métricas
   const totalMRR = businesses.reduce((acc, b) => {
     const amt = parseFloat(b.amount || 0);
     return acc + (b.billing_cycle === 'Anual' ? amt / 12 : amt);
@@ -447,7 +432,6 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-[#0f172a] p-3 sm:p-6 text-white w-full max-w-full overflow-x-hidden notranslate" translate="no">
       <div className="max-w-7xl mx-auto space-y-6">
         
-        {/* CABECERA SUPERIOR LIMPIA */}
         <header className="bg-[#1e293b] shadow rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row justify-between items-center gap-4 border border-slate-700 w-full">
           <div>
             <h1 className="text-base sm:text-xl font-bold text-white leading-tight">
@@ -478,11 +462,9 @@ export default function AdminDashboard() {
           </div>
         </header>
 
-        {/* VISTA 1: MENÚ PRINCIPAL CON TARJETAS */}
         {activeSection === 'menu' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 my-6">
             
-            {/* TARJETA 1: DAR DE ALTA NUEVO NEGOCIO */}
             <div 
               onClick={() => setActiveSection('create')}
               className="bg-[#1e293b] hover:bg-[#253248] border-2 border-slate-700 hover:border-emerald-500 rounded-3xl p-6 sm:p-8 cursor-pointer transition-all duration-200 shadow-xl flex flex-col justify-between group select-none"
@@ -504,7 +486,6 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* TARJETA 2: VISUALIZAR NEGOCIOS */}
             <div 
               onClick={() => setActiveSection('view')}
               className="bg-[#1e293b] hover:bg-[#253248] border-2 border-slate-700 hover:border-emerald-500 rounded-3xl p-6 sm:p-8 cursor-pointer transition-all duration-200 shadow-xl flex flex-col justify-between group select-none"
@@ -526,7 +507,6 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* TARJETA 3: GESTIÓN DE CATEGORÍAS */}
             <div 
               onClick={() => setActiveSection('categories')}
               className="bg-[#1e293b] hover:bg-[#253248] border-2 border-slate-700 hover:border-emerald-500 rounded-3xl p-6 sm:p-8 cursor-pointer transition-all duration-200 shadow-xl flex flex-col justify-between group select-none"
@@ -548,7 +528,6 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* TARJETA 4: DASHBOARD Y MÉTRICAS */}
             <div 
               onClick={() => setActiveSection('metrics')}
               className="bg-[#1e293b] hover:bg-[#253248] border-2 border-slate-700 hover:border-emerald-500 rounded-3xl p-6 sm:p-8 cursor-pointer transition-all duration-200 shadow-xl flex flex-col justify-between group select-none"
@@ -570,7 +549,6 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* TARJETA 5: HISTORIAL DE PAGOS */}
             <div 
               onClick={() => setActiveSection('billing')}
               className="bg-[#1e293b] hover:bg-[#253248] border-2 border-slate-700 hover:border-emerald-500 rounded-3xl p-6 sm:p-8 cursor-pointer transition-all duration-200 shadow-xl flex flex-col justify-between group select-none"
@@ -595,7 +573,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* VISTA NUEVA: GESTIÓN DE CATEGORÍAS */}
         {activeSection === 'categories' && (
           <div className="bg-[#1e293b] p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-700 space-y-6">
             <div className="flex justify-between items-center border-b border-slate-700 pb-3">
@@ -606,7 +583,6 @@ export default function AdminDashboard() {
               <button onClick={() => setActiveSection('menu')} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold">✕ Cerrar</button>
             </div>
 
-            {/* Formulario para nueva categoría */}
             <form onSubmit={handleCreateCategory} className="flex flex-col sm:flex-row gap-3 bg-[#0f172a] p-4 rounded-xl border border-slate-700">
               <input 
                 type="text"
@@ -621,7 +597,6 @@ export default function AdminDashboard() {
               </button>
             </form>
 
-            {/* Listado de categorías */}
             <div className="max-h-[450px] overflow-y-auto space-y-2">
               {categoriesList.length === 0 ? (
                 <p className="text-center py-8 text-slate-400 text-xs">No hay categorías registradas.</p>
@@ -634,7 +609,7 @@ export default function AdminDashboard() {
                           type="text" 
                           value={editCatName} 
                           onChange={e => setEditCatName(e.target.value)}
-                          className="flex-1 bg-[#1e293b] border border-emerald-500 px-3 py-1.5 rounded-lg text-white text-xs outline-none"
+                          className="flex-1 bg-[#1e293b] border border-emerald-500 px-3 py-1.5 rounded-lg text-xs outline-none"
                           autoFocus
                           required
                         />
@@ -670,7 +645,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* VISTA 2: FORMULARIO "DAR DE ALTA NUEVO NEGOCIO" */}
         {activeSection === 'create' && (
           <div className="bg-[#1e293b] p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-700 space-y-4">
             <div className="flex justify-between items-center border-b border-slate-700 pb-3">
@@ -739,7 +713,6 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Selector de Categoría */}
               <div>
                 <label className="block text-[11px] text-slate-400 mb-1 font-semibold">Categoría Comercial</label>
                 <select 
@@ -847,7 +820,6 @@ export default function AdminDashboard() {
                 />
               </div>
 
-              {/* Toggle para promocionar en el Marketplace */}
               <div className="sm:col-span-2 md:col-span-3 lg:col-span-4 bg-[#0f172a] border border-slate-600 p-4 rounded-xl flex items-center justify-between">
                 <div>
                   <span className="block font-bold text-xs sm:text-sm text-white">🌐 Promocionar en el Marketplace</span>
@@ -874,7 +846,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* VISTA 3: VISUALIZAR NEGOCIOS */}
         {activeSection === 'view' && (
           <div className="bg-[#1e293b] p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-700 space-y-4">
             
@@ -886,7 +857,6 @@ export default function AdminDashboard() {
                 <p className="text-xs text-slate-400">Administra fichas de clientes, tokens de activación y estados de suscripción.</p>
               </div>
 
-              {/* CONTROLES DE VISTA (CARDS VS TABLA) Y BÚSQUEDA */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                 <div className="flex bg-[#0f172a] p-1 rounded-xl border border-slate-600">
                   <button 
@@ -913,7 +883,6 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* VISTA EN TARJETAS (CARDS) */}
             {viewMode === 'cards' ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[650px] overflow-y-auto pr-1">
                 {filteredBusinesses.length === 0 ? (
@@ -976,6 +945,32 @@ export default function AdminDashboard() {
                             <span className="text-slate-400">WhatsApp:</span>
                             <span className="text-slate-200">{b.phone ? `+${b.phone}` : 'No registrado'}</span>
                           </div>
+                          
+                          <div className="flex justify-between items-center text-[11px] px-1 bg-black/20 p-1.5 rounded-lg border border-slate-800">
+                            <span className="text-slate-400">Estado Pago:</span>
+                            <div className="flex items-center gap-2">
+                              <span className={`font-bold uppercase ${b.payment_status === 'Atrasado' ? 'text-red-400' : b.payment_status === 'Pendiente' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                {b.payment_status || 'Al día'}
+                              </span>
+                              {(b.payment_status === 'Pendiente' || b.payment_status === 'Atrasado') && b.phone && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const phoneNum = b.phone.replace(/\D/g, '')
+                                    const msg = encodeURIComponent(
+                                      `Hola *${b.name}*, le saludamos de la administración de Quantika POS. Le recordamos que su cuota de suscripción (Q${b.amount ?? 300}) se encuentra en estado *${b.payment_status}*. Por favor manténgase al día para evitar interrupciones en el sistema. ¡Muchas gracias!`
+                                    )
+                                    window.open(`https://wa.me/${phoneNum}?text=${msg}`, '_blank')
+                                  }}
+                                  className="bg-amber-600 hover:bg-amber-500 text-white px-2 py-0.5 rounded text-[10px] font-bold transition-colors shadow flex items-center gap-1"
+                                  title="Enviar recordatorio de pago por WhatsApp"
+                                >
+                                  💬 Cobrar
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
                         </div>
                       </div>
 
@@ -1033,7 +1028,6 @@ export default function AdminDashboard() {
               </div>
             ) : (
               <div className="max-h-[600px] overflow-y-auto w-full rounded-xl border border-slate-700">
-                {/* VISTA EN TABLA CLÁSICA */}
                 <table className="w-full text-left min-w-[950px] relative">
                   <thead className="bg-slate-700 text-slate-300 border-b border-slate-600 font-bold text-xs sticky top-0 z-10">
                     <tr>
@@ -1088,13 +1082,31 @@ export default function AdminDashboard() {
                             </span>
                           </td>
                           <td className="p-3.5">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              b.payment_status === 'Atrasado' ? 'bg-red-900 text-red-300' :
-                              b.payment_status === 'Pendiente' ? 'bg-amber-900 text-amber-300' :
-                              'bg-emerald-900 text-emerald-300'
-                            }`}>
-                              {b.payment_status || 'Al día'}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                b.payment_status === 'Atrasado' ? 'bg-red-900 text-red-300' :
+                                b.payment_status === 'Pendiente' ? 'bg-amber-900 text-amber-300' :
+                                'bg-emerald-900 text-emerald-300'
+                              }`}>
+                                {b.payment_status || 'Al día'}
+                              </span>
+                              {(b.payment_status === 'Pendiente' || b.payment_status === 'Atrasado') && b.phone && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const phoneNum = b.phone.replace(/\D/g, '')
+                                    const msg = encodeURIComponent(
+                                      `Hola *${b.name}*, le saludamos de la administración de Quantika POS. Le recordamos que su cuota de suscripción (Q${b.amount ?? 300}) se encuentra en estado *${b.payment_status}*. Por favor manténgase al día para evitar interrupciones en el sistema. ¡Muchas gracias!`
+                                    )
+                                    window.open(`https://wa.me/${phoneNum}?text=${msg}`, '_blank')
+                                  }}
+                                  className="bg-amber-600 hover:bg-amber-500 text-white p-1 rounded text-[10px] font-bold transition-colors shadow"
+                                  title="Enviar recordatorio de pago por WhatsApp"
+                                >
+                                  💬
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td className="p-3.5 text-center font-bold text-emerald-400">
                             <span className="bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full text-xs">
@@ -1152,7 +1164,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* VISTA 4: DASHBOARD Y MÉTRICAS */}
         {activeSection === 'metrics' && (
           <div className="bg-[#1e293b] p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-700 space-y-6">
             <div className="flex justify-between items-center border-b border-slate-700 pb-3">
@@ -1198,7 +1209,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* VISTA 5: HISTORIAL DE PAGOS Y FACTURACIÓN */}
         {activeSection === 'billing' && (
           <div className="bg-[#1e293b] p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-700 space-y-4">
             <div className="flex justify-between items-center border-b border-slate-700 pb-3">
@@ -1263,7 +1273,6 @@ export default function AdminDashboard() {
 
       </div>
 
-      {/* --- MODAL DE GESTIÓN Y EDICIÓN --- */}
       {selectedBusiness && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-[#1e293b] p-5 sm:p-6 rounded-2xl border border-emerald-500 w-full max-w-lg text-white shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
@@ -1275,7 +1284,6 @@ export default function AdminDashboard() {
             <div className="space-y-3 text-xs sm:text-sm">
               <p className="text-slate-300"><strong className="text-white">Total Sucursales:</strong> <span className="text-emerald-400 font-bold">{selectedBusiness.branches_count ?? 0}</span></p>
 
-              {/* TOKEN ACTUAL */}
               <div className="bg-[#0f172a] p-3 rounded-xl border border-slate-700 flex justify-between items-center">
                 <div>
                   <span className="text-slate-400 text-xs block">Token de Activación Actual:</span>
@@ -1290,7 +1298,6 @@ export default function AdminDashboard() {
                 </button>
               </div>
 
-              {/* INFORMACIÓN GENERAL Y CREDENCIALES */}
               <div className="border-t border-slate-700 pt-3 space-y-2">
                 <h4 className="text-emerald-400 font-bold text-xs uppercase tracking-wider">Datos, Credenciales y Contacto</h4>
                 <div>
@@ -1303,7 +1310,6 @@ export default function AdminDashboard() {
                   />
                 </div>
 
-                {/* Selector de Categoría en Edición */}
                 <div>
                   <label className="block text-slate-400 mb-1 font-semibold text-xs">Categoría Comercial</label>
                   <select 
@@ -1369,7 +1375,6 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Toggle de Marketplace en Edición */}
                 <div className="bg-[#0f172a] border border-slate-600 p-3 rounded-xl flex items-center justify-between mt-2">
                   <div>
                     <span className="block font-bold text-xs text-white">🌐 Promocionar en el Marketplace</span>
@@ -1388,7 +1393,6 @@ export default function AdminDashboard() {
 
               </div>
 
-              {/* PLAN Y FACTURACIÓN */}
               <div className="border-t border-slate-700 pt-3 space-y-3">
                 <h4 className="text-emerald-400 font-bold text-xs uppercase tracking-wider">Control de Suscripción y Pagos</h4>
                 

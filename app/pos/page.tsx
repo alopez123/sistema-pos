@@ -76,6 +76,12 @@ export default function PosPage() {
     setTimeout(() => { setToast(null) }, 4500)
   }
 
+  // ESTADOS PARA AGREGAR / REABASTECER PRODUCTO CON PIN DE DUEÑO, PRECIO UNITARIO Y PRECIO DE VENTA
+  const [unitCostPrice, setUnitCostPrice] = useState('')
+  const [newPrice, setNewPrice] = useState('')
+  const [newStockInput, setNewStockInput] = useState('10')
+  const [ownerPin, setOwnerPin] = useState('')
+
   // EFECTO PARA CARGAR COTIZACIONES SELECCIONADAS DESDE EL MÓDULO DE COTIZACIONES
   useEffect(() => {
     const loadedQuoteStr = localStorage.getItem('pos_loaded_quote');
@@ -150,13 +156,10 @@ export default function PosPage() {
 
   const [showLowStockModal, setShowLowStockModal] = useState(false)
 
-  const [activeTab, setActiveTab] = useState<'ticket' | 'addProduct' | 'otherStores' | 'transfers' | 'movements' | 'salesReport' | 'customers' | 'customerLimits' | 'customOrders' | 'tables'>('ticket')
+  const [activeTab, setActiveTab] = useState<'ticket' | 'addProduct' | 'otherStores' | 'movements' | 'salesReport' | 'customers' | 'customerLimits' | 'customOrders' | 'tables'>('ticket')
   const [allStoreProducts, setAllStoreProducts] = useState<any[]>([])
 
   const [businessIdState, setBusinessIdState] = useState<string>('')
-  const [transfersList, setTransfersList] = useState<any[]>([])
-  const [transferProduct, setTransferProduct] = useState<any>(null)
-  const [transferQuantity, setTransferQuantity] = useState<any>(1)
   const [branchMovements, setBranchMovements] = useState<any[]>([])
   const [salesReport, setSalesReport] = useState<any[]>([])
   const [customersList, setCustomersList] = useState<any[]>([])
@@ -212,14 +215,13 @@ export default function PosPage() {
         if (staff.branch_id) {
           setIsStaff(true)
           setSelectedBranch(staff.branch_id)
-          setBranches([{ id: staff.branch_id, name: staff.branch_name || 'Sucursal Asignada' }])
           loadProducts(staff.branch_id)
           
           if (resolvedBizId) {
             setBusinessIdState(resolvedBizId)
             loadCategories(resolvedBizId)
+            loadBranches(resolvedBizId)
             loadOtherStoresProducts(resolvedBizId, staff.branch_id)
-            loadTransfers(resolvedBizId, staff.branch_id)
             loadMovements(staff.branch_id)
             loadSalesReport(resolvedBizId, staff.branch_id)
             loadCustomers(resolvedBizId)
@@ -247,7 +249,7 @@ export default function PosPage() {
             fetchLogoUsingRpc()
           }
           loadCategories(businessId)
-          loadBranches(businessId)
+          loadBranches(businessId, true)
           loadCustomers(businessId)
           return
         }
@@ -275,7 +277,6 @@ export default function PosPage() {
   const refreshAllData = (branchId: string, bizId: string) => {
     loadProducts(branchId)
     loadMovements(branchId)
-    loadTransfers(bizId, branchId)
     loadOtherStoresProducts(bizId, branchId)
     loadSalesReport(bizId, branchId)
     loadCustomers(bizId)
@@ -510,7 +511,7 @@ export default function PosPage() {
     }
   }
 
-  async function loadBranches(businessId: string) {
+  async function loadBranches(businessId: string, isOwnerLogin: boolean = false) {
     const { data, error } = await supabase.rpc('get_branches_by_business', {
       p_business_id: businessId
     })
@@ -522,8 +523,10 @@ export default function PosPage() {
 
     if (data && data.length > 0) {
       setBranches(data)
-      setSelectedBranch(data[0].id)
-      refreshAllData(data[0].id, businessId)
+      if (isOwnerLogin && !selectedBranch) {
+        setSelectedBranch(data[0].id)
+        refreshAllData(data[0].id, businessId)
+      }
     }
   }
 
@@ -546,17 +549,6 @@ export default function PosPage() {
     })
     if (!error && data) {
       setAllStoreProducts(data)
-    }
-  }
-
-  async function loadTransfers(businessId: string, currentBranchId: string) {
-    const { data, error } = await supabase.rpc('get_branch_transfers', {
-      p_business_id: businessId,
-      p_branch_id: currentBranchId
-    });
-
-    if (!error && data) {
-      setTransfersList(data);
     }
   }
 
@@ -678,13 +670,22 @@ export default function PosPage() {
   const totalCart = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0)
 
   const printTicketPdf = (orderNumber: string, itemsList: any[], totalAmt: number) => {
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    const printWindow = window.open('', '_blank', 'width=320,height=600');
     if (!printWindow) return;
+
+    const currentBranchName = branches.find(b => b.id === selectedBranch)?.name || 'Sucursal';
+    const clientName = customerSearchQuery.trim() || expressName.trim() || 'Consumidor Final';
+    const clientNit = expressNit.trim() || (customerFound?.nit) || 'CF';
+    const tableNameInfo = inputTableName.trim() || editingTableName || '';
 
     const itemsHtml = itemsList.map(i => `
       <tr>
-        <td style="padding: 4px 0; border-bottom: 1px dashed #ddd;">${i.quantity}x ${i.name} ${i.notes ? `<br><small>(${i.notes})</small>` : ''}</td>
-        <td style="padding: 4px 0; border-bottom: 1px dashed #ddd; text-align: right;">Q ${(i.price * i.quantity).toFixed(2)}</td>
+        <td style="padding: 3px 0; border-bottom: 1px dotted #ccc; font-size: 11px;">
+          ${i.quantity}x ${i.name} ${i.notes ? `<br><span style="font-size: 9px; color: #555;">(${i.notes})</span>` : ''}
+        </td>
+        <td style="padding: 3px 0; border-bottom: 1px dotted #ccc; text-align: right; font-size: 11px; vertical-align: top;">
+          Q ${(i.price * i.quantity).toFixed(2)}
+        </td>
       </tr>
     `).join('');
 
@@ -693,25 +694,73 @@ export default function PosPage() {
         <head>
           <title>Ticket #${orderNumber}</title>
           <style>
-            body { font-family: monospace; font-size: 12px; width: 100%; margin: 0; padding: 10px; }
-            h2, p { text-align: center; margin: 5px 0; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            .total { font-size: 14px; font-weight: bold; text-align: right; margin-top: 10px; }
+            @page {
+              margin: 0; /* Elimina los encabezados y pies de página automáticos del navegador */
+            }
+            body { 
+              font-family: 'Courier New', Courier, monospace; 
+              font-size: 11px; 
+              width: 280px; 
+              margin: 0 auto; 
+              padding: 10px; 
+              color: #000;
+            }
+            .center { text-align: center; }
+            .bold { font-weight: bold; }
+            .line { border-top: 1px dashed #000; margin: 6px 0; }
+            table { width: 100%; border-collapse: collapse; }
+            .total-section { font-size: 13px; font-weight: bold; text-align: right; margin-top: 5px; }
+            .footer { text-align: center; font-size: 9px; margin-top: 10px; }
           </style>
         </head>
         <body>
-          <h2>COMPROBANTE DE ORDEN</h2>
-          <p>Orden / Turno: <strong>#${orderNumber}</strong></p>
-          <p>Fecha: ${new Date().toLocaleString()}</p>
-          <hr style="border: dashed 1px #000;" />
+          <div class="center">
+            <div class="bold" style="font-size: 14px;">COMPROBANTE DE ORDEN</div>
+            <div style="font-size: 12px; margin-top: 2px;">${currentBranchName}</div>
+          </div>
+          
+          <div class="line"></div>
+          
+          <div>
+            <div><strong>Orden / Turno:</strong> #${orderNumber}</div>
+            ${tableNameInfo ? `<div><strong>Área / Mesa:</strong> ${tableNameInfo}</div>` : ''}
+            <div><strong>Fecha:</strong> ${new Date().toLocaleString()}</div>
+            <div><strong>Cliente:</strong> ${clientName}</div>
+            <div><strong>NIT:</strong> ${clientNit}</div>
+          </div>
+
+          <div class="line"></div>
+
           <table>
-            ${itemsHtml}
+            <thead>
+              <tr>
+                <th style="text-align: left; font-size: 10px; border-bottom: 1px solid #000; padding-bottom: 2px;">CANT / DESCRIPCIÓN</th>
+                <th style="text-align: right; font-size: 10px; border-bottom: 1px solid #000; padding-bottom: 2px;">SUBTOTAL</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
           </table>
-          <hr style="border: dashed 1px #000;" />
-          <p class="total">TOTAL: Q ${totalAmt.toFixed(2)}</p>
-          <p style="margin-top: 20px; font-size: 10px;">¡Gracias por su preferencia!</p>
+
+          <div class="line"></div>
+
+          <div class="total-section">
+            TOTAL: Q ${totalAmt.toFixed(2)}
+          </div>
+
+          <div class="line"></div>
+
+          <div class="footer">
+            ¡Gracias por su preferencia!<br/>
+            Conserve este ticket para retirar su pedido
+          </div>
+
           <script>
-            window.onload = function() { window.print(); window.close(); }
+            window.onload = function() { 
+              window.print(); 
+              setTimeout(() => { window.close(); }, 500);
+            }
           </script>
         </body>
       </html>
@@ -1081,8 +1130,25 @@ export default function PosPage() {
 
   const handleAddOrRestockProduct = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const OWNER_SECRET_PIN = '1234'; 
+    if (ownerPin !== OWNER_SECRET_PIN) {
+      showToast("⚠️ Código PIN de autorización del dueño incorrecto.", 'error')
+      return
+    }
+
     if (selectedExistingProduct === 'NEW') {
       if (!newName.trim() || !selectedBranch) return showToast("Completa el nombre del producto.", 'error')
+      
+      const parsedCost = parseFloat(unitCostPrice)
+      if (isNaN(parsedCost) || parsedCost < 0) return showToast("Ingresa un precio unitario (costo) válido.", 'error')
+
+      const parsedPrice = parseFloat(newPrice)
+      if (isNaN(parsedPrice) || parsedPrice < 0) return showToast("Ingresa un precio de venta válido.", 'error')
+
+      const parsedStock = parseInt(newStockInput, 10)
+      if (isNaN(parsedStock) || parsedStock < 0) return showToast("Ingresa un stock inicial válido.", 'error')
+
       setUploadingImage(true)
       let imageUrl = null
       try {
@@ -1095,18 +1161,21 @@ export default function PosPage() {
             imageUrl = data.publicUrl
           }
         }
+
         const { error } = await supabase.rpc('add_product_safe', {
           p_name: newName.trim(), 
-          p_price: 0, 
-          p_stock: 9999,
+          p_price: parsedPrice, 
+          p_stock: parsedStock,
           p_branch_id: selectedBranch, 
           p_image_url: imageUrl, 
           p_category_id: newCategoryId || null
         })
-        if (error) showToast("Error: " + error.message, 'error')
-        else {
-          showToast("¡Producto personalizado creado con éxito!", 'success')
-          setNewName(''); setNewCategoryId(''); setImageFile(null); setImagePreview(null); setSelectedExistingProduct('');
+
+        if (error) {
+          showToast("Error al crear producto: " + error.message, 'error')
+        } else {
+          showToast("¡Producto creado y agregado con éxito!", 'success')
+          setNewName(''); setNewCategoryId(''); setUnitCostPrice(''); setNewPrice(''); setNewStockInput('10'); setOwnerPin(''); setImageFile(null); setImagePreview(null); setSelectedExistingProduct('');
           refreshAllData(selectedBranch, businessIdState);
           setActiveTab('ticket')
         }
@@ -1119,33 +1188,35 @@ export default function PosPage() {
       if (error) showToast("Error: " + error.message, 'error')
       else {
         showToast("¡Stock actualizado con éxito!", 'success')
-        setSelectedExistingProduct(''); setAddMoreQuantity(1);
+        setSelectedExistingProduct(''); setAddMoreQuantity(1); setOwnerPin('');
         refreshAllData(selectedBranch, businessIdState);
         setActiveTab('ticket')
       }
     }
   }
 
-  const handleRequestTransfer = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const parsedQty = Number(transferQuantity)
-    if (!transferProduct || parsedQty <= 0 || parsedQty > transferProduct.stock) return showToast("Cantidad inválida o supera el stock.", 'error')
-    const { error } = await supabase.from('inventory_transfers').insert({
-      business_id: businessIdState, product_id: transferProduct.id || transferProduct.product_id,
-      source_branch_id: transferProduct.branch_id, destination_branch_id: selectedBranch, quantity: parsedQty, status: 'pendiente'
-    })
-    if (error) showToast("Error: " + error.message, 'error')
-    else {
-      showToast("¡Solicitud enviada con éxito!", 'success')
-      setTransferProduct(null); setTransferQuantity(1); loadTransfers(businessIdState, selectedBranch)
+  const handleCreateTransferRequest = async (product: any) => {
+    const qty = 1;
+    if (qty > product.stock) {
+      showToast(`⚠️ La cantidad solicitada supera el stock disponible en origen (${product.stock}).`, 'error');
+      return;
     }
-  }
 
-  const handleCompleteTransfer = async (transferId: string) => {
-    const { error } = await supabase.rpc('complete_transfer', { transfer_id: transferId, current_biz_id: businessIdState })
-    if (error) showToast("Error: " + error.message, 'error')
-    else { showToast("¡Traslado completado!", 'success'); refreshAllData(selectedBranch, businessIdState); }
-  }
+    const { error } = await supabase.from('inventory_transfers').insert({
+      business_id: businessIdState,
+      product_id: product.id,
+      source_branch_id: product.branch_id,
+      destination_branch_id: selectedBranch,
+      quantity: qty,
+      status: 'pendiente'
+    });
+    if (!error) {
+      showToast('¡Solicitud creada con éxito!', 'success');
+      refreshAllData(selectedBranch, businessIdState);
+    } else {
+      showToast('Error al crear solicitud: ' + error.message, 'error');
+    }
+  };
 
   const compressImage = (file: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
@@ -1171,7 +1242,8 @@ export default function PosPage() {
   }
 
   const filteredProducts = products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) && (selectedCategory ? p.category_id === selectedCategory : true))
-  const filteredOtherStores = allStoreProducts.filter(p => p && p.branch_id !== selectedBranch && p.name.toLowerCase().includes(otherStoresSearch.toLowerCase()) && (selectedOtherStoreCategory ? p.category_id === selectedOtherStoreCategory : true))
+  const filteredOtherStores = allStoreProducts.filter(p => p && p.branch_id !== selectedBranch && p.name.toLowerCase().includes(otherStoresSearch.toLowerCase()))
+
   const lowStockItems = products.filter(p => p.stock <= 5 && !p.is_custom)
 
   const themeBg = isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-slate-100 text-slate-900'
@@ -1213,7 +1285,6 @@ export default function PosPage() {
                       ⚙️ Opciones Operativas
                     </p>
                     
-                    {/* ENLACE MODIFICADO PARA REDIRIGIR A LA NUEVA PÁGINA INDEPENDIENTE DE PEDIDOS ONLINE */}
                     <button 
                       onClick={() => { 
                         setShowOpsDropdown(false); 
@@ -1233,7 +1304,7 @@ export default function PosPage() {
                     <button onClick={() => { setShowOpsDropdown(false); setActiveTab('otherStores'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
                       🏬 Inventario en Red
                     </button>
-                    <button onClick={() => { setShowOpsDropdown(false); setActiveTab('transfers'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
+                    <button onClick={() => { setShowOpsDropdown(false); router.push('/traslados'); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
                       🔄 Módulo de Traslados
                     </button>
                     <button onClick={() => { setShowOpsDropdown(false); setActiveTab('movements'); loadMovements(selectedBranch); }} className="w-full text-left px-3 py-2 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors">
@@ -1341,9 +1412,8 @@ export default function PosPage() {
             <div className="flex justify-between items-center border-b pb-3 border-opacity-50">
               <h3 className="text-base font-bold text-emerald-500 uppercase tracking-wide">
                 {activeTab === 'tables' && '🍽️ Control de Mesas y Órdenes Activas'}
-                {activeTab === 'addProduct' && '➕ Crear Producto Personalizado / Reabastecer'}
+                {activeTab === 'addProduct' && '➕ Agregar / Crear Producto con PIN de Dueño'}
                 {activeTab === 'otherStores' && '🏬 Inventario en Red (Otras Sucursales)'}
-                {activeTab === 'transfers' && '🔄 Módulo de Traslados'}
                 {activeTab === 'movements' && '📊 Movimientos y Cuadre Diario'}
                 {activeTab === 'salesReport' && '💰 Reporte de Ventas de Hoy'}
                 {activeTab === 'customOrders' && '🎨 Pedidos Personalizados (Producción / Bodega)'}
@@ -1409,14 +1479,14 @@ export default function PosPage() {
                   <label className="block mb-1 opacity-90">Seleccionar Producto o Crear Nuevo</label>
                   <select value={selectedExistingProduct} onChange={e => setSelectedExistingProduct(e.target.value)} className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`}>
                     <option value="">-- Selecciona una opción --</option>
-                    <option value="NEW">✨ [+ Crear Nuevo Producto Personalizado]</option>
+                    <option value="NEW">✨ [+ Crear Nuevo Plato / Producto]</option>
                     {products.map(p => <option key={p.id} value={p.id}>📦 {p.name} (Stock actual: {p.stock})</option>)}
                   </select>
                 </div>
 
                 {selectedExistingProduct && selectedExistingProduct !== 'NEW' && (
                   <div>
-                    <label className="block mb-1 opacity-90">Cantidad a Agregar (Ingreso)</label>
+                    <label className="block mb-1 opacity-90">Cantidad a Agregar (Ingreso de Stock)</label>
                     <input type="number" min="1" value={addMoreQuantity} onChange={e => setAddMoreQuantity(Number(e.target.value))} className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`} required />
                   </div>
                 )}
@@ -1424,8 +1494,8 @@ export default function PosPage() {
                 {selectedExistingProduct === 'NEW' && (
                   <div className="space-y-3 border-t pt-3 mt-2 border-opacity-50">
                     <div>
-                      <label className="block mb-1 opacity-90">Nombre del Producto Personalizado *</label>
-                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ej. Arreglo Especial con Rosas" className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`} required />
+                      <label className="block mb-1 opacity-90">Nombre del Plato / Producto *</label>
+                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ej. Almuerzo Especial" className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`} required />
                     </div>
                     
                     <div>
@@ -1473,16 +1543,23 @@ export default function PosPage() {
                       )}
                     </div>
 
-                    <div>
-                      <label className="block mb-1 opacity-70">Precio (Q)</label>
-                      <input type="text" value="A cotizar en el ticket" disabled className={`w-full border p-2.5 rounded-xl text-sm opacity-60 cursor-not-allowed ${inputBg}`} />
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block mb-1 opacity-90 text-xs">Precio Unitario / Costo (Q) *</label>
+                        <input type="number" step="0.01" value={unitCostPrice} onChange={e => setUnitCostPrice(e.target.value)} placeholder="0.00" className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`} required />
+                      </div>
+                      <div>
+                        <label className="block mb-1 opacity-90 text-xs">Precio de Venta (Q) *</label>
+                        <input type="number" step="0.01" value={newPrice} onChange={e => setNewPrice(e.target.value)} placeholder="0.00" className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`} required />
+                      </div>
+                      <div>
+                        <label className="block mb-1 opacity-90 text-xs">Stock Inicial *</label>
+                        <input type="number" min="0" value={newStockInput} onChange={e => setNewStockInput(e.target.value)} placeholder="10" className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`} required />
+                      </div>
                     </div>
+
                     <div>
-                      <label className="block mb-1 opacity-70">Stock Inicial</label>
-                      <input type="text" value="N/A" disabled className={`w-full border p-2.5 rounded-xl text-sm font-bold text-emerald-500 opacity-85 cursor-not-allowed ${inputBg}`} />
-                    </div>
-                    <div>
-                      <label className="block mb-1 opacity-90">Imagen del Producto</label>
+                      <label className="block mb-1 opacity-90">Imagen del Plato / Producto</label>
                       <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if(f){setImageFile(f); setImagePreview(URL.createObjectURL(f));} }} className={`w-full border p-2 rounded-xl text-xs ${inputBg}`} />
                       {imagePreview && <img src={imagePreview} className="mt-2 w-full h-24 rounded object-cover border" alt="preview" />}
                     </div>
@@ -1490,11 +1567,25 @@ export default function PosPage() {
                 )}
 
                 {selectedExistingProduct && (
-                  <div className="flex gap-2 pt-2">
-                    <button type="submit" disabled={uploadingImage} className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-xl font-bold text-white text-sm">
-                      {uploadingImage ? 'Guardando...' : 'Guardar y Registrar'}
-                    </button>
-                    <button type="button" onClick={() => setSelectedExistingProduct('')} className="bg-slate-600 px-3 py-2.5 rounded-xl text-sm text-white">Cancelar</button>
+                  <div className="space-y-3 pt-3 border-t border-opacity-50">
+                    <div>
+                      <label className="block mb-1 text-amber-400 font-bold text-xs">🔒 Código PIN de Autorización del Dueño (PIN por defecto: 1234) *</label>
+                      <input 
+                        type="password" 
+                        value={ownerPin} 
+                        onChange={e => setOwnerPin(e.target.value)} 
+                        placeholder="Ingresa PIN del dueño (1234)..." 
+                        className={`w-full border p-2.5 rounded-xl text-sm ${inputBg}`} 
+                        required 
+                      />
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      <button type="submit" disabled={uploadingImage} className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-xl font-bold text-white text-sm shadow">
+                        {uploadingImage ? 'Guardando...' : 'Autorizar y Registrar'}
+                      </button>
+                      <button type="button" onClick={() => setSelectedExistingProduct('')} className="bg-slate-600 px-3 py-2.5 rounded-xl text-sm text-white">Cancelar</button>
+                    </div>
                   </div>
                 )}
               </form>
@@ -1513,31 +1604,8 @@ export default function PosPage() {
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <span className="font-bold text-emerald-500 text-sm">Q {p.price}</span>
-                        <button onClick={() => { setTransferProduct(p); setActiveTab('transfers'); }} className="bg-blue-600 text-xs px-2.5 py-1 rounded-lg text-white font-semibold">Solicitar</button>
+                        <button onClick={() => { handleCreateTransferRequest(p); }} className="bg-blue-600 text-xs px-2.5 py-1 rounded-lg text-white font-semibold">Solicitar</button>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'transfers' && (
-              <div className="space-y-3 text-sm">
-                {transferProduct && (
-                  <form onSubmit={handleRequestTransfer} className={`p-3 rounded-xl border border-emerald-500/50 space-y-2 ${subPanelBg}`}>
-                    <p className="font-bold text-sm">Solicitar: {transferProduct.name}</p>
-                    <input type="number" min="1" value={transferQuantity} onChange={e => setTransferQuantity(Number(e.target.value))} className={`w-full border p-2 rounded-xl text-sm ${inputBg}`} required />
-                    <button type="submit" className="w-full bg-emerald-600 text-white py-2 rounded-xl font-bold text-sm">Enviar Solicitud</button>
-                  </form>
-                )}
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {transfersList.map(t => (
-                    <div key={t.transfer_id} className={`p-3 rounded-xl border text-xs space-y-1 ${subPanelBg}`}>
-                      <div className="flex justify-between font-bold"><span className="text-emerald-500">{t.product_name}</span><span>{t.status}</span></div>
-                      <p>De: {t.source_branch_name} → Para: {t.destination_branch_name} ({t.quantity} unids)</p>
-                      {t.status === 'pendiente' && t.source_branch_id === selectedBranch && (
-                        <button onClick={() => handleCompleteTransfer(t.transfer_id)} className="w-full bg-blue-600 text-white py-1 rounded-lg font-semibold mt-1">Aceptar y Enviar</button>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -1984,7 +2052,7 @@ export default function PosPage() {
                         onClick={() => setIsCreatingOrEditingCustomer(true)} 
                         className="text-[10px] text-amber-400 underline font-semibold mt-1 block hover:text-amber-300"
                       >
-                        ✏️ Actualizar datos faltantes
+                        ✏️️ Actualizar datos faltantes
                       </button>
                     </div>
                   )}

@@ -83,7 +83,6 @@ export default function LoginPage() {
           return
         }
 
-       // --- DETECCIÓN SEGURA DE GIMNASIO SIN LLAMADAS EXTRA A SUPABASE ---
         let isGym = false;
         const bizName = userAccount.name ? userAccount.name.toLowerCase() : '';
         const bizEmail = userAccount.owner_email ? userAccount.owner_email.toLowerCase() : '';
@@ -91,12 +90,6 @@ export default function LoginPage() {
         if (bizName.includes('gym') || bizName.includes('gimnacio') || bizName.includes('gimnacios') || bizEmail.includes('gym')) {
           isGym = true;
         }
-
-        localStorage.removeItem('currentStaff')
-        localStorage.setItem('currentBusiness', JSON.stringify({
-          ...userAccount,
-          is_gym: isGym
-        }))
 
         localStorage.removeItem('currentStaff')
         localStorage.setItem('currentBusiness', JSON.stringify({
@@ -150,30 +143,68 @@ export default function LoginPage() {
         return
       }
 
+      // --- RECUPERAR DATOS Y LOGO DIRECTAMENTE DE LA TABLA businesses ---
       let isGymStaff = false;
-      if (bizData.category_business_id) {
-        const { data: catData } = await supabase
-          .from('categories_bussiness')
-          .select('name')
-          .eq('id', bizData.category_business_id)
-          .single();
-        
-        const catName = catData?.name ? catData.name.toLowerCase() : '';
-        const bizName = bizData.name ? bizData.name.toLowerCase() : '';
-        
-        if (catName.includes('gimnacio') || catName.includes('gym') || bizName.includes('gym') || bizName.includes('gimnacio')) {
-          isGymStaff = true;
+      let businessLogoUrl = null;
+      try {
+        // Intentamos buscar primero por ID y si no, por el correo del dueño asociado
+        let directBiz = null;
+        const { data: bizById } = await supabase
+          .from('businesses')
+          .select('*')
+          .eq('id', targetBizId)
+          .maybeSingle();
+
+        if (bizById) {
+          directBiz = bizById;
+        } else if (bizData.owner_email) {
+          const { data: bizByEmail } = await supabase
+            .from('businesses')
+            .select('*')
+            .eq('owner_email', bizData.owner_email)
+            .maybeSingle();
+          directBiz = bizByEmail;
         }
+
+        if (directBiz) {
+          businessLogoUrl = directBiz.logo_url || directBiz.logo || directBiz.image || directBiz.avatar || null;
+          
+          if (directBiz.is_gym === true) {
+            isGymStaff = true;
+          } else {
+            const bName = directBiz.name ? directBiz.name.toLowerCase() : '';
+            if (bName.includes('gym') || bName.includes('gimnacio') || bName.includes('gimnacios')) {
+              isGymStaff = true;
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error al consultar negocio en tabla businesses:", err);
       }
 
       const userRole = (staff.role || 'vendedor').trim().toLowerCase();
+      
+      if (userRole === 'control_accesos') {
+        isGymStaff = true;
+      }
+
       const { data: branchData } = await supabase.from('branches').select('name').eq('id', staff.branch_id).single()
 
       localStorage.removeItem('currentBusiness')
+      localStorage.setItem('currentBusiness', JSON.stringify({
+        id: targetBizId, name: bizData.name, logo_url: businessLogoUrl, logo: businessLogoUrl, is_gym: isGymStaff
+      }))
+
       localStorage.setItem('currentStaff', JSON.stringify({
         id: staff.id, name: staff.name, username: staff.username || staff.email,
-        branch_id: staff.branch_id, business_id: targetBizId, branch_name: branchData?.name || 'Sucursal', role: userRole, is_gym: isGymStaff
+        branch_id: staff.branch_id, business_id: targetBizId, branch_name: branchData?.name || 'Sucursal', role: userRole, is_gym: isGymStaff, logo_url: businessLogoUrl, logo: businessLogoUrl, business_logo: businessLogoUrl
       }))
+
+      // --- REDIRECCIÓN PRIORITARIA Y DIRECTA PARA CONTROL DE ACCESOS ---
+      if (userRole === 'control_accesos') {
+        router.push('/gymcheckinview')
+        return
+      }
 
       if (isGymStaff) {
         router.push('/dashboard')
