@@ -310,18 +310,19 @@ export default function AdminDashboard() {
   }
   
   async function updateBusinessStatus(businessId: string, newStatus: string) {
-    const { error } = await supabase.rpc('update_business_status_safe', {
+    const { error: rpcError } = await supabase.rpc('update_business_status_safe', {
       p_business_id: businessId,
       p_status: newStatus
     })
 
-    if (error) {
-      alert("Error al actualizar estado: " + error.message)
-    } else {
-      alert(`¡Suscripción actualizada a ${newStatus} con éxito!`)
-      setSelectedBusiness(null)
-      fetchBusinesses()
+    if (rpcError) {
+      alert("Error al actualizar estado en la base de datos: " + rpcError.message)
+      return
     }
+
+    alert(`¡Negocio actualizado a estado "${newStatus}" con éxito!`)
+    setSelectedBusiness((prev: any) => prev ? { ...prev, status: newStatus } : null)
+    fetchBusinesses()
   }
 
   async function handleSaveAndActivate() {
@@ -351,23 +352,21 @@ export default function AdminDashboard() {
 
       const formattedEditPhone = editPhone ? `502${editPhone.replace(/\D/g, '').slice(-8)}` : null
 
-      const { error: updateError } = await supabase
-        .from('businesses')
-        .update({
-          name: editName || selectedBusiness.name,
-          subscription_plan: editPlan || selectedBusiness.subscription_plan,
-          amount: parseFloat(editAmount !== '' ? editAmount : selectedBusiness.amount) || 0,
-          payment_day: editPaymentDay,
-          billing_cycle: editBillingCycle,
-          start_date: editStartDate || null,
-          end_date: editEndDate || null,
-          payment_status: editPaymentStatus,
-          phone: formattedEditPhone,
-          logo_url: updatedLogoUrl
-        })
-        .eq('id', selectedBusiness.id)
+      const { error: rpcError } = await supabase.rpc('update_business_full_details_safe', {
+        p_business_id: selectedBusiness.id,
+        p_name: editName || selectedBusiness.name,
+        p_subscription_plan: editPlan || selectedBusiness.subscription_plan,
+        p_amount: parseFloat(editAmount !== '' ? editAmount : selectedBusiness.amount) || 0,
+        p_payment_day: editPaymentDay,
+        p_billing_cycle: editBillingCycle,
+        p_start_date: editStartDate || null,
+        p_end_date: editEndDate || null,
+        p_payment_status: editPaymentStatus,
+        p_logo_url: updatedLogoUrl,
+        p_phone: formattedEditPhone
+      })
 
-      if (updateError) throw updateError
+      if (rpcError) throw rpcError
 
       const { error: marketError } = await supabase.rpc('set_business_marketplace_info', {
         p_business_id: selectedBusiness.id,
@@ -386,7 +385,7 @@ export default function AdminDashboard() {
         if (passError) throw passError
       }
 
-      alert("¡Suscripción, detalles, categoría y marketplace actualizados con éxito!")
+      alert("¡Suscripción, estado de pago y detalles actualizados con éxito!")
       setSelectedBusiness(null)
       setEditLogoFile(null)
       setEditPassword('')
@@ -1458,12 +1457,22 @@ export default function AdminDashboard() {
               >
                 {uploadingLogo ? 'Guardando...' : 'Guardar y Actualizar'}
               </button>
-              <button 
-                onClick={() => updateBusinessStatus(selectedBusiness.id, 'suspendido')}
-                className="bg-amber-600 hover:bg-amber-500 px-4 py-3 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-colors shadow"
-              >
-                Suspender
-              </button>
+
+              {selectedBusiness.status === 'suspendido' ? (
+                <button 
+                  onClick={() => updateBusinessStatus(selectedBusiness.id, 'activo')}
+                  className="bg-emerald-600 hover:bg-emerald-500 px-4 py-3 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-colors shadow"
+                >
+                  🟢 Activar Negocio
+                </button>
+              ) : (
+                <button 
+                  onClick={() => updateBusinessStatus(selectedBusiness.id, 'suspendido')}
+                  className="bg-amber-600 hover:bg-amber-500 px-4 py-3 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-colors shadow"
+                >
+                  🔒 Suspender
+                </button>
+              )}
             </div>
 
             <button 
